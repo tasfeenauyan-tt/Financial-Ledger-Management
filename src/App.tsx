@@ -1,4 +1,5 @@
-import { useState, useMemo, useEffect } from 'react';
+import * as React from 'react';
+import { useState, useMemo, useEffect, Component, ErrorInfo, ReactNode } from 'react';
 import { LedgerEntry, LedgerTotals, Account, TransactionItem, TransactionSubCategory } from './types';
 import SummaryCards from './components/SummaryCards';
 import LedgerTable from './components/LedgerTable';
@@ -11,10 +12,23 @@ import SalaryReport from './components/SalaryReport';
 import ProjectRevenue from './components/ProjectRevenue';
 import AccountsPool from './components/AccountsPool';
 import Login from './components/Login';
-import { auth, logout, User } from './firebase';
+import { auth, logout, User, db } from './firebase';
 import { onAuthStateChanged } from 'firebase/auth';
+import { handleFirestoreError, OperationType } from './lib/firestore-errors';
+import { 
+  collection, 
+  onSnapshot, 
+  doc, 
+  setDoc, 
+  deleteDoc, 
+  query, 
+  orderBy, 
+  getDocs,
+  writeBatch,
+  getDocFromServer
+} from 'firebase/firestore';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend, LineChart, Line, XAxis, YAxis, CartesianGrid, BarChart, Bar } from 'recharts';
-import { Building2, LayoutDashboard, History, Settings, LogOut, Search, Filter, Download, Printer, Trash2, RotateCcw, FileText, Calendar, Receipt, Users, Database } from 'lucide-react';
+import { Building2, LayoutDashboard, History, Settings, LogOut, Search, Filter, Download, Printer, Trash2, RotateCcw, FileText, Calendar, Receipt, Users, Database, AlertCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
@@ -25,25 +39,10 @@ export default function App() {
   const [user, setUser] = useState<User | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
 
-  const [entries, setEntries] = useState<LedgerEntry[]>(() => {
-    const saved = localStorage.getItem('triloy_ledger_entries');
-    return saved ? JSON.parse(saved) : [];
-  });
-
-  const [accounts, setAccounts] = useState<Account[]>(() => {
-    const saved = localStorage.getItem('triloy_accounts_pool');
-    return saved ? JSON.parse(saved) : [];
-  });
-
-  const [transactionItems, setTransactionItems] = useState<TransactionItem[]>(() => {
-    const saved = localStorage.getItem('triloy_transaction_items_pool');
-    return saved ? JSON.parse(saved) : [];
-  });
-
-  const [transactionSubCategories, setTransactionSubCategories] = useState<TransactionSubCategory[]>(() => {
-    const saved = localStorage.getItem('triloy_transaction_sub_categories_pool');
-    return saved ? JSON.parse(saved) : [];
-  });
+  const [entries, setEntries] = useState<LedgerEntry[]>([]);
+  const [accounts, setAccounts] = useState<Account[]>([]);
+  const [transactionItems, setTransactionItems] = useState<TransactionItem[]>([]);
+  const [transactionSubCategories, setTransactionSubCategories] = useState<TransactionSubCategory[]>([]);
 
   const [activeTab, setActiveTab] = useState<'dashboard' | 'history' | 'balance-sheet' | 'monthly-balance-sheet' | 'expense' | 'salary' | 'accounts'>('history');
   const [searchTerm, setSearchTerm] = useState('');
@@ -57,21 +56,90 @@ export default function App() {
     return () => unsubscribe();
   }, []);
 
+  // Firestore Real-time Listeners
   useEffect(() => {
-    localStorage.setItem('triloy_ledger_entries', JSON.stringify(entries));
-  }, [entries]);
+    if (!user || user.email !== 'tasfeen.auyan@triloytech.com') return;
 
-  useEffect(() => {
-    localStorage.setItem('triloy_accounts_pool', JSON.stringify(accounts));
-  }, [accounts]);
+    // Test connection
+    const testConnection = async () => {
+      try {
+        await getDocFromServer(doc(db, 'test', 'connection'));
+      } catch (error) {
+        if (error instanceof Error && error.message.includes('the client is offline')) {
+          console.error("Please check your Firebase configuration.");
+        }
+      }
+    };
+    testConnection();
 
-  useEffect(() => {
-    localStorage.setItem('triloy_transaction_items_pool', JSON.stringify(transactionItems));
-  }, [transactionItems]);
+    const unsubEntries = onSnapshot(query(collection(db, 'entries'), orderBy('date', 'desc')), (snapshot) => {
+      const data = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as LedgerEntry));
+      setEntries(data);
+    }, (error) => handleFirestoreError(error, OperationType.GET, 'entries'));
 
+    const unsubAccounts = onSnapshot(collection(db, 'accounts'), (snapshot) => {
+      const data = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Account));
+      setAccounts(data);
+    }, (error) => handleFirestoreError(error, OperationType.GET, 'accounts'));
+
+    const unsubItems = onSnapshot(collection(db, 'transactionItems'), (snapshot) => {
+      const data = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as TransactionItem));
+      setTransactionItems(data);
+    }, (error) => handleFirestoreError(error, OperationType.GET, 'transactionItems'));
+
+    const unsubSubs = onSnapshot(collection(db, 'transactionSubCategories'), (snapshot) => {
+      const data = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as TransactionSubCategory));
+      setTransactionSubCategories(data);
+    }, (error) => handleFirestoreError(error, OperationType.GET, 'transactionSubCategories'));
+
+    return () => {
+      unsubEntries();
+      unsubAccounts();
+      unsubItems();
+      unsubSubs();
+    };
+  }, [user]);
+
+  // Migration from localStorage to Firestore
   useEffect(() => {
-    localStorage.setItem('triloy_transaction_sub_categories_pool', JSON.stringify(transactionSubCategories));
-  }, [transactionSubCategories]);
+    const migrate = async () => {
+      if (!user || user.email !== 'tasfeen.auyan@triloytech.com') return;
+      
+      const entriesSnapshot = await getDocs(collection(db, 'entries'));
+      if (!entriesSnapshot.empty) return; // Already migrated or has data
+
+      const localEntries = localStorage.getItem('triloy_ledger_entries');
+      const localAccounts = localStorage.getItem('triloy_accounts_pool');
+      const localItems = localStorage.getItem('triloy_transaction_items_pool');
+      const localSubs = localStorage.getItem('triloy_transaction_sub_categories_pool');
+
+      if (localEntries || localAccounts || localItems || localSubs) {
+        console.log('Starting migration to Firestore...');
+        const batch = writeBatch(db);
+
+        if (localEntries) {
+          const parsed = JSON.parse(localEntries) as LedgerEntry[];
+          parsed.forEach(e => batch.set(doc(db, 'entries', e.id), e));
+        }
+        if (localAccounts) {
+          const parsed = JSON.parse(localAccounts) as Account[];
+          parsed.forEach(a => batch.set(doc(db, 'accounts', a.id), a));
+        }
+        if (localItems) {
+          const parsed = JSON.parse(localItems) as TransactionItem[];
+          parsed.forEach(i => batch.set(doc(db, 'transactionItems', i.id), i));
+        }
+        if (localSubs) {
+          const parsed = JSON.parse(localSubs) as TransactionSubCategory[];
+          parsed.forEach(s => batch.set(doc(db, 'transactionSubCategories', s.id), s));
+        }
+
+        await batch.commit();
+        console.log('Migration complete.');
+      }
+    };
+    migrate();
+  }, [user]);
 
   const totals = useMemo<LedgerTotals>(() => {
     return entries.reduce(
@@ -211,27 +279,37 @@ export default function App() {
     setEntries(prev => [entry, ...prev]);
   };
 
-  const handleSaveEntry = (entry: LedgerEntry) => {
-    if (editingEntry) {
-      setEntries(prev => prev.map(e => e.id === entry.id ? entry : e));
+  const handleSaveEntry = async (entry: LedgerEntry) => {
+    try {
+      await setDoc(doc(db, 'entries', entry.id), entry);
       setEditingEntry(null);
-    } else {
-      handleAddEntry(entry);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.WRITE, `entries/${entry.id}`);
     }
   };
 
-  const handleImport = (newEntries: LedgerEntry[]) => {
-    setEntries(prev => [...newEntries, ...prev]);
+  const handleImport = async (newEntries: LedgerEntry[]) => {
+    try {
+      const batch = writeBatch(db);
+      newEntries.forEach(e => batch.set(doc(db, 'entries', e.id), e));
+      await batch.commit();
+    } catch (error) {
+      handleFirestoreError(error, OperationType.WRITE, 'entries (batch import)');
+    }
   };
 
   const handleDelete = (id: string) => {
     setEntryToDelete(id);
   };
 
-  const confirmDelete = () => {
+  const confirmDelete = async () => {
     if (entryToDelete) {
-      setEntries(prev => prev.filter(e => e.id !== entryToDelete));
-      setEntryToDelete(null);
+      try {
+        await deleteDoc(doc(db, 'entries', entryToDelete));
+        setEntryToDelete(null);
+      } catch (error) {
+        handleFirestoreError(error, OperationType.DELETE, `entries/${entryToDelete}`);
+      }
     }
   };
 
@@ -291,9 +369,15 @@ export default function App() {
   const [isClearModalOpen, setIsClearModalOpen] = useState(false);
   const [entryToDelete, setEntryToDelete] = useState<string | null>(null);
 
-  const handleClearAll = () => {
-    setEntries([]);
-    setIsClearModalOpen(false);
+  const handleClearAll = async () => {
+    try {
+      const batch = writeBatch(db);
+      entries.forEach(e => batch.delete(doc(db, 'entries', e.id)));
+      await batch.commit();
+      setIsClearModalOpen(false);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.DELETE, 'entries (clear all)');
+    }
   };
 
   if (authLoading) {
@@ -786,14 +870,50 @@ export default function App() {
               >
                 <AccountsPool 
                   accounts={accounts} 
-                  onAdd={(acc) => setAccounts(prev => [...prev, acc])}
-                  onDelete={(id) => setAccounts(prev => prev.filter(a => a.id !== id))}
+                  onAdd={async (acc) => {
+                    try {
+                      await setDoc(doc(db, 'accounts', acc.id), acc);
+                    } catch (error) {
+                      handleFirestoreError(error, OperationType.WRITE, `accounts/${acc.id}`);
+                    }
+                  }}
+                  onDelete={async (id) => {
+                    try {
+                      await deleteDoc(doc(db, 'accounts', id));
+                    } catch (error) {
+                      handleFirestoreError(error, OperationType.DELETE, `accounts/${id}`);
+                    }
+                  }}
                   transactionItems={transactionItems}
-                  onAddTransactionItem={(item) => setTransactionItems(prev => [...prev, item])}
-                  onDeleteTransactionItem={(id) => setTransactionItems(prev => prev.filter(i => i.id !== id))}
+                  onAddTransactionItem={async (item) => {
+                    try {
+                      await setDoc(doc(db, 'transactionItems', item.id), item);
+                    } catch (error) {
+                      handleFirestoreError(error, OperationType.WRITE, `transactionItems/${item.id}`);
+                    }
+                  }}
+                  onDeleteTransactionItem={async (id) => {
+                    try {
+                      await deleteDoc(doc(db, 'transactionItems', id));
+                    } catch (error) {
+                      handleFirestoreError(error, OperationType.DELETE, `transactionItems/${id}`);
+                    }
+                  }}
                   transactionSubCategories={transactionSubCategories}
-                  onAddTransactionSubCategory={(sub) => setTransactionSubCategories(prev => [...prev, sub])}
-                  onDeleteTransactionSubCategory={(id) => setTransactionSubCategories(prev => prev.filter(s => s.id !== id))}
+                  onAddTransactionSubCategory={async (sub) => {
+                    try {
+                      await setDoc(doc(db, 'transactionSubCategories', sub.id), sub);
+                    } catch (error) {
+                      handleFirestoreError(error, OperationType.WRITE, `transactionSubCategories/${sub.id}`);
+                    }
+                  }}
+                  onDeleteTransactionSubCategory={async (id) => {
+                    try {
+                      await deleteDoc(doc(db, 'transactionSubCategories', id));
+                    } catch (error) {
+                      handleFirestoreError(error, OperationType.DELETE, `transactionSubCategories/${id}`);
+                    }
+                  }}
                 />
               </motion.div>
             )}

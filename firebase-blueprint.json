@@ -1,0 +1,83 @@
+{
+  "entities": {
+    "Account": {
+      "title": "Account",
+      "description": "Financial account definition",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "category": { "type": "string", "enum": ["Asset", "Liability", "Equity"] }
+      },
+      "required": ["id", "name", "category"]
+    },
+    "TransactionItem": {
+      "title": "Transaction Item",
+      "description": "Main transaction category",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" }
+      },
+      "required": ["id", "name"]
+    },
+    "TransactionSubCategory": {
+      "title": "Transaction Sub-Category",
+      "description": "Transaction sub-category (remarks)",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" }
+      },
+      "required": ["id", "name"]
+    },
+    "LedgerEntry": {
+      "title": "Ledger Entry",
+      "description": "A single financial transaction record",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "date": { "type": "string", "format": "date" },
+        "transactionItemId": { "type": "string" },
+        "transactionItemName": { "type": "string" },
+        "details": { "type": "string" },
+        "customEntries": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": { "type": "string" },
+              "accountId": { "type": "string" },
+              "accountName": { "type": "string" },
+              "accountCategory": { "type": "string", "enum": ["Asset", "Liability", "Equity"] },
+              "amount": { "type": "number" },
+              "type": { "type": "string", "enum": ["Dr", "Cr"] }
+            }
+          }
+        },
+        "remarksId": { "type": "string" },
+        "remarks": { "type": "string" },
+        "notes": { "type": "string" }
+      },
+      "required": ["id", "date", "transactionItemId", "transactionItemName", "details", "customEntries", "remarksId", "remarks"]
+    }
+  },
+  "firestore": {
+    "/accounts/{accountId}": {
+      "schema": "Account",
+      "description": "Pool of accounts"
+    },
+    "/transactionItems/{itemId}": {
+      "schema": "TransactionItem",
+      "description": "Pool of transaction items"
+    },
+    "/transactionSubCategories/{subId}": {
+      "schema": "TransactionSubCategory",
+      "description": "Pool of transaction sub-categories"
+    },
+    "/entries/{entryId}": {
+      "schema": "LedgerEntry",
+      "description": "Ledger transactions"
+    }
+  }
+}

@@ -1,0 +1,41 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() && 
+        request.auth.token.email == "tasfeen.auyan@triloytech.com" && 
+        request.auth.token.email_verified == true;
+    }
+
+    function isValidString(val, min, max) {
+      return val is string && val.size() >= min && val.size() <= max;
+    }
+
+    // ===============================================================
+    // Collection Rules
+    // ===============================================================
+
+    match /accounts/{accountId} {
+      allow read, write: if isAdmin();
+    }
+
+    match /transactionItems/{itemId} {
+      allow read, write: if isAdmin();
+    }
+
+    match /transactionSubCategories/{subId} {
+      allow read, write: if isAdmin();
+    }
+
+    match /entries/{entryId} {
+      allow read, write: if isAdmin();
+    }
+  }
+}
