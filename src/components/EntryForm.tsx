@@ -153,10 +153,11 @@ export default function EntryForm({
     return (
       <button
         onClick={() => setIsOpen(true)}
-        className="flex items-center gap-2 px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl transition-all shadow-md hover:shadow-lg font-semibold"
+        className="flex items-center gap-2 px-4 lg:px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl transition-all shadow-md hover:shadow-lg font-semibold"
+        title="Add Transaction"
       >
         <Plus size={20} />
-        +Add Transaction
+        <span className="hidden lg:inline">+Add Transaction</span>
       </button>
     );
   }

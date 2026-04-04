@@ -81,13 +81,14 @@ export default function ExcelImport({ onImport }: ExcelImportProps) {
       <button
         onClick={() => fileInputRef.current?.click()}
         className={cn(
-          "flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg transition-all shadow-sm font-medium"
+          "flex items-center gap-2 px-3 lg:px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg transition-all shadow-sm font-medium"
         )}
+        title="Import Excel"
       >
         <Upload size={18} />
-        Import Excel
+        <span className="hidden lg:inline">Import Excel</span>
       </button>
-      <div className="text-xs text-slate-500 flex items-center gap-1">
+      <div className="text-xs text-slate-500 hidden lg:flex items-center gap-1">
         <FileSpreadsheet size={14} />
         Supports .xlsx, .xls, .csv
       </div>

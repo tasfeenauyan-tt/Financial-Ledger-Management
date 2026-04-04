@@ -28,7 +28,7 @@ import {
   getDocFromServer
 } from 'firebase/firestore';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend, LineChart, Line, XAxis, YAxis, CartesianGrid, BarChart, Bar } from 'recharts';
-import { Building2, LayoutDashboard, History, Settings, LogOut, Search, Filter, Download, Printer, Trash2, RotateCcw, FileText, Calendar, Receipt, Users, Database, AlertCircle } from 'lucide-react';
+import { Building2, LayoutDashboard, History, Settings, LogOut, Search, Filter, Download, Printer, Trash2, RotateCcw, FileText, Calendar, Receipt, Users, Database, AlertCircle, Menu, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
@@ -38,6 +38,7 @@ import { cn } from './lib/utils';
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   const [entries, setEntries] = useState<LedgerEntry[]>([]);
   const [accounts, setAccounts] = useState<Account[]>([]);
@@ -380,6 +381,107 @@ export default function App() {
     }
   };
 
+  const SidebarContent = () => (
+    <>
+      <div className="p-6 flex items-center gap-3 border-b border-slate-100">
+        <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center text-white shadow-lg shadow-indigo-200">
+          <Building2 size={24} />
+        </div>
+        <div>
+          <h1 className="font-bold text-slate-900 leading-tight">TriloyTech</h1>
+          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Accounting</p>
+        </div>
+      </div>
+
+      <nav className="flex-1 p-4 space-y-2 overflow-y-auto">
+        <button 
+          onClick={() => { setActiveTab('dashboard'); setIsMobileMenuOpen(false); }}
+          className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-semibold transition-all ${
+            activeTab === 'dashboard' ? 'bg-indigo-50 text-indigo-700' : 'text-slate-500 hover:bg-slate-50'
+          }`}
+        >
+          <LayoutDashboard size={20} />
+          Dashboard
+        </button>
+        <button 
+          onClick={() => { setActiveTab('history'); setIsMobileMenuOpen(false); }}
+          className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-semibold transition-all ${
+            activeTab === 'history' ? 'bg-indigo-50 text-indigo-700' : 'text-slate-500 hover:bg-slate-50'
+          }`}
+        >
+          <History size={20} />
+          Transactions
+        </button>
+        <button 
+          onClick={() => { setActiveTab('balance-sheet'); setIsMobileMenuOpen(false); }}
+          className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-semibold transition-all ${
+            activeTab === 'balance-sheet' ? 'bg-indigo-50 text-indigo-700' : 'text-slate-500 hover:bg-slate-50'
+          }`}
+        >
+          <FileText size={20} />
+          Balance Sheet
+        </button>
+        <button 
+          onClick={() => { setActiveTab('monthly-balance-sheet'); setIsMobileMenuOpen(false); }}
+          className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-semibold transition-all ${
+            activeTab === 'monthly-balance-sheet' ? 'bg-indigo-50 text-indigo-700' : 'text-slate-500 hover:bg-slate-50'
+          }`}
+        >
+          <Calendar size={20} />
+          Monthly Balance Sheet
+        </button>
+        <button 
+          onClick={() => { setActiveTab('expense'); setIsMobileMenuOpen(false); }}
+          className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-semibold transition-all ${
+            activeTab === 'expense' ? 'bg-indigo-50 text-indigo-700' : 'text-slate-500 hover:bg-slate-50'
+          }`}
+        >
+          <Receipt size={20} />
+          Expense Report
+        </button>
+        <button 
+          onClick={() => { setActiveTab('salary'); setIsMobileMenuOpen(false); }}
+          className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-semibold transition-all ${
+            activeTab === 'salary' ? 'bg-indigo-50 text-indigo-700' : 'text-slate-500 hover:bg-slate-50'
+          }`}
+        >
+          <Users size={20} />
+          Salary Report
+        </button>
+        <button 
+          onClick={() => { setActiveTab('accounts'); setIsMobileMenuOpen(false); }}
+          className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-semibold transition-all ${
+            activeTab === 'accounts' ? 'bg-indigo-50 text-indigo-700' : 'text-slate-500 hover:bg-slate-50'
+          }`}
+        >
+          <Database size={20} />
+          Transaction Item Pool
+        </button>
+        <button className="w-full flex items-center gap-3 px-4 py-3 text-slate-500 hover:bg-slate-50 rounded-xl font-medium transition-all">
+          <Settings size={20} />
+          Settings
+        </button>
+      </nav>
+
+      <div className="p-4 border-t border-slate-100 space-y-2">
+        <button 
+          onClick={() => { setIsClearModalOpen(true); setIsMobileMenuOpen(false); }}
+          className="w-full flex items-center gap-3 px-4 py-3 text-rose-500 hover:bg-rose-50 rounded-xl font-medium transition-all"
+        >
+          <Trash2 size={20} />
+          Clear All Data
+        </button>
+        <button 
+          onClick={logout}
+          className="w-full flex items-center gap-3 px-4 py-3 text-slate-400 hover:bg-slate-50 rounded-xl font-medium transition-all"
+        >
+          <LogOut size={20} />
+          Sign Out
+        </button>
+      </div>
+    </>
+  );
+
   if (authLoading) {
     return (
       <div className="min-h-screen bg-slate-50 flex items-center justify-center">
@@ -495,121 +597,70 @@ export default function App() {
         )}
       </AnimatePresence>
 
-      {/* Sidebar */}
+      {/* Mobile Sidebar */}
+      <AnimatePresence>
+        {isMobileMenuOpen && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setIsMobileMenuOpen(false)}
+              className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[60] lg:hidden"
+            />
+            <motion.aside
+              initial={{ x: '-100%' }}
+              animate={{ x: 0 }}
+              exit={{ x: '-100%' }}
+              transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+              className="fixed inset-y-0 left-0 w-72 bg-white z-[70] flex flex-col lg:hidden shadow-2xl"
+            >
+              <div className="absolute right-4 top-4">
+                <button 
+                  onClick={() => setIsMobileMenuOpen(false)}
+                  className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-xl transition-all"
+                >
+                  <X size={24} />
+                </button>
+              </div>
+              <SidebarContent />
+            </motion.aside>
+          </>
+        )}
+      </AnimatePresence>
+
+      {/* Desktop Sidebar */}
       <aside className="w-64 bg-white border-r border-slate-200 flex-col hidden lg:flex print:hidden">
-        <div className="p-6 flex items-center gap-3 border-b border-slate-100">
-          <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center text-white shadow-lg shadow-indigo-200">
-            <Building2 size={24} />
-          </div>
-          <div>
-            <h1 className="font-bold text-slate-900 leading-tight">TriloyTech</h1>
-            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Accounting</p>
-          </div>
-        </div>
-
-        <nav className="flex-1 p-4 space-y-2">
-          <button 
-            onClick={() => setActiveTab('dashboard')}
-            className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-semibold transition-all ${
-              activeTab === 'dashboard' ? 'bg-indigo-50 text-indigo-700' : 'text-slate-500 hover:bg-slate-50'
-            }`}
-          >
-            <LayoutDashboard size={20} />
-            Dashboard
-          </button>
-          <button 
-            onClick={() => setActiveTab('history')}
-            className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-semibold transition-all ${
-              activeTab === 'history' ? 'bg-indigo-50 text-indigo-700' : 'text-slate-500 hover:bg-slate-50'
-            }`}
-          >
-            <History size={20} />
-            Transactions
-          </button>
-          <button 
-            onClick={() => setActiveTab('balance-sheet')}
-            className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-semibold transition-all ${
-              activeTab === 'balance-sheet' ? 'bg-indigo-50 text-indigo-700' : 'text-slate-500 hover:bg-slate-50'
-            }`}
-          >
-            <FileText size={20} />
-            Balance Sheet
-          </button>
-          <button 
-            onClick={() => setActiveTab('monthly-balance-sheet')}
-            className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-semibold transition-all ${
-              activeTab === 'monthly-balance-sheet' ? 'bg-indigo-50 text-indigo-700' : 'text-slate-500 hover:bg-slate-50'
-            }`}
-          >
-            <Calendar size={20} />
-            Monthly Balance Sheet
-          </button>
-          <button 
-            onClick={() => setActiveTab('expense')}
-            className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-semibold transition-all ${
-              activeTab === 'expense' ? 'bg-indigo-50 text-indigo-700' : 'text-slate-500 hover:bg-slate-50'
-            }`}
-          >
-            <Receipt size={20} />
-            Expense Report
-          </button>
-          <button 
-            onClick={() => setActiveTab('salary')}
-            className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-semibold transition-all ${
-              activeTab === 'salary' ? 'bg-indigo-50 text-indigo-700' : 'text-slate-500 hover:bg-slate-50'
-            }`}
-          >
-            <Users size={20} />
-            Salary Report
-          </button>
-          <button 
-            onClick={() => setActiveTab('accounts')}
-            className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-semibold transition-all ${
-              activeTab === 'accounts' ? 'bg-indigo-50 text-indigo-700' : 'text-slate-500 hover:bg-slate-50'
-            }`}
-          >
-            <Database size={20} />
-            Transaction Item Pool
-          </button>
-          <button className="w-full flex items-center gap-3 px-4 py-3 text-slate-500 hover:bg-slate-50 rounded-xl font-medium transition-all">
-            <Settings size={20} />
-            Settings
-          </button>
-        </nav>
-
-        <div className="p-4 border-t border-slate-100 space-y-2">
-          <button 
-            onClick={() => setIsClearModalOpen(true)}
-            className="w-full flex items-center gap-3 px-4 py-3 text-rose-500 hover:bg-rose-50 rounded-xl font-medium transition-all"
-          >
-            <Trash2 size={20} />
-            Clear All Data
-          </button>
-          <button 
-            onClick={logout}
-            className="w-full flex items-center gap-3 px-4 py-3 text-slate-400 hover:bg-slate-50 rounded-xl font-medium transition-all"
-          >
-            <LogOut size={20} />
-            Sign Out
-          </button>
-        </div>
+        <SidebarContent />
       </aside>
 
       {/* Main Content */}
       <main className="flex-1 overflow-y-auto">
         <header className="bg-white/80 backdrop-blur-md border-b border-slate-200 sticky top-0 z-30 print:hidden">
-          <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
-            <div className="flex items-center gap-4 flex-1 max-w-xl">
+          <div className="max-w-7xl mx-auto px-4 lg:px-6 py-3 lg:py-4 flex items-center justify-between gap-3 lg:gap-4">
+            <div className="flex items-center gap-2 lg:hidden">
+              <button 
+                onClick={() => setIsMobileMenuOpen(true)}
+                className="p-2 text-slate-500 hover:bg-slate-100 rounded-xl transition-colors"
+              >
+                <Menu size={24} />
+              </button>
+              <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center text-white shadow-lg shadow-indigo-200">
+                <Building2 size={18} />
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 lg:gap-4 flex-1 max-w-xl">
               {activeTab === 'history' && (
                 <>
                   <div className="relative flex-1">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
                     <input
                       type="text"
-                      placeholder="Search transactions..."
+                      placeholder="Search..."
                       value={searchTerm}
                       onChange={(e) => setSearchTerm(e.target.value)}
-                      className="w-full pl-10 pr-4 py-2 bg-slate-100 border-transparent focus:bg-white focus:ring-2 focus:ring-indigo-500 rounded-xl outline-none transition-all text-sm"
+                      className="w-full pl-9 pr-3 py-2 bg-slate-100 border-transparent focus:bg-white focus:ring-2 focus:ring-indigo-500 rounded-xl outline-none transition-all text-sm"
                     />
                   </div>
                   <button className="p-2 text-slate-500 hover:bg-slate-100 rounded-lg transition-colors">
@@ -620,14 +671,15 @@ export default function App() {
             </div>
 
             {activeTab === 'history' && (
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2 lg:gap-3">
                 <ExcelImport onImport={handleImport} />
                 <button
                   onClick={() => setIsClearModalOpen(true)}
-                  className="flex items-center gap-2 px-4 py-2 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded-lg transition-all font-medium border border-rose-200"
+                  className="flex items-center gap-2 px-3 lg:px-4 py-2 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded-lg transition-all font-medium border border-rose-200"
+                  title="Clear All Data"
                 >
                   <RotateCcw size={18} />
-                  Clear All
+                  <span className="hidden lg:inline">Clear All</span>
                 </button>
                 <EntryForm onSave={handleSaveEntry} accounts={accounts} transactionItems={transactionItems} transactionSubCategories={transactionSubCategories} />
                 {editingEntry && (
@@ -645,14 +697,14 @@ export default function App() {
           </div>
         </header>
 
-        <div className="max-w-7xl mx-auto px-6 py-8">
+        <div className="max-w-7xl mx-auto px-4 lg:px-6 py-6 lg:py-8">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            className="mb-8 flex items-end justify-between"
+            className="mb-6 lg:mb-8 flex flex-col md:flex-row md:items-end justify-between gap-4"
           >
             <div>
-              <h2 className="text-2xl font-bold text-slate-900 mb-1">
+              <h2 className="text-xl lg:text-2xl font-bold text-slate-900 mb-1">
                 {activeTab === 'dashboard' ? 'Financial Dashboard' : 
                  activeTab === 'history' ? 'Transaction History' : 
                  activeTab === 'balance-sheet' ? 'Balance Sheet' : 
