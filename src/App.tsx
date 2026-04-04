@@ -10,6 +10,9 @@ import ExpenseReport from './components/ExpenseReport';
 import SalaryReport from './components/SalaryReport';
 import ProjectRevenue from './components/ProjectRevenue';
 import AccountsPool from './components/AccountsPool';
+import Login from './components/Login';
+import { auth, logout, User } from './firebase';
+import { onAuthStateChanged } from 'firebase/auth';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend, LineChart, Line, XAxis, YAxis, CartesianGrid, BarChart, Bar } from 'recharts';
 import { Building2, LayoutDashboard, History, Settings, LogOut, Search, Filter, Download, Printer, Trash2, RotateCcw, FileText, Calendar, Receipt, Users, Database } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
@@ -19,6 +22,9 @@ import autoTable from 'jspdf-autotable';
 import { cn } from './lib/utils';
 
 export default function App() {
+  const [user, setUser] = useState<User | null>(null);
+  const [authLoading, setAuthLoading] = useState(true);
+
   const [entries, setEntries] = useState<LedgerEntry[]>(() => {
     const saved = localStorage.getItem('triloy_ledger_entries');
     return saved ? JSON.parse(saved) : [];
@@ -42,6 +48,14 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<'dashboard' | 'history' | 'balance-sheet' | 'monthly-balance-sheet' | 'expense' | 'salary' | 'accounts'>('history');
   const [searchTerm, setSearchTerm] = useState('');
   const [editingEntry, setEditingEntry] = useState<LedgerEntry | null>(null);
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+      setUser(currentUser);
+      setAuthLoading(false);
+    });
+    return () => unsubscribe();
+  }, []);
 
   useEffect(() => {
     localStorage.setItem('triloy_ledger_entries', JSON.stringify(entries));
@@ -282,6 +296,43 @@ export default function App() {
     setIsClearModalOpen(false);
   };
 
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+        <div className="w-10 h-10 border-4 border-slate-200 border-t-indigo-600 rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  if (!user) {
+    return <Login />;
+  }
+
+  const isAdmin = user.email === 'tasfeen.auyan@triloytech.com';
+
+  if (!isAdmin) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
+        <div className="max-w-md w-full bg-white rounded-3xl shadow-xl border border-slate-200 overflow-hidden p-8 text-center space-y-6">
+          <div className="w-16 h-16 bg-rose-100 rounded-2xl flex items-center justify-center mx-auto text-rose-600">
+            <LogOut size={32} />
+          </div>
+          <div className="space-y-2">
+            <h1 className="text-2xl font-bold text-slate-900">Access Denied</h1>
+            <p className="text-slate-500">You do not have permission to access this dashboard.</p>
+            <p className="text-xs text-slate-400 font-mono">{user.email}</p>
+          </div>
+          <button
+            onClick={logout}
+            className="w-full px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-2xl transition-all shadow-lg shadow-indigo-200"
+          >
+            Sign Out
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-slate-50 flex print:bg-white">
       {/* Clear All Confirmation Modal */}
@@ -450,7 +501,10 @@ export default function App() {
             <Trash2 size={20} />
             Clear All Data
           </button>
-          <button className="w-full flex items-center gap-3 px-4 py-3 text-slate-400 hover:bg-slate-50 rounded-xl font-medium transition-all">
+          <button 
+            onClick={logout}
+            className="w-full flex items-center gap-3 px-4 py-3 text-slate-400 hover:bg-slate-50 rounded-xl font-medium transition-all"
+          >
             <LogOut size={20} />
             Sign Out
           </button>
