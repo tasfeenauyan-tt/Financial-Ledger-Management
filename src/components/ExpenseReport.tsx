@@ -68,7 +68,7 @@ export default function ExpenseReport({ entries }: ExpenseReportProps) {
   const downloadMonthlyExcel = (monthData: typeof monthlyExpenses[0]) => {
     const data = monthData.expenses.map((e: any) => ({
       Date: formatDate(e.date),
-      Details: e.details,
+      'Transaction Item': e.transactionItemName,
       Amount: e.expenseAmount,
       Remarks: e.remarks
     }));
@@ -85,7 +85,7 @@ export default function ExpenseReport({ entries }: ExpenseReportProps) {
     monthlyExpenses.forEach(monthData => {
       const data = monthData.expenses.map((e: any) => ({
         Date: formatDate(e.date),
-        Details: e.details,
+        'Transaction Item': e.transactionItemName,
         Amount: e.expenseAmount,
         Remarks: e.remarks
       }));
@@ -160,7 +160,7 @@ export default function ExpenseReport({ entries }: ExpenseReportProps) {
                   <thead>
                     <tr className="bg-slate-50/50">
                       <th className="p-4 text-xs font-bold text-slate-400 uppercase tracking-widest pl-18">Date</th>
-                      <th className="p-4 text-xs font-bold text-slate-400 uppercase tracking-widest">Details</th>
+                      <th className="p-4 text-xs font-bold text-slate-400 uppercase tracking-widest">Transaction Item</th>
                       <th className="p-4 text-xs font-bold text-slate-400 uppercase tracking-widest text-right">Amount</th>
                       <th className="p-4 text-xs font-bold text-slate-400 uppercase tracking-widest">Remarks</th>
                     </tr>
@@ -169,7 +169,7 @@ export default function ExpenseReport({ entries }: ExpenseReportProps) {
                     {month.expenses.map((expense: any) => (
                       <tr key={expense.id} className="hover:bg-slate-50/30 transition-colors">
                         <td className="p-4 text-sm text-slate-600 font-medium pl-18">{formatDate(expense.date)}</td>
-                        <td className="p-4 text-sm text-slate-900 font-bold">{expense.details}</td>
+                        <td className="p-4 text-sm text-slate-900 font-bold">{expense.transactionItemName}</td>
                         <td className="p-4 text-sm text-rose-600 font-bold text-right">{formatCurrency(expense.expenseAmount)}</td>
                         <td className="p-4 text-sm text-slate-500 italic">{expense.remarks}</td>
                       </tr>

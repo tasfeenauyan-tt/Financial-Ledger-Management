@@ -29,22 +29,23 @@ export default function MonthlyBalanceSheet({ entries }: MonthlyBalanceSheetProp
     const sortedMonthKeys = Object.keys(months).sort((a, b) => a.localeCompare(b));
     
     const cumulativeAccountTotals: Record<string, { name: string; amount: number; category: 'Asset' | 'Liability' | 'Equity' }> = {};
-
+    
     const cumulativeMonthlyData = sortedMonthKeys.map(monthKey => {
       const monthEntries = months[monthKey];
       
       monthEntries.forEach(entry => {
         (entry.customEntries || []).forEach(ce => {
-          if (!cumulativeAccountTotals[ce.accountId]) {
-            cumulativeAccountTotals[ce.accountId] = { name: ce.accountName, amount: 0, category: ce.accountCategory };
+          const key = `${ce.accountName.trim().toLowerCase()}-${ce.accountCategory}`;
+          if (!cumulativeAccountTotals[key]) {
+            cumulativeAccountTotals[key] = { name: ce.accountName, amount: 0, category: ce.accountCategory };
           }
           
           if (ce.accountCategory === 'Asset') {
-            cumulativeAccountTotals[ce.accountId].amount += ce.type === 'Dr' ? ce.amount : -ce.amount;
+            cumulativeAccountTotals[key].amount += ce.type === 'Dr' ? ce.amount : -ce.amount;
           } else if (ce.accountCategory === 'Liability') {
-            cumulativeAccountTotals[ce.accountId].amount += ce.type === 'Cr' ? ce.amount : -ce.amount;
+            cumulativeAccountTotals[key].amount += ce.type === 'Cr' ? ce.amount : -ce.amount;
           } else if (ce.accountCategory === 'Equity') {
-            cumulativeAccountTotals[ce.accountId].amount += ce.type === 'Cr' ? ce.amount : -ce.amount;
+            cumulativeAccountTotals[key].amount += ce.type === 'Cr' ? ce.amount : -ce.amount;
           }
         });
       });

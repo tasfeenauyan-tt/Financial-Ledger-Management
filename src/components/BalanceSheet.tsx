@@ -16,16 +16,18 @@ export default function BalanceSheet({ entries }: BalanceSheetProps) {
     
     entries.forEach(entry => {
       (entry.customEntries || []).forEach(ce => {
-        if (!totals[ce.accountId]) {
-          totals[ce.accountId] = { name: ce.accountName, amount: 0, category: ce.accountCategory };
+        // Use a combination of name and category as the key to merge accounts with the same name
+        const key = `${ce.accountName.trim().toLowerCase()}-${ce.accountCategory}`;
+        if (!totals[key]) {
+          totals[key] = { name: ce.accountName, amount: 0, category: ce.accountCategory };
         }
         
         if (ce.accountCategory === 'Asset') {
-          totals[ce.accountId].amount += ce.type === 'Dr' ? ce.amount : -ce.amount;
+          totals[key].amount += ce.type === 'Dr' ? ce.amount : -ce.amount;
         } else if (ce.accountCategory === 'Liability') {
-          totals[ce.accountId].amount += ce.type === 'Cr' ? ce.amount : -ce.amount;
+          totals[key].amount += ce.type === 'Cr' ? ce.amount : -ce.amount;
         } else if (ce.accountCategory === 'Equity') {
-          totals[ce.accountId].amount += ce.type === 'Cr' ? ce.amount : -ce.amount;
+          totals[key].amount += ce.type === 'Cr' ? ce.amount : -ce.amount;
         }
       });
     });

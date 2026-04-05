@@ -29,13 +29,14 @@ export default function ExcelImport({ onImport }: ExcelImportProps) {
         const customEntries: CustomAccountEntry[] = [];
         const addEntry = (name: string, amount: number, category: 'Asset' | 'Liability' | 'Equity', type: 'Dr' | 'Cr') => {
           if (amount !== 0) {
+            const isExpense = name.toLowerCase() === 'expense';
             customEntries.push({
               id: crypto.randomUUID(),
               accountId: `imported-${name.toLowerCase().replace(/\s+/g, '-')}`,
               accountName: name,
               accountCategory: category,
               amount: Math.abs(amount),
-              type: amount > 0 ? type : (type === 'Dr' ? 'Cr' : 'Dr'),
+              type: isExpense ? type : (amount > 0 ? type : (type === 'Dr' ? 'Cr' : 'Dr')),
             });
           }
         };
