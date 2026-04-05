@@ -28,7 +28,7 @@ export default function Login() {
           </div>
           
           <div className="space-y-2">
-            <h1 className="text-2xl font-bold text-slate-900">TriloyTech Financials</h1>
+            <h1 className="text-2xl font-bold text-slate-900">TriloyTech Financial Ledger</h1>
             <p className="text-slate-500">Admin Dashboard Access</p>
           </div>
 
