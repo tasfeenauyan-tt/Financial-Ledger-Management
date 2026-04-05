@@ -8,6 +8,7 @@ import ExcelImport from './components/ExcelImport';
 import BalanceSheet from './components/BalanceSheet';
 import MonthlyBalanceSheet from './components/MonthlyBalanceSheet';
 import ExpenseReport from './components/ExpenseReport';
+import CategorizedExpense from './components/CategorizedExpense';
 import SalaryReport from './components/SalaryReport';
 import ProjectRevenue from './components/ProjectRevenue';
 import AccountsPool from './components/AccountsPool';
@@ -28,7 +29,7 @@ import {
   getDocFromServer
 } from 'firebase/firestore';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend, LineChart, Line, XAxis, YAxis, CartesianGrid, BarChart, Bar } from 'recharts';
-import { Building2, LayoutDashboard, History, Settings, LogOut, Search, Filter, Download, Printer, Trash2, RotateCcw, FileText, Calendar, Receipt, Users, Database, AlertCircle, Menu, X } from 'lucide-react';
+import { Building2, LayoutDashboard, History, Settings, LogOut, Search, Filter, Download, Printer, Trash2, RotateCcw, FileText, Calendar, Receipt, Users, Database, AlertCircle, Menu, X, TrendingDown } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
@@ -45,7 +46,7 @@ export default function App() {
   const [transactionItems, setTransactionItems] = useState<TransactionItem[]>([]);
   const [transactionSubCategories, setTransactionSubCategories] = useState<TransactionSubCategory[]>([]);
 
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'history' | 'balance-sheet' | 'monthly-balance-sheet' | 'expense' | 'salary' | 'accounts'>('history');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'history' | 'balance-sheet' | 'monthly-balance-sheet' | 'expense' | 'categorized-expense' | 'salary' | 'accounts'>('history');
   const [searchTerm, setSearchTerm] = useState('');
   const [editingEntry, setEditingEntry] = useState<LedgerEntry | null>(null);
 
@@ -440,6 +441,15 @@ export default function App() {
           Expense Report
         </button>
         <button 
+          onClick={() => { setActiveTab('categorized-expense'); setIsMobileMenuOpen(false); }}
+          className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-semibold transition-all ${
+            activeTab === 'categorized-expense' ? 'bg-indigo-50 text-indigo-700' : 'text-slate-500 hover:bg-slate-50'
+          }`}
+        >
+          <TrendingDown size={20} />
+          Categorized Expense
+        </button>
+        <button 
           onClick={() => { setActiveTab('salary'); setIsMobileMenuOpen(false); }}
           className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-semibold transition-all ${
             activeTab === 'salary' ? 'bg-indigo-50 text-indigo-700' : 'text-slate-500 hover:bg-slate-50'
@@ -461,24 +471,24 @@ export default function App() {
           <Settings size={20} />
           Settings
         </button>
-      </nav>
 
-      <div className="p-4 border-t border-slate-100 space-y-2">
-        <button 
-          onClick={() => { setIsClearModalOpen(true); setIsMobileMenuOpen(false); }}
-          className="w-full flex items-center gap-3 px-4 py-3 text-rose-500 hover:bg-rose-50 rounded-xl font-medium transition-all"
-        >
-          <Trash2 size={20} />
-          Clear All Data
-        </button>
-        <button 
-          onClick={logout}
-          className="w-full flex items-center gap-3 px-4 py-3 text-slate-400 hover:bg-slate-50 rounded-xl font-medium transition-all"
-        >
-          <LogOut size={20} />
-          Sign Out
-        </button>
-      </div>
+        <div className="pt-2 mt-2 border-t border-slate-100 space-y-2">
+          <button 
+            onClick={() => { setIsClearModalOpen(true); setIsMobileMenuOpen(false); }}
+            className="w-full flex items-center gap-3 px-4 py-3 text-rose-500 hover:bg-rose-50 rounded-xl font-medium transition-all"
+          >
+            <Trash2 size={20} />
+            Clear All Data
+          </button>
+          <button 
+            onClick={logout}
+            className="w-full flex items-center gap-3 px-4 py-3 text-slate-400 hover:bg-slate-50 rounded-xl font-medium transition-all"
+          >
+            <LogOut size={20} />
+            Sign Out
+          </button>
+        </div>
+      </nav>
     </>
   );
 
@@ -710,6 +720,7 @@ export default function App() {
                  activeTab === 'balance-sheet' ? 'Balance Sheet' : 
                  activeTab === 'monthly-balance-sheet' ? 'Monthly Balance Sheet' : 
                  activeTab === 'expense' ? 'Expense Report' : 
+                 activeTab === 'categorized-expense' ? 'Categorized Expense' : 
                  activeTab === 'salary' ? ' Salary Report' : 
                  'Transaction Item Management'}
               </h2>
@@ -719,6 +730,7 @@ export default function App() {
                  activeTab === 'balance-sheet' ? 'Statement of financial position as of the current date.' : 
                  activeTab === 'monthly-balance-sheet' ? 'Monthly breakdown of financial position.' : 
                  activeTab === 'expense' ? 'Detailed breakdown of company expenditures by month.' : 
+                 activeTab === 'categorized-expense' ? 'Categorized breakdown of Media Buy and Food Bill expenses.' : 
                  activeTab === 'salary' ? ' Monthly breakdown of salary disbursements' : 
                  ' Manage accounts and Transaction items, and sub-categories.'}
               </p>
@@ -901,6 +913,16 @@ export default function App() {
                 className="space-y-6"
               >
                 <ExpenseReport entries={entries} />
+              </motion.div>
+            ) : activeTab === 'categorized-expense' ? (
+              <motion.div
+                key="categorized-expense"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -20 }}
+                className="space-y-6"
+              >
+                <CategorizedExpense entries={entries} />
               </motion.div>
             ) : activeTab === 'salary' ? (
               <motion.div
