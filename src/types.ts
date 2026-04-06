@@ -1,3 +1,13 @@
+export type UserRole = 'admin' | 'viewer';
+
+export interface AppUser {
+  uid: string;
+  fullName: string;
+  email: string;
+  role: UserRole;
+  createdAt: string;
+}
+
 export interface Account {
   id: string;
   name: string;

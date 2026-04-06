@@ -10,32 +10,46 @@ service cloud.firestore {
 
     function isAdmin() {
       return isAuthenticated() && 
-        request.auth.token.email == "tasfeen.auyan@triloytech.com" && 
-        request.auth.token.email_verified == true;
+        (request.auth.token.email == "tasfeen.auyan@triloytech.com" ||
+         (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin'));
     }
 
-    function isValidString(val, min, max) {
-      return val is string && val.size() >= min && val.size() <= max;
+    function isViewer() {
+      return isAuthenticated();
     }
 
     // ===============================================================
     // Collection Rules
     // ===============================================================
 
+    match /users/{userId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+
     match /accounts/{accountId} {
-      allow read, write: if isAdmin();
+      allow read: if isViewer();
+      allow write: if isAdmin();
     }
 
     match /transactionItems/{itemId} {
-      allow read, write: if isAdmin();
+      allow read: if isViewer();
+      allow write: if isAdmin();
     }
 
     match /transactionSubCategories/{subId} {
-      allow read, write: if isAdmin();
+      allow read: if isViewer();
+      allow write: if isAdmin();
     }
 
     match /entries/{entryId} {
-      allow read, write: if isAdmin();
+      allow read: if isViewer();
+      allow write: if isAdmin();
+    }
+
+    match /test/connection {
+      allow read: if isAuthenticated();
     }
   }
 }

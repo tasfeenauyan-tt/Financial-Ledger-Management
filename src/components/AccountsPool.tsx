@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { Account, TransactionItem, TransactionSubCategory } from '../types';
 import { Plus, Trash2, Wallet, Landmark, Scale, X, ListTodo, Tags } from 'lucide-react';
@@ -14,6 +14,7 @@ interface AccountsPoolProps {
   transactionSubCategories: TransactionSubCategory[];
   onAddTransactionSubCategory: (sub: TransactionSubCategory) => void;
   onDeleteTransactionSubCategory: (id: string) => void;
+  userRole: string;
 }
 
 export default function AccountsPool({ 
@@ -25,8 +26,10 @@ export default function AccountsPool({
   onDeleteTransactionItem,
   transactionSubCategories,
   onAddTransactionSubCategory,
-  onDeleteTransactionSubCategory
+  onDeleteTransactionSubCategory,
+  userRole
 }: AccountsPoolProps) {
+  const isAdmin = userRole === 'admin';
   const [isAdding, setIsAdding] = useState(false);
   const [isAddingItem, setIsAddingItem] = useState(false);
   const [isAddingSubCategory, setIsAddingSubCategory] = useState(false);
@@ -39,6 +42,10 @@ export default function AccountsPool({
 
   const [newItem, setNewItem] = useState('');
   const [newSubCategory, setNewSubCategory] = useState('');
+  
+  const sortedAccounts = useMemo(() => [...accounts].sort((a, b) => a.name.localeCompare(b.name)), [accounts]);
+  const sortedTransactionItems = useMemo(() => [...transactionItems].sort((a, b) => a.name.localeCompare(b.name)), [transactionItems]);
+  const sortedTransactionSubCategories = useMemo(() => [...transactionSubCategories].sort((a, b) => a.name.localeCompare(b.name)), [transactionSubCategories]);
 
   const handleSubmitAccount = (e: React.FormEvent) => {
     e.preventDefault();
@@ -116,13 +123,15 @@ export default function AccountsPool({
             <h3 className="text-lg font-bold text-slate-800">Accounts Items</h3>
             <p className="text-sm text-slate-500"> Manage accounts items, and sub-categories.</p>
           </div>
-          <button
-            onClick={() => { setIsAdding(true); setError(null); }}
-            className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl transition-all shadow-md font-semibold"
-          >
-            <Plus size={18} />
-            Add Accounts
-          </button>
+          {isAdmin && (
+            <button
+              onClick={() => { setIsAdding(true); setError(null); }}
+              className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl transition-all shadow-md font-semibold"
+            >
+              <Plus size={18} />
+              Add Accounts
+            </button>
+          )}
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -132,19 +141,21 @@ export default function AccountsPool({
                 <cat.icon className={cat.color} size={20} />
                 <h4 className={cn("font-bold", cat.color)}>{cat.name}s</h4>
               </div>
-              <div className="p-4 space-y-2">
-                {accounts.filter(a => a.category === cat.name).length === 0 ? (
+              <div className="p-4 space-y-2 max-h-[400px] overflow-y-auto custom-scrollbar">
+                {sortedAccounts.filter(a => a.category === cat.name).length === 0 ? (
                   <p className="text-xs text-slate-400 italic text-center py-4">No accounts added</p>
                 ) : (
-                  accounts.filter(a => a.category === cat.name).map(account => (
+                  sortedAccounts.filter(a => a.category === cat.name).map(account => (
                     <div key={account.id} className="flex items-center justify-between p-3 bg-slate-50 rounded-xl group hover:bg-slate-100 transition-colors">
                       <span className="text-sm font-semibold text-slate-700">{account.name}</span>
-                      <button
-                        onClick={() => onDelete(account.id)}
-                        className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-all opacity-0 group-hover:opacity-100"
-                      >
-                        <Trash2 size={16} />
-                      </button>
+                      {isAdmin && (
+                        <button
+                          onClick={() => onDelete(account.id)}
+                          className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-all opacity-0 group-hover:opacity-100"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      )}
                     </div>
                   ))
                 )}
@@ -161,13 +172,15 @@ export default function AccountsPool({
             <h3 className="text-lg font-bold text-slate-800">Transaction Items</h3>
             <p className="text-sm text-slate-500">Manage items for transaction dropdown</p>
           </div>
-          <button
-            onClick={() => { setIsAddingItem(true); setError(null); }}
-            className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl transition-all shadow-md font-semibold"
-          >
-            <Plus size={18} />
-            Add Item
-          </button>
+          {isAdmin && (
+            <button
+              onClick={() => { setIsAddingItem(true); setError(null); }}
+              className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl transition-all shadow-md font-semibold"
+            >
+              <Plus size={18} />
+              Add Item
+            </button>
+          )}
         </div>
 
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
@@ -175,19 +188,21 @@ export default function AccountsPool({
             <ListTodo className="text-emerald-600" size={20} />
             <h4 className="font-bold text-emerald-600">Items List</h4>
           </div>
-          <div className="p-6 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-            {transactionItems.length === 0 ? (
+          <div className="p-6 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 max-h-[500px] overflow-y-auto custom-scrollbar">
+            {sortedTransactionItems.length === 0 ? (
               <p className="col-span-full text-sm text-slate-400 italic text-center py-8">No transaction items added yet</p>
             ) : (
-              transactionItems.map(item => (
+              sortedTransactionItems.map(item => (
                 <div key={item.id} className="flex items-center justify-between p-3 bg-slate-50 rounded-xl group hover:bg-slate-100 transition-colors">
                   <span className="text-sm font-semibold text-slate-700">{item.name}</span>
-                  <button
-                    onClick={() => onDeleteTransactionItem(item.id)}
-                    className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-all opacity-0 group-hover:opacity-100"
-                  >
-                    <Trash2 size={16} />
-                  </button>
+                  {isAdmin && (
+                    <button
+                      onClick={() => onDeleteTransactionItem(item.id)}
+                      className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-all opacity-0 group-hover:opacity-100"
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                  )}
                 </div>
               ))
             )}
@@ -202,13 +217,15 @@ export default function AccountsPool({
             <h3 className="text-lg font-bold text-slate-800">Transaction Items Sub-Category</h3>
             <p className="text-sm text-slate-500">Manage sub-categories for remarks dropdown</p>
           </div>
-          <button
-            onClick={() => { setIsAddingSubCategory(true); setError(null); }}
-            className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl transition-all shadow-md font-semibold"
-          >
-            <Plus size={18} />
-            Add Sub-Category
-          </button>
+          {isAdmin && (
+            <button
+              onClick={() => { setIsAddingSubCategory(true); setError(null); }}
+              className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl transition-all shadow-md font-semibold"
+            >
+              <Plus size={18} />
+              Add Sub-Category
+            </button>
+          )}
         </div>
 
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
@@ -216,19 +233,21 @@ export default function AccountsPool({
             <Tags className="text-indigo-600" size={20} />
             <h4 className="font-bold text-indigo-600">Sub-Categories List</h4>
           </div>
-          <div className="p-6 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-            {transactionSubCategories.length === 0 ? (
+          <div className="p-6 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 max-h-[500px] overflow-y-auto custom-scrollbar">
+            {sortedTransactionSubCategories.length === 0 ? (
               <p className="col-span-full text-sm text-slate-400 italic text-center py-8">No sub-categories added yet</p>
             ) : (
-              transactionSubCategories.map(sub => (
+              sortedTransactionSubCategories.map(sub => (
                 <div key={sub.id} className="flex items-center justify-between p-3 bg-slate-50 rounded-xl group hover:bg-slate-100 transition-colors">
                   <span className="text-sm font-semibold text-slate-700">{sub.name}</span>
-                  <button
-                    onClick={() => onDeleteTransactionSubCategory(sub.id)}
-                    className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-all opacity-0 group-hover:opacity-100"
-                  >
-                    <Trash2 size={16} />
-                  </button>
+                  {isAdmin && (
+                    <button
+                      onClick={() => onDeleteTransactionSubCategory(sub.id)}
+                      className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-all opacity-0 group-hover:opacity-100"
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                  )}
                 </div>
               ))
             )}
@@ -242,7 +261,7 @@ export default function AccountsPool({
           <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md my-auto relative">
             <div className="p-6 border-b border-slate-100 flex items-center justify-between">
               <h2 className="text-xl font-bold text-slate-900">Add New Account</h2>
-              <button onClick={() => { setIsAdding(false); setError(null); }} className="p-2 hover:bg-slate-100 rounded-full transition-colors">
+              <button onClick={() => { setIsAdding(false); setError(null); setNewAccount({ name: '', category: 'Asset' }); }} className="p-2 hover:bg-slate-100 rounded-full transition-colors">
                 <X size={20} />
               </button>
             </div>
@@ -279,7 +298,7 @@ export default function AccountsPool({
               <div className="flex gap-3 pt-4">
                 <button
                   type="button"
-                  onClick={() => setIsAdding(false)}
+                  onClick={() => { setIsAdding(false); setError(null); setNewAccount({ name: '', category: 'Asset' }); }}
                   className="flex-1 px-6 py-2.5 text-slate-600 font-semibold hover:bg-slate-50 rounded-xl transition-colors"
                 >
                   Cancel
@@ -302,7 +321,7 @@ export default function AccountsPool({
           <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md my-auto relative">
             <div className="p-6 border-b border-slate-100 flex items-center justify-between">
               <h2 className="text-xl font-bold text-slate-900">Add Transaction Item</h2>
-              <button onClick={() => { setIsAddingItem(false); setError(null); }} className="p-2 hover:bg-slate-100 rounded-full transition-colors">
+              <button onClick={() => { setIsAddingItem(false); setError(null); setNewItem(''); }} className="p-2 hover:bg-slate-100 rounded-full transition-colors">
                 <X size={20} />
               </button>
             </div>
@@ -327,7 +346,7 @@ export default function AccountsPool({
               <div className="flex gap-3 pt-4">
                 <button
                   type="button"
-                  onClick={() => setIsAddingItem(false)}
+                  onClick={() => { setIsAddingItem(false); setError(null); setNewItem(''); }}
                   className="flex-1 px-6 py-2.5 text-slate-600 font-semibold hover:bg-slate-50 rounded-xl transition-colors"
                 >
                   Cancel
@@ -350,7 +369,7 @@ export default function AccountsPool({
           <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md my-auto relative">
             <div className="p-6 border-b border-slate-100 flex items-center justify-between">
               <h2 className="text-xl font-bold text-slate-900">Add Transaction Sub-Category</h2>
-              <button onClick={() => { setIsAddingSubCategory(false); setError(null); }} className="p-2 hover:bg-slate-100 rounded-full transition-colors">
+              <button onClick={() => { setIsAddingSubCategory(false); setError(null); setNewSubCategory(''); }} className="p-2 hover:bg-slate-100 rounded-full transition-colors">
                 <X size={20} />
               </button>
             </div>
@@ -375,7 +394,7 @@ export default function AccountsPool({
               <div className="flex gap-3 pt-4">
                 <button
                   type="button"
-                  onClick={() => setIsAddingSubCategory(false)}
+                  onClick={() => { setIsAddingSubCategory(false); setError(null); setNewSubCategory(''); }}
                   className="flex-1 px-6 py-2.5 text-slate-600 font-semibold hover:bg-slate-50 rounded-xl transition-colors"
                 >
                   Cancel

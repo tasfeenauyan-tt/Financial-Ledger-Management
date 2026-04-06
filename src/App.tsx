@@ -12,6 +12,7 @@ import CategorizedExpense from './components/CategorizedExpense';
 import SalaryReport from './components/SalaryReport';
 import ProjectRevenue from './components/ProjectRevenue';
 import AccountsPool from './components/AccountsPool';
+import AdminPanel from './components/AdminPanel';
 import Login from './components/Login';
 import { auth, logout, User, db } from './firebase';
 import { onAuthStateChanged } from 'firebase/auth';
@@ -26,10 +27,12 @@ import {
   orderBy, 
   getDocs,
   writeBatch,
-  getDocFromServer
+  getDocFromServer,
+  getDoc
 } from 'firebase/firestore';
+import { UserRole, AppUser } from './types';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend, LineChart, Line, XAxis, YAxis, CartesianGrid, BarChart, Bar } from 'recharts';
-import { Building2, LayoutDashboard, History, Settings, LogOut, Search, Filter, Download, Printer, Trash2, RotateCcw, FileText, Calendar, Receipt, Users, Database, AlertCircle, Menu, X, TrendingDown } from 'lucide-react';
+import { Building2, LayoutDashboard, History, Settings, LogOut, Search, Filter, Download, Printer, Trash2, RotateCcw, FileText, Calendar, Receipt, Users, Database, AlertCircle, Menu, X, TrendingDown, Shield } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
@@ -38,6 +41,8 @@ import { cn } from './lib/utils';
 
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
+  const [userRole, setUserRole] = useState<UserRole | null>(null);
+  const [userProfile, setUserProfile] = useState<AppUser | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
@@ -46,12 +51,48 @@ export default function App() {
   const [transactionItems, setTransactionItems] = useState<TransactionItem[]>([]);
   const [transactionSubCategories, setTransactionSubCategories] = useState<TransactionSubCategory[]>([]);
 
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'history' | 'balance-sheet' | 'monthly-balance-sheet' | 'expense' | 'categorized-expense' | 'salary' | 'accounts'>('history');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'history' | 'balance-sheet' | 'monthly-balance-sheet' | 'expense' | 'categorized-expense' | 'salary' | 'accounts' | 'admin'>('history');
   const [searchTerm, setSearchTerm] = useState('');
   const [editingEntry, setEditingEntry] = useState<LedgerEntry | null>(null);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
+      if (currentUser) {
+        // Fetch user role from Firestore
+        const userDoc = await getDoc(doc(db, 'users', currentUser.uid));
+        if (userDoc.exists()) {
+          const userData = userDoc.data() as AppUser;
+          setUserRole(userData.role);
+          setUserProfile(userData);
+        } else {
+          // If it's the default admin, create their profile
+          if (currentUser.email === 'tasfeen.auyan@triloytech.com') {
+            const adminUser: AppUser = {
+              uid: currentUser.uid,
+              fullName: currentUser.displayName || 'Admin',
+              email: currentUser.email,
+              role: 'admin',
+              createdAt: new Date().toISOString()
+            };
+            await setDoc(doc(db, 'users', currentUser.uid), adminUser);
+            setUserRole('admin');
+            setUserProfile(adminUser);
+          } else {
+            // Default role for others if not in DB (shouldn't happen with Admin Panel management)
+            setUserRole('viewer');
+            setUserProfile({
+              uid: currentUser.uid,
+              fullName: currentUser.displayName || 'Viewer',
+              email: currentUser.email || '',
+              role: 'viewer',
+              createdAt: new Date().toISOString()
+            });
+          }
+        }
+      } else {
+        setUserRole(null);
+        setUserProfile(null);
+      }
       setUser(currentUser);
       setAuthLoading(false);
     });
@@ -60,7 +101,7 @@ export default function App() {
 
   // Firestore Real-time Listeners
   useEffect(() => {
-    if (!user || user.email !== 'tasfeen.auyan@triloytech.com') return;
+    if (!user) return;
 
     // Test connection
     const testConnection = async () => {
@@ -105,7 +146,7 @@ export default function App() {
   // Migration from localStorage to Firestore
   useEffect(() => {
     const migrate = async () => {
-      if (!user || user.email !== 'tasfeen.auyan@triloytech.com') return;
+      if (!user || userRole !== 'admin') return;
       
       const entriesSnapshot = await getDocs(collection(db, 'entries'));
       if (!entriesSnapshot.empty) return; // Already migrated or has data
@@ -467,19 +508,42 @@ export default function App() {
           <Database size={20} />
           Transaction Item Pool
         </button>
+
+        {userRole === 'admin' && (
+          <button 
+            onClick={() => { setActiveTab('admin'); setIsMobileMenuOpen(false); }}
+            className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-semibold transition-all ${
+              activeTab === 'admin' ? 'bg-indigo-50 text-indigo-700' : 'text-slate-500 hover:bg-slate-50'
+            }`}
+          >
+            <Shield size={20} />
+            Admin Panel
+          </button>
+        )}
+
         <button className="w-full flex items-center gap-3 px-4 py-3 text-slate-500 hover:bg-slate-50 rounded-xl font-medium transition-all">
           <Settings size={20} />
           Settings
         </button>
 
         <div className="pt-2 mt-2 border-t border-slate-100 space-y-2">
-          <button 
-            onClick={() => { setIsClearModalOpen(true); setIsMobileMenuOpen(false); }}
-            className="w-full flex items-center gap-3 px-4 py-3 text-rose-500 hover:bg-rose-50 rounded-xl font-medium transition-all"
-          >
-            <Trash2 size={20} />
-            Clear All Data
-          </button>
+          {userRole === 'admin' && (
+            <button 
+              onClick={() => { setIsClearModalOpen(true); setIsMobileMenuOpen(false); }}
+              className="w-full flex items-center gap-3 px-4 py-3 text-rose-500 hover:bg-rose-50 rounded-xl font-medium transition-all"
+            >
+              <Trash2 size={20} />
+              Clear All Data
+            </button>
+          )}
+
+          {userProfile && (
+            <div className="px-4 py-2 mt-2 border-t border-slate-50 pt-4">
+              <p className="text-sm font-bold text-slate-700 truncate">{userProfile.fullName}</p>
+              <p className="text-[10px] font-medium text-slate-400 truncate">{userProfile.email}</p>
+            </div>
+          )}
+
           <button 
             onClick={logout}
             className="w-full flex items-center gap-3 px-4 py-3 text-slate-400 hover:bg-slate-50 rounded-xl font-medium transition-all"
@@ -504,27 +568,10 @@ export default function App() {
     return <Login />;
   }
 
-  const isAdmin = user.email === 'tasfeen.auyan@triloytech.com';
-
-  if (!isAdmin) {
+  if (!userRole) {
     return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
-        <div className="max-w-md w-full bg-white rounded-3xl shadow-xl border border-slate-200 overflow-hidden p-8 text-center space-y-6">
-          <div className="w-16 h-16 bg-rose-100 rounded-2xl flex items-center justify-center mx-auto text-rose-600">
-            <LogOut size={32} />
-          </div>
-          <div className="space-y-2">
-            <h1 className="text-2xl font-bold text-slate-900">Access Denied</h1>
-            <p className="text-slate-500">You do not have permission to access this dashboard.</p>
-            <p className="text-xs text-slate-400 font-mono">{user.email}</p>
-          </div>
-          <button
-            onClick={logout}
-            className="w-full px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-2xl transition-all shadow-lg shadow-indigo-200"
-          >
-            Sign Out
-          </button>
-        </div>
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+        <div className="w-10 h-10 border-4 border-slate-200 border-t-indigo-600 rounded-full animate-spin" />
       </div>
     );
   }
@@ -680,7 +727,7 @@ export default function App() {
               )}
             </div>
 
-            {activeTab === 'history' && (
+            {activeTab === 'history' && userRole === 'admin' && (
               <div className="flex items-center gap-2 lg:gap-3">
                 <ExcelImport onImport={handleImport} />
                 <button
@@ -722,6 +769,7 @@ export default function App() {
                  activeTab === 'expense' ? 'Expense Report' : 
                  activeTab === 'categorized-expense' ? 'Categorized Expense' : 
                  activeTab === 'salary' ? ' Salary Report' : 
+                 activeTab === 'admin' ? 'Admin Panel' :
                  'Transaction Item Management'}
               </h2>
               <p className="text-slate-500">
@@ -732,11 +780,19 @@ export default function App() {
                  activeTab === 'expense' ? 'Detailed breakdown of company expenditures by month.' : 
                  activeTab === 'categorized-expense' ? 'Categorized breakdown of Media Buy and Food Bill expenses.' : 
                  activeTab === 'salary' ? ' Monthly breakdown of salary disbursements' : 
+                 activeTab === 'admin' ? 'Manage team members and system access.' :
                  ' Manage accounts and Transaction items, and sub-categories.'}
               </p>
             </div>
             <div className="text-right hidden md:block">
-              <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Current Period</p>
+              <div className="flex items-center gap-3 justify-end mb-1">
+                <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${
+                  userRole === 'admin' ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-100 text-slate-600'
+                }`}>
+                  {userRole}
+                </span>
+                <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Current Period</p>
+              </div>
               <p className="text-lg font-bold text-indigo-600">{new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</p>
             </div>
           </motion.div>
@@ -803,22 +859,24 @@ export default function App() {
                           <h3 className="font-bold text-slate-800">Monthly Performance Summary</h3>
                           <p className="text-xs text-slate-500 font-medium">Tabular view of financial trends</p>
                         </div>
-                        <div className="flex items-center gap-2">
-                          <button 
-                            onClick={downloadMonthlyXLS}
-                            className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 text-emerald-600 hover:bg-emerald-100 rounded-lg text-xs font-bold transition-colors"
-                          >
-                            <Download size={14} />
-                            XLS
-                          </button>
-                          <button 
-                            onClick={downloadMonthlyPDF}
-                            className="flex items-center gap-1.5 px-3 py-1.5 bg-rose-50 text-rose-600 hover:bg-rose-100 rounded-lg text-xs font-bold transition-colors"
-                          >
-                            <FileText size={14} />
-                            PDF
-                          </button>
-                        </div>
+                        {userRole === 'admin' && (
+                          <div className="flex items-center gap-2">
+                            <button 
+                              onClick={downloadMonthlyXLS}
+                              className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 text-emerald-600 hover:bg-emerald-100 rounded-lg text-xs font-bold transition-colors"
+                            >
+                              <Download size={14} />
+                              XLS
+                            </button>
+                            <button 
+                              onClick={downloadMonthlyPDF}
+                              className="flex items-center gap-1.5 px-3 py-1.5 bg-rose-50 text-rose-600 hover:bg-rose-100 rounded-lg text-xs font-bold transition-colors"
+                            >
+                              <FileText size={14} />
+                              PDF
+                            </button>
+                          </div>
+                        )}
                       </div>
                       <div className="overflow-x-auto">
                         <table className="w-full text-left border-collapse">
@@ -857,7 +915,7 @@ export default function App() {
                     </div>
 
                     {/* Project Revenue Table */}
-                    <ProjectRevenue entries={entries} />
+                    <ProjectRevenue entries={entries} userRole={userRole} />
                   </div>
 
                   <div className="space-y-8">
@@ -882,6 +940,7 @@ export default function App() {
                   entries={filteredEntries} 
                   onDelete={handleDelete} 
                   onEdit={(entry) => setEditingEntry(entry)}
+                  userRole={userRole || 'viewer'}
                 />
               </motion.div>
             ) : activeTab === 'balance-sheet' ? (
@@ -892,7 +951,7 @@ export default function App() {
                 exit={{ opacity: 0, y: -20 }}
                 className="space-y-6"
               >
-                <BalanceSheet entries={entries} />
+                <BalanceSheet entries={entries} userRole={userRole} />
               </motion.div>
             ) : activeTab === 'monthly-balance-sheet' ? (
               <motion.div
@@ -902,7 +961,7 @@ export default function App() {
                 exit={{ opacity: 0, y: -20 }}
                 className="space-y-6"
               >
-                <MonthlyBalanceSheet entries={entries} />
+                <MonthlyBalanceSheet entries={entries} userRole={userRole} />
               </motion.div>
             ) : activeTab === 'expense' ? (
               <motion.div
@@ -912,7 +971,7 @@ export default function App() {
                 exit={{ opacity: 0, y: -20 }}
                 className="space-y-6"
               >
-                <ExpenseReport entries={entries} />
+                <ExpenseReport entries={entries} userRole={userRole} />
               </motion.div>
             ) : activeTab === 'categorized-expense' ? (
               <motion.div
@@ -932,7 +991,17 @@ export default function App() {
                 exit={{ opacity: 0, y: -20 }}
                 className="space-y-6"
               >
-                <SalaryReport entries={entries} />
+                <SalaryReport entries={entries} userRole={userRole} />
+              </motion.div>
+            ) : activeTab === 'admin' ? (
+              <motion.div
+                key="admin"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -20 }}
+                className="space-y-6"
+              >
+                <AdminPanel userRole={userRole} />
               </motion.div>
             ) : (
               <motion.div
@@ -944,6 +1013,7 @@ export default function App() {
               >
                 <AccountsPool 
                   accounts={accounts} 
+                  userRole={userRole || 'viewer'}
                   onAdd={async (acc) => {
                     try {
                       await setDoc(doc(db, 'accounts', acc.id), acc);

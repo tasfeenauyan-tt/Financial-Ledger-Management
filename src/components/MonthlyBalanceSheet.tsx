@@ -1,4 +1,4 @@
-import { LedgerEntry } from '../types';
+import { LedgerEntry, UserRole } from '../types';
 import { Download, FileText, ChevronRight, ChevronDown } from 'lucide-react';
 import { cn } from '../lib/utils';
 import * as XLSX from 'xlsx';
@@ -8,9 +8,10 @@ import { useState, useMemo } from 'react';
 
 interface MonthlyBalanceSheetProps {
   entries: LedgerEntry[];
+  userRole?: UserRole | null;
 }
 
-export default function MonthlyBalanceSheet({ entries }: MonthlyBalanceSheetProps) {
+export default function MonthlyBalanceSheet({ entries, userRole }: MonthlyBalanceSheetProps) {
   const [expandedMonths, setExpandedMonths] = useState<Record<string, boolean>>({});
 
   const monthlyData = useMemo(() => {
@@ -221,24 +222,26 @@ export default function MonthlyBalanceSheet({ entries }: MonthlyBalanceSheetProp
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-end">
-        <div className="flex gap-3">
-          <button
-            onClick={downloadAllExcel}
-            className="flex items-center gap-2 px-4 py-2 bg-emerald-50 text-emerald-600 rounded-xl hover:bg-emerald-100 transition-colors font-semibold text-sm"
-          >
-            <Download size={18} />
-            Download All Excel
-          </button>
-          <button
-            onClick={downloadAllPDF}
-            className="flex items-center gap-2 px-4 py-2 bg-rose-50 text-rose-600 rounded-xl hover:bg-rose-100 transition-colors font-semibold text-sm"
-          >
-            <FileText size={18} />
-            Download All PDF
-          </button>
+      {userRole === 'admin' && (
+        <div className="flex items-center justify-end">
+          <div className="flex gap-3">
+            <button
+              onClick={downloadAllExcel}
+              className="flex items-center gap-2 px-4 py-2 bg-emerald-50 text-emerald-600 rounded-xl hover:bg-emerald-100 transition-colors font-semibold text-sm"
+            >
+              <Download size={18} />
+              Download All Excel
+            </button>
+            <button
+              onClick={downloadAllPDF}
+              className="flex items-center gap-2 px-4 py-2 bg-rose-50 text-rose-600 rounded-xl hover:bg-rose-100 transition-colors font-semibold text-sm"
+            >
+              <FileText size={18} />
+              Download All PDF
+            </button>
+          </div>
         </div>
-      </div>
+      )}
 
       <div className="space-y-4">
         {monthlyData.map((data) => {
@@ -259,22 +262,24 @@ export default function MonthlyBalanceSheet({ entries }: MonthlyBalanceSheetProp
                     {transactionCount} Transactions this month
                   </span>
                 </div>
-                <div className="flex gap-2">
-                  <button
-                    onClick={(e) => { e.stopPropagation(); downloadExcel(data); }}
-                    className="p-2 text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"
-                    title="Download Excel"
-                  >
-                    <Download size={18} />
-                  </button>
-                  <button
-                    onClick={(e) => { e.stopPropagation(); downloadPDF(data); }}
-                    className="p-2 text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
-                    title="Download PDF"
-                  >
-                    <FileText size={18} />
-                  </button>
-                </div>
+                {userRole === 'admin' && (
+                  <div className="flex gap-2">
+                    <button
+                      onClick={(e) => { e.stopPropagation(); downloadExcel(data); }}
+                      className="p-2 text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"
+                      title="Download Excel"
+                    >
+                      <Download size={18} />
+                    </button>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); downloadPDF(data); }}
+                      className="p-2 text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
+                      title="Download PDF"
+                    >
+                      <FileText size={18} />
+                    </button>
+                  </div>
+                )}
               </div>
 
               {isExpanded && (

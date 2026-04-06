@@ -1,4 +1,4 @@
-import { LedgerEntry } from '../types';
+import { LedgerEntry, UserRole } from '../types';
 import { formatCurrency, formatDate } from '../lib/utils';
 import { Download, ChevronRight, ChevronDown, Receipt } from 'lucide-react';
 import { cn } from '../lib/utils';
@@ -7,9 +7,10 @@ import { useState, useMemo } from 'react';
 
 interface ExpenseReportProps {
   entries: LedgerEntry[];
+  userRole?: UserRole | null;
 }
 
-export default function ExpenseReport({ entries }: ExpenseReportProps) {
+export default function ExpenseReport({ entries, userRole }: ExpenseReportProps) {
   const [expandedMonths, setExpandedMonths] = useState<string[]>([]);
 
   const monthlyExpenses = useMemo(() => {
@@ -110,15 +111,17 @@ export default function ExpenseReport({ entries }: ExpenseReportProps) {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-end">
-        <button
-          onClick={downloadAllExcel}
-          className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl transition-all shadow-md font-bold text-sm"
-        >
-          <Download size={18} />
-          Download All (XLS)
-        </button>
-      </div>
+      {userRole === 'admin' && (
+        <div className="flex items-center justify-end">
+          <button
+            onClick={downloadAllExcel}
+            className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl transition-all shadow-md font-bold text-sm"
+          >
+            <Download size={18} />
+            Download All (XLS)
+          </button>
+        </div>
+      )}
 
       <div className="space-y-4">
         {monthlyExpenses.map((month) => (
@@ -141,16 +144,18 @@ export default function ExpenseReport({ entries }: ExpenseReportProps) {
                   <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-0.5">Total Expense</p>
                   <p className="text-lg font-bold text-rose-600">{formatCurrency(month.total)}</p>
                 </div>
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    downloadMonthlyExcel(month);
-                  }}
-                  className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all"
-                  title="Download Monthly XLS"
-                >
-                  <Download size={20} />
-                </button>
+                {userRole === 'admin' && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      downloadMonthlyExcel(month);
+                    }}
+                    className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all"
+                    title="Download Monthly XLS"
+                  >
+                    <Download size={20} />
+                  </button>
+                )}
               </div>
             </div>
 

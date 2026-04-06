@@ -1,4 +1,4 @@
-import { LedgerEntry } from '../types';
+import { LedgerEntry, UserRole } from '../types';
 import { formatCurrency } from '../lib/utils';
 import { useMemo } from 'react';
 import { Download, FileText } from 'lucide-react';
@@ -8,9 +8,10 @@ import autoTable from 'jspdf-autotable';
 
 interface ProjectRevenueProps {
   entries: LedgerEntry[];
+  userRole?: UserRole | null;
 }
 
-export default function ProjectRevenue({ entries }: ProjectRevenueProps) {
+export default function ProjectRevenue({ entries, userRole }: ProjectRevenueProps) {
   const projectData = useMemo(() => {
     // Filter entries that are project revenue
     const revenueEntries = entries.filter(e => {
@@ -135,22 +136,24 @@ export default function ProjectRevenue({ entries }: ProjectRevenueProps) {
           <h3 className="font-bold text-slate-800">Project Revenue</h3>
           <p className="text-xs text-slate-500 font-medium">Monthly revenue breakdown by project</p>
         </div>
-        <div className="flex items-center gap-2">
-          <button 
-            onClick={downloadXLS}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 text-emerald-600 hover:bg-emerald-100 rounded-lg text-xs font-bold transition-colors"
-          >
-            <Download size={14} />
-            XLS
-          </button>
-          <button 
-            onClick={downloadPDF}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-rose-50 text-rose-600 hover:bg-rose-100 rounded-lg text-xs font-bold transition-colors"
-          >
-            <FileText size={14} />
-            PDF
-          </button>
-        </div>
+        {userRole === 'admin' && (
+          <div className="flex items-center gap-2">
+            <button 
+              onClick={downloadXLS}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 text-emerald-600 hover:bg-emerald-100 rounded-lg text-xs font-bold transition-colors"
+            >
+              <Download size={14} />
+              XLS
+            </button>
+            <button 
+              onClick={downloadPDF}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-rose-50 text-rose-600 hover:bg-rose-100 rounded-lg text-xs font-bold transition-colors"
+            >
+              <FileText size={14} />
+              PDF
+            </button>
+          </div>
+        )}
       </div>
       <div className="overflow-x-auto custom-scrollbar pb-2">
         <table className="w-full text-left border-collapse min-w-[800px]">

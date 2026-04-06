@@ -1,4 +1,4 @@
-import { LedgerEntry } from '../types';
+import { LedgerEntry, UserRole } from '../types';
 import { formatCurrency } from '../lib/utils';
 import { Users, Download } from 'lucide-react';
 import { useMemo } from 'react';
@@ -6,9 +6,10 @@ import * as XLSX from 'xlsx';
 
 interface SalaryReportProps {
   entries: LedgerEntry[];
+  userRole?: UserRole | null;
 }
 
-export default function SalaryReport({ entries }: SalaryReportProps) {
+export default function SalaryReport({ entries, userRole }: SalaryReportProps) {
   const salaryData = useMemo(() => {
     // Filter entries that are salaries
     // The user specified "Opex: Salary" in details and employee in remarks
@@ -122,13 +123,15 @@ export default function SalaryReport({ entries }: SalaryReportProps) {
           <h3 className="text-lg font-bold text-slate-800">Salary Sheet</h3>
           <p className="text-sm text-slate-500 font-medium"> Monthly salary disbursements.</p>
         </div>
-        <button
-          onClick={downloadExcel}
-          className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl transition-all shadow-md font-bold text-sm"
-        >
-          <Download size={18} />
-          Download XLS
-        </button>
+        {userRole === 'admin' && (
+          <button
+            onClick={downloadExcel}
+            className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl transition-all shadow-md font-bold text-sm"
+          >
+            <Download size={18} />
+            Download XLS
+          </button>
+        )}
       </div>
 
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">

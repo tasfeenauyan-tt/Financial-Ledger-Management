@@ -60,9 +60,26 @@
         "notes": { "type": "string" }
       },
       "required": ["id", "date", "transactionItemId", "transactionItemName", "details", "customEntries", "remarksId", "remarks"]
+    },
+    "AppUser": {
+      "title": "App User",
+      "description": "User profile and role information",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "fullName": { "type": "string" },
+        "email": { "type": "string" },
+        "role": { "type": "string", "enum": ["admin", "viewer"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "fullName", "email", "role", "createdAt"]
     }
   },
   "firestore": {
+    "/users/{userId}": {
+      "schema": "AppUser",
+      "description": "User profiles and roles"
+    },
     "/accounts/{accountId}": {
       "schema": "Account",
       "description": "Pool of accounts"

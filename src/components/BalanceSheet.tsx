@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { LedgerEntry } from '../types';
+import { LedgerEntry, UserRole } from '../types';
 import { Download, FileText, AlertCircle, CheckCircle2 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import * as XLSX from 'xlsx';
@@ -8,9 +8,10 @@ import autoTable from 'jspdf-autotable';
 
 interface BalanceSheetProps {
   entries: LedgerEntry[];
+  userRole?: UserRole | null;
 }
 
-export default function BalanceSheet({ entries }: BalanceSheetProps) {
+export default function BalanceSheet({ entries, userRole }: BalanceSheetProps) {
   const accountTotals = useMemo(() => {
     const totals: Record<string, { name: string; amount: number; category: 'Asset' | 'Liability' | 'Equity' }> = {};
     
@@ -115,22 +116,24 @@ export default function BalanceSheet({ entries }: BalanceSheetProps) {
           <h2 className="text-xl font-bold text-slate-800">Balance Sheet</h2>
           <p className="text-sm text-slate-500 font-medium">As of {new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</p>
         </div>
-        <div className="flex gap-3">
-          <button
-            onClick={downloadExcel}
-            className="flex items-center gap-2 px-4 py-2 bg-emerald-50 text-emerald-600 rounded-xl hover:bg-emerald-100 transition-colors font-semibold text-sm"
-          >
-            <Download size={18} />
-            Excel
-          </button>
-          <button
-            onClick={downloadPDF}
-            className="flex items-center gap-2 px-4 py-2 bg-rose-50 text-rose-600 rounded-xl hover:bg-rose-100 transition-colors font-semibold text-sm"
-          >
-            <FileText size={18} />
-            PDF
-          </button>
-        </div>
+        {userRole === 'admin' && (
+          <div className="flex gap-3">
+            <button
+              onClick={downloadExcel}
+              className="flex items-center gap-2 px-4 py-2 bg-emerald-50 text-emerald-600 rounded-xl hover:bg-emerald-100 transition-colors font-semibold text-sm"
+            >
+              <Download size={18} />
+              Excel
+            </button>
+            <button
+              onClick={downloadPDF}
+              className="flex items-center gap-2 px-4 py-2 bg-rose-50 text-rose-600 rounded-xl hover:bg-rose-100 transition-colors font-semibold text-sm"
+            >
+              <FileText size={18} />
+              PDF
+            </button>
+          </div>
+        )}
       </div>
 
       {!isBalanced && (

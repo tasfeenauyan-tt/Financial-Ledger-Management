@@ -10,9 +10,11 @@ interface LedgerTableProps {
   entries: LedgerEntry[];
   onDelete: (id: string) => void;
   onEdit: (entry: LedgerEntry) => void;
+  userRole: string;
 }
 
-export default function LedgerTable({ entries, onDelete, onEdit }: LedgerTableProps) {
+export default function LedgerTable({ entries, onDelete, onEdit, userRole }: LedgerTableProps) {
+  const isAdmin = userRole === 'admin';
   const getJournalLines = (entry: LedgerEntry) => {
     const lines: { account: string; dr: number; cr: number }[] = [];
 
@@ -131,31 +133,33 @@ export default function LedgerTable({ entries, onDelete, onEdit }: LedgerTablePr
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-2 print:hidden">
-        <div className="flex gap-2">
-          <button
-            onClick={downloadJournalExcel}
-            className="flex items-center gap-2 px-3 py-1.5 bg-emerald-50 text-emerald-600 rounded-xl hover:bg-emerald-100 transition-colors font-bold text-xs"
-            title="Export Current View"
-          >
-            <Download size={14} />
-            Excel
-          </button>
-          <button
-            onClick={downloadImportableExcel}
-            className="flex items-center gap-2 px-3 py-1.5 bg-indigo-50 text-indigo-600 rounded-xl hover:bg-indigo-100 transition-colors font-bold text-xs"
-            title="Export in Importable Format"
-          >
-            <Download size={14} />
-            Export for Import
-          </button>
-          <button
-            onClick={downloadJournalPDF}
-            className="flex items-center gap-2 px-3 py-1.5 bg-rose-50 text-rose-600 rounded-xl hover:bg-rose-100 transition-colors font-bold text-xs"
-          >
-            <FileText size={14} />
-            PDF
-          </button>
-        </div>
+        {userRole === 'admin' && (
+          <div className="flex gap-2">
+            <button
+              onClick={downloadJournalExcel}
+              className="flex items-center gap-2 px-3 py-1.5 bg-emerald-50 text-emerald-600 rounded-xl hover:bg-emerald-100 transition-colors font-bold text-xs"
+              title="Export Current View"
+            >
+              <Download size={14} />
+              Excel
+            </button>
+            <button
+              onClick={downloadImportableExcel}
+              className="flex items-center gap-2 px-3 py-1.5 bg-indigo-50 text-indigo-600 rounded-xl hover:bg-indigo-100 transition-colors font-bold text-xs"
+              title="Export in Importable Format"
+            >
+              <Download size={14} />
+              Export for Import
+            </button>
+            <button
+              onClick={downloadJournalPDF}
+              className="flex items-center gap-2 px-3 py-1.5 bg-rose-50 text-rose-600 rounded-xl hover:bg-rose-100 transition-colors font-bold text-xs"
+            >
+              <FileText size={14} />
+              PDF
+            </button>
+          </div>
+        )}
       </div>
 
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
@@ -167,7 +171,7 @@ export default function LedgerTable({ entries, onDelete, onEdit }: LedgerTablePr
                 <th className="p-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">Account Titles & Explanation</th>
                 <th className="p-4 text-xs font-semibold text-slate-500 uppercase tracking-wider text-right w-40">Debit (Dr)</th>
                 <th className="p-4 text-xs font-semibold text-slate-500 uppercase tracking-wider text-right w-40">Credit (Cr)</th>
-                <th className="p-4 text-xs font-semibold text-slate-500 uppercase tracking-wider text-center w-24 print:hidden">Actions</th>
+                {isAdmin && <th className="p-4 text-xs font-semibold text-slate-500 uppercase tracking-wider text-center w-24 print:hidden">Actions</th>}
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -219,24 +223,26 @@ export default function LedgerTable({ entries, onDelete, onEdit }: LedgerTablePr
                           ))}
                         </div>
                       </td>
-                      <td className="p-4 text-center print:hidden">
-                        <div className="flex items-center justify-center gap-2">
-                          <button
-                            onClick={() => onEdit(entry)}
-                            className="p-1.5 text-slate-400 hover:text-indigo-600 transition-colors"
-                            title="Edit Transaction"
-                          >
-                            <Pencil size={16} />
-                          </button>
-                          <button
-                            onClick={() => onDelete(entry.id)}
-                            className="p-1.5 text-slate-400 hover:text-rose-600 transition-colors"
-                            title="Delete Transaction"
-                          >
-                            <Trash2 size={16} />
-                          </button>
-                        </div>
-                      </td>
+                      {isAdmin && (
+                        <td className="p-4 text-center print:hidden">
+                          <div className="flex items-center justify-center gap-2">
+                            <button
+                              onClick={() => onEdit(entry)}
+                              className="p-1.5 text-slate-400 hover:text-indigo-600 transition-colors"
+                              title="Edit Transaction"
+                            >
+                              <Pencil size={16} />
+                            </button>
+                            <button
+                              onClick={() => onDelete(entry.id)}
+                              className="p-1.5 text-slate-400 hover:text-rose-600 transition-colors"
+                              title="Delete Transaction"
+                            >
+                              <Trash2 size={16} />
+                            </button>
+                          </div>
+                        </td>
+                      )}
                     </tr>
                   );
                 })
