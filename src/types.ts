@@ -24,6 +24,11 @@ export interface TransactionSubCategory {
   name: string;
 }
 
+export interface Partner {
+  id: string;
+  name: string;
+}
+
 export interface CustomAccountEntry {
   id: string;
   accountId: string;

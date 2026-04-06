@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { createPortal } from 'react-dom';
-import { Account, TransactionItem, TransactionSubCategory } from '../types';
-import { Plus, Trash2, Wallet, Landmark, Scale, X, ListTodo, Tags } from 'lucide-react';
+import { Account, TransactionItem, TransactionSubCategory, Partner } from '../types';
+import { Plus, Trash2, Wallet, Landmark, Scale, X, ListTodo, Tags, Users } from 'lucide-react';
 import { cn } from '../lib/utils';
 
 interface AccountsPoolProps {

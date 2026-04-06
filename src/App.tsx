@@ -1,6 +1,6 @@
 import * as React from 'react';
 import { useState, useMemo, useEffect, Component, ErrorInfo, ReactNode } from 'react';
-import { LedgerEntry, LedgerTotals, Account, TransactionItem, TransactionSubCategory } from './types';
+import { LedgerEntry, LedgerTotals, Account, TransactionItem, TransactionSubCategory, Partner } from './types';
 import SummaryCards from './components/SummaryCards';
 import LedgerTable from './components/LedgerTable';
 import EntryForm from './components/EntryForm';
@@ -11,6 +11,7 @@ import ExpenseReport from './components/ExpenseReport';
 import CategorizedExpense from './components/CategorizedExpense';
 import SalaryReport from './components/SalaryReport';
 import ProjectRevenue from './components/ProjectRevenue';
+import OwnersCapital from './components/OwnersCapital';
 import AccountsPool from './components/AccountsPool';
 import AdminPanel from './components/AdminPanel';
 import Login from './components/Login';
@@ -32,7 +33,7 @@ import {
 } from 'firebase/firestore';
 import { UserRole, AppUser } from './types';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend, LineChart, Line, XAxis, YAxis, CartesianGrid, BarChart, Bar } from 'recharts';
-import { Building2, LayoutDashboard, History, Settings, LogOut, Search, Filter, Download, Printer, Trash2, RotateCcw, FileText, Calendar, Receipt, Users, Database, AlertCircle, Menu, X, TrendingDown, Shield } from 'lucide-react';
+import { Building2, LayoutDashboard, History, Settings, LogOut, Search, Filter, Download, Printer, Trash2, RotateCcw, FileText, Calendar, Receipt, Users, Database, AlertCircle, Menu, X, TrendingDown, Shield, ArrowLeftRight } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
@@ -50,8 +51,9 @@ export default function App() {
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [transactionItems, setTransactionItems] = useState<TransactionItem[]>([]);
   const [transactionSubCategories, setTransactionSubCategories] = useState<TransactionSubCategory[]>([]);
+  const [partners, setPartners] = useState<Partner[]>([]);
 
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'history' | 'balance-sheet' | 'monthly-balance-sheet' | 'expense' | 'categorized-expense' | 'salary' | 'accounts' | 'admin'>('history');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'history' | 'balance-sheet' | 'monthly-balance-sheet' | 'expense' | 'categorized-expense' | 'salary' | 'owners-capital' | 'accounts' | 'admin'>('history');
   const [searchTerm, setSearchTerm] = useState('');
   const [editingEntry, setEditingEntry] = useState<LedgerEntry | null>(null);
 
@@ -135,11 +137,17 @@ export default function App() {
       setTransactionSubCategories(data);
     }, (error) => handleFirestoreError(error, OperationType.GET, 'transactionSubCategories'));
 
+    const unsubPartners = onSnapshot(collection(db, 'partners'), (snapshot) => {
+      const data = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Partner));
+      setPartners(data);
+    }, (error) => handleFirestoreError(error, OperationType.GET, 'partners'));
+
     return () => {
       unsubEntries();
       unsubAccounts();
       unsubItems();
       unsubSubs();
+      unsubPartners();
     };
   }, [user]);
 
@@ -500,6 +508,15 @@ export default function App() {
           Salary Report
         </button>
         <button 
+          onClick={() => { setActiveTab('owners-capital'); setIsMobileMenuOpen(false); }}
+          className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-semibold transition-all ${
+            activeTab === 'owners-capital' ? 'bg-indigo-50 text-indigo-700' : 'text-slate-500 hover:bg-slate-50'
+          }`}
+        >
+          <ArrowLeftRight size={20} />
+          Owner's Capital
+        </button>
+        <button 
           onClick={() => { setActiveTab('accounts'); setIsMobileMenuOpen(false); }}
           className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-semibold transition-all ${
             activeTab === 'accounts' ? 'bg-indigo-50 text-indigo-700' : 'text-slate-500 hover:bg-slate-50'
@@ -769,6 +786,7 @@ export default function App() {
                  activeTab === 'expense' ? 'Expense Report' : 
                  activeTab === 'categorized-expense' ? 'Categorized Expense' : 
                  activeTab === 'salary' ? ' Salary Report' : 
+                 activeTab === 'owners-capital' ? 'Owner’s Contribution' :
                  activeTab === 'admin' ? 'Admin Panel' :
                  'Transaction Item Management'}
               </h2>
@@ -780,6 +798,7 @@ export default function App() {
                  activeTab === 'expense' ? 'Detailed breakdown of company expenditures by month.' : 
                  activeTab === 'categorized-expense' ? 'Categorized breakdown of Media Buy and Food Bill expenses.' : 
                  activeTab === 'salary' ? ' Monthly breakdown of salary disbursements' : 
+                 activeTab === 'owners-capital' ? 'Owner’s Investment Management.' :
                  activeTab === 'admin' ? 'Manage team members and system access.' :
                  ' Manage accounts and Transaction items, and sub-categories.'}
               </p>
@@ -992,6 +1011,19 @@ export default function App() {
                 className="space-y-6"
               >
                 <SalaryReport entries={entries} userRole={userRole} />
+              </motion.div>
+            ) : activeTab === 'owners-capital' ? (
+              <motion.div
+                key="owners-capital"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -20 }}
+                className="space-y-6"
+              >
+                <OwnersCapital 
+                  entries={entries} 
+                  partners={partners} 
+                />
               </motion.div>
             ) : activeTab === 'admin' ? (
               <motion.div

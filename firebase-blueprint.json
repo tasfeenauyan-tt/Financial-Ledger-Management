@@ -73,6 +73,16 @@
         "createdAt": { "type": "string", "format": "date-time" }
       },
       "required": ["uid", "fullName", "email", "role", "createdAt"]
+    },
+    "Partner": {
+      "title": "Partner",
+      "description": "Partner for capital tracking",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" }
+      },
+      "required": ["id", "name"]
     }
   },
   "firestore": {
@@ -95,6 +105,10 @@
     "/entries/{entryId}": {
       "schema": "LedgerEntry",
       "description": "Ledger transactions"
+    },
+    "/partners/{partnerId}": {
+      "schema": "Partner",
+      "description": "Pool of partners"
     }
   }
 }
