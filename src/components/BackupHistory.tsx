@@ -27,25 +27,34 @@ export default function BackupHistory({ userRole }: BackupHistoryProps) {
   const [status, setStatus] = useState<{ type: 'success' | 'error', message: string } | null>(null);
 
   useEffect(() => {
-    const q = query(
-      collection(db, 'entry_history'),
-      orderBy('timestamp', 'desc'),
-      limit(50)
-    );
+    const unsubscribeAuth = auth.onAuthStateChanged((user) => {
+      if (!user) {
+        setLoading(false);
+        return;
+      }
 
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const records = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      } as HistoryRecord));
-      setHistory(records);
-      setLoading(false);
-    }, (error) => {
-      console.error("Error fetching history:", error);
-      setLoading(false);
+      const q = query(
+        collection(db, 'entry_history'),
+        orderBy('timestamp', 'desc'),
+        limit(50)
+      );
+
+      const unsubscribeSnapshot = onSnapshot(q, (snapshot) => {
+        const records = snapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        } as HistoryRecord));
+        setHistory(records);
+        setLoading(false);
+      }, (error) => {
+        console.error("Error fetching history:", error);
+        setLoading(false);
+      });
+
+      return () => unsubscribeSnapshot();
     });
 
-    return () => unsubscribe();
+    return () => unsubscribeAuth();
   }, []);
 
   const handleRestore = async (record: HistoryRecord) => {

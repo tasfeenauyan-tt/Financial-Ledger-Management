@@ -59,7 +59,7 @@ service cloud.firestore {
     }
 
     match /entry_history/{historyId} {
-      allow read: if isViewer();
+      allow read: if isAuthenticated();
       allow write: if isAdmin();
     }
 
