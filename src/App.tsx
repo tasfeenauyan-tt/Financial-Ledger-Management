@@ -13,6 +13,7 @@ import SalaryReport from './components/SalaryReport';
 import ProjectRevenue from './components/ProjectRevenue';
 import OwnersCapital from './components/OwnersCapital';
 import ZakatCalculation from './components/ZakatCalculation';
+import BackupHistory from './components/BackupHistory';
 import AccountsPool from './components/AccountsPool';
 import AdminPanel from './components/AdminPanel';
 import Login from './components/Login';
@@ -55,7 +56,7 @@ export default function App() {
   const [partners, setPartners] = useState<Partner[]>([]);
   const [zakatSettings, setZakatSettings] = useState<ZakatSettings | null>(null);
 
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'history' | 'balance-sheet' | 'monthly-balance-sheet' | 'expense' | 'categorized-expense' | 'salary' | 'owners-capital' | 'zakat' | 'accounts' | 'admin'>('history');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'history' | 'balance-sheet' | 'monthly-balance-sheet' | 'expense' | 'categorized-expense' | 'salary' | 'owners-capital' | 'zakat' | 'backup' | 'accounts' | 'admin'>('history');
   const [searchTerm, setSearchTerm] = useState('');
   const [editingEntry, setEditingEntry] = useState<LedgerEntry | null>(null);
 
@@ -535,6 +536,15 @@ export default function App() {
           Zakat Calculation
         </button>
         <button 
+          onClick={() => { setActiveTab('backup'); setIsMobileMenuOpen(false); }}
+          className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-semibold transition-all ${
+            activeTab === 'backup' ? 'bg-indigo-50 text-indigo-700' : 'text-slate-500 hover:bg-slate-50'
+          }`}
+        >
+          <History size={20} />
+          Backup & Restore
+        </button>
+        <button 
           onClick={() => { setActiveTab('accounts'); setIsMobileMenuOpen(false); }}
           className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-semibold transition-all ${
             activeTab === 'accounts' ? 'bg-indigo-50 text-indigo-700' : 'text-slate-500 hover:bg-slate-50'
@@ -806,6 +816,7 @@ export default function App() {
                  activeTab === 'salary' ? ' Salary Report' : 
                  activeTab === 'owners-capital' ? 'Owner’s Contribution' :
                  activeTab === 'zakat' ? 'Zakat Calculation' :
+                 activeTab === 'backup' ? 'Backup & Restore' :
                  activeTab === 'admin' ? 'Admin Panel' :
                  'Transaction Item Management'}
               </h2>
@@ -819,6 +830,7 @@ export default function App() {
                  activeTab === 'salary' ? ' Monthly breakdown of salary disbursements' : 
                  activeTab === 'owners-capital' ? 'Owner’s Investment Management.' :
                  activeTab === 'zakat' ? 'Calculate and track your Zakat obligations.' :
+                 activeTab === 'backup' ? 'Manage data backups and restore journal history.' :
                  activeTab === 'admin' ? 'Manage team members and system access.' :
                  ' Manage accounts and Transaction items, and sub-categories.'}
               </p>
@@ -1065,6 +1077,16 @@ export default function App() {
                   }}
                   userRole={userRole || 'viewer'}
                 />
+              </motion.div>
+            ) : activeTab === 'backup' ? (
+              <motion.div
+                key="backup"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -20 }}
+                className="space-y-6"
+              >
+                <BackupHistory userRole={userRole || 'viewer'} />
               </motion.div>
             ) : activeTab === 'admin' ? (
               <motion.div

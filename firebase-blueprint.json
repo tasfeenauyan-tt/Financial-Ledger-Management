@@ -94,6 +94,19 @@
         "startDate": { "type": "string" }
       },
       "required": ["id", "nisabAmount", "startDate"]
+    },
+    "EntryHistory": {
+      "title": "Entry History",
+      "description": "Metadata for journal entry backups",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "entryId": { "type": "string" },
+        "action": { "type": "string", "enum": ["created", "updated", "deleted"] },
+        "timestamp": { "type": "string", "format": "date-time" },
+        "storagePath": { "type": "string" }
+      },
+      "required": ["id", "entryId", "action", "timestamp", "storagePath"]
     }
   },
   "firestore": {
@@ -124,6 +137,10 @@
     "/settings/{settingId}": {
       "schema": "ZakatSettings",
       "description": "Application settings"
+    },
+    "/entry_history/{historyId}": {
+      "schema": "EntryHistory",
+      "description": "Audit log and backup metadata for entries"
     }
   }
 }

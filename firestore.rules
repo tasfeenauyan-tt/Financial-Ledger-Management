@@ -58,6 +58,11 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
+    match /entry_history/{historyId} {
+      allow read: if isViewer();
+      allow write: if isAdmin();
+    }
+
     match /test/connection {
       allow read: if isAuthenticated();
     }
