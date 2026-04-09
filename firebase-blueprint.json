@@ -83,6 +83,17 @@
         "name": { "type": "string" }
       },
       "required": ["id", "name"]
+    },
+    "ZakatSettings": {
+      "title": "Zakat Settings",
+      "description": "Settings for Zakat calculation",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "nisabAmount": { "type": "number" },
+        "startDate": { "type": "string" }
+      },
+      "required": ["id", "nisabAmount", "startDate"]
     }
   },
   "firestore": {
@@ -109,6 +120,10 @@
     "/partners/{partnerId}": {
       "schema": "Partner",
       "description": "Pool of partners"
+    },
+    "/settings/{settingId}": {
+      "schema": "ZakatSettings",
+      "description": "Application settings"
     }
   }
 }

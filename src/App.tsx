@@ -1,6 +1,6 @@
 import * as React from 'react';
 import { useState, useMemo, useEffect, Component, ErrorInfo, ReactNode } from 'react';
-import { LedgerEntry, LedgerTotals, Account, TransactionItem, TransactionSubCategory, Partner } from './types';
+import { LedgerEntry, LedgerTotals, Account, TransactionItem, TransactionSubCategory, Partner, ZakatSettings } from './types';
 import SummaryCards from './components/SummaryCards';
 import LedgerTable from './components/LedgerTable';
 import EntryForm from './components/EntryForm';
@@ -12,6 +12,7 @@ import CategorizedExpense from './components/CategorizedExpense';
 import SalaryReport from './components/SalaryReport';
 import ProjectRevenue from './components/ProjectRevenue';
 import OwnersCapital from './components/OwnersCapital';
+import ZakatCalculation from './components/ZakatCalculation';
 import AccountsPool from './components/AccountsPool';
 import AdminPanel from './components/AdminPanel';
 import Login from './components/Login';
@@ -33,7 +34,7 @@ import {
 } from 'firebase/firestore';
 import { UserRole, AppUser } from './types';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend, LineChart, Line, XAxis, YAxis, CartesianGrid, BarChart, Bar } from 'recharts';
-import { Building2, LayoutDashboard, History, Settings, LogOut, Search, Filter, Download, Printer, Trash2, RotateCcw, FileText, Calendar, Receipt, Users, Database, AlertCircle, Menu, X, TrendingDown, Shield, ArrowLeftRight } from 'lucide-react';
+import { Building2, LayoutDashboard, History, Settings, LogOut, Search, Filter, Download, Printer, Trash2, RotateCcw, FileText, Calendar, Receipt, Users, Database, AlertCircle, Menu, X, TrendingDown, Shield, ArrowLeftRight, Calculator } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
@@ -52,8 +53,9 @@ export default function App() {
   const [transactionItems, setTransactionItems] = useState<TransactionItem[]>([]);
   const [transactionSubCategories, setTransactionSubCategories] = useState<TransactionSubCategory[]>([]);
   const [partners, setPartners] = useState<Partner[]>([]);
+  const [zakatSettings, setZakatSettings] = useState<ZakatSettings | null>(null);
 
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'history' | 'balance-sheet' | 'monthly-balance-sheet' | 'expense' | 'categorized-expense' | 'salary' | 'owners-capital' | 'accounts' | 'admin'>('history');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'history' | 'balance-sheet' | 'monthly-balance-sheet' | 'expense' | 'categorized-expense' | 'salary' | 'owners-capital' | 'zakat' | 'accounts' | 'admin'>('history');
   const [searchTerm, setSearchTerm] = useState('');
   const [editingEntry, setEditingEntry] = useState<LedgerEntry | null>(null);
 
@@ -142,12 +144,19 @@ export default function App() {
       setPartners(data);
     }, (error) => handleFirestoreError(error, OperationType.GET, 'partners'));
 
+    const unsubZakat = onSnapshot(doc(db, 'settings', 'zakat-settings'), (snapshot) => {
+      if (snapshot.exists()) {
+        setZakatSettings(snapshot.data() as ZakatSettings);
+      }
+    }, (error) => handleFirestoreError(error, OperationType.GET, 'settings/zakat-settings'));
+
     return () => {
       unsubEntries();
       unsubAccounts();
       unsubItems();
       unsubSubs();
       unsubPartners();
+      unsubZakat();
     };
   }, [user]);
 
@@ -517,6 +526,15 @@ export default function App() {
           Owner's Capital
         </button>
         <button 
+          onClick={() => { setActiveTab('zakat'); setIsMobileMenuOpen(false); }}
+          className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-semibold transition-all ${
+            activeTab === 'zakat' ? 'bg-indigo-50 text-indigo-700' : 'text-slate-500 hover:bg-slate-50'
+          }`}
+        >
+          <Calculator size={20} />
+          Zakat Calculation
+        </button>
+        <button 
           onClick={() => { setActiveTab('accounts'); setIsMobileMenuOpen(false); }}
           className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-semibold transition-all ${
             activeTab === 'accounts' ? 'bg-indigo-50 text-indigo-700' : 'text-slate-500 hover:bg-slate-50'
@@ -787,6 +805,7 @@ export default function App() {
                  activeTab === 'categorized-expense' ? 'Categorized Expense' : 
                  activeTab === 'salary' ? ' Salary Report' : 
                  activeTab === 'owners-capital' ? 'Owner’s Contribution' :
+                 activeTab === 'zakat' ? 'Zakat Calculation' :
                  activeTab === 'admin' ? 'Admin Panel' :
                  'Transaction Item Management'}
               </h2>
@@ -799,6 +818,7 @@ export default function App() {
                  activeTab === 'categorized-expense' ? 'Categorized breakdown of Media Buy and Food Bill expenses.' : 
                  activeTab === 'salary' ? ' Monthly breakdown of salary disbursements' : 
                  activeTab === 'owners-capital' ? 'Owner’s Investment Management.' :
+                 activeTab === 'zakat' ? 'Calculate and track your Zakat obligations.' :
                  activeTab === 'admin' ? 'Manage team members and system access.' :
                  ' Manage accounts and Transaction items, and sub-categories.'}
               </p>
@@ -1023,6 +1043,27 @@ export default function App() {
                 <OwnersCapital 
                   entries={entries} 
                   partners={partners} 
+                />
+              </motion.div>
+            ) : activeTab === 'zakat' ? (
+              <motion.div
+                key="zakat"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -20 }}
+                className="space-y-6"
+              >
+                <ZakatCalculation 
+                  entries={entries} 
+                  settings={zakatSettings}
+                  onUpdateSettings={async (s) => {
+                    try {
+                      await setDoc(doc(db, 'settings', s.id), s);
+                    } catch (error) {
+                      handleFirestoreError(error, OperationType.WRITE, `settings/${s.id}`);
+                    }
+                  }}
+                  userRole={userRole || 'viewer'}
                 />
               </motion.div>
             ) : activeTab === 'admin' ? (

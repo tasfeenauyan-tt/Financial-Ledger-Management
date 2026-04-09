@@ -29,6 +29,12 @@ export interface Partner {
   name: string;
 }
 
+export interface ZakatSettings {
+  id: string;
+  nisabAmount: number;
+  startDate: string;
+}
+
 export interface CustomAccountEntry {
   id: string;
   accountId: string;
