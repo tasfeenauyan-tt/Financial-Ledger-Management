@@ -68,6 +68,7 @@ export default function EntryForm({
     onSave({
       ...formData,
       id: initialData?.id || crypto.randomUUID(),
+      createdAt: initialData?.createdAt || new Date().toISOString(),
     });
     
     if (!initialData) {

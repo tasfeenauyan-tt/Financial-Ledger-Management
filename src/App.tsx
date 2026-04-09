@@ -122,6 +122,13 @@ export default function App() {
 
     const unsubEntries = onSnapshot(query(collection(db, 'entries'), orderBy('date', 'desc')), (snapshot) => {
       const data = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as LedgerEntry));
+      // Sort by date desc, then by createdAt desc for the same date
+      data.sort((a, b) => {
+        if (a.date !== b.date) return b.date.localeCompare(a.date);
+        const timeA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+        const timeB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+        return timeB - timeA;
+      });
       setEntries(data);
     }, (error) => handleFirestoreError(error, OperationType.GET, 'entries'));
 

@@ -24,7 +24,22 @@ export default function ProjectRevenue({ entries, userRole }: ProjectRevenueProp
           }
         }
       });
-      return hasRevenue && e.details.toLowerCase().includes('revenue: project');
+      
+      const details = e.details.toLowerCase();
+      const itemName = e.transactionItemName.toLowerCase();
+      const remarks = e.remarks.toLowerCase();
+      
+      // Flexible detection:
+      // - Explicitly mentioned "project"
+      // - Project code pattern "TT-LG"
+      // - Revenue entry with a specific remark (usually the project name)
+      const isProjectRelated = 
+        details.includes('project') || 
+        itemName.includes('project') || 
+        remarks.includes('tt-lg') ||
+        ((details.includes('revenue') || itemName.includes('revenue')) && e.remarks.length > 0);
+      
+      return hasRevenue && isProjectRelated;
     });
 
     const projects = new Set<string>();
@@ -77,7 +92,7 @@ export default function ProjectRevenue({ entries, userRole }: ProjectRevenueProp
     return (
       <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
         <h3 className="font-bold text-slate-800 mb-4">Project Revenue</h3>
-        <p className="text-sm text-slate-500 italic">No project revenue recorded yet. Ensure "Revenue: Project" is in the details.</p>
+        <p className="text-sm text-slate-500 italic">No project revenue recorded yet. Ensure the transaction item or details mention "Project" or select a project in the Remarks field.</p>
       </div>
     );
   }

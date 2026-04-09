@@ -54,6 +54,7 @@ export interface LedgerEntry {
   remarksId: string;
   remarks: string;
   notes: string;
+  createdAt: string;
 }
 
 export interface LedgerTotals {
@@ -71,4 +72,5 @@ export const INITIAL_ENTRY: Omit<LedgerEntry, 'id'> = {
   remarksId: '',
   remarks: '',
   notes: '',
+  createdAt: new Date().toISOString(),
 };

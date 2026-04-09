@@ -61,6 +61,7 @@ export default function ExcelImport({ onImport }: ExcelImportProps) {
           remarksId: '',
           remarks: String(row[11] || ''),
           notes: String(row[12] || ''),
+          createdAt: new Date().toISOString(),
         };
       });
 
