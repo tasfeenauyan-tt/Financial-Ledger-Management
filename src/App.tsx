@@ -14,6 +14,7 @@ import ProjectRevenue from './components/ProjectRevenue';
 import OwnersCapital from './components/OwnersCapital';
 import ZakatCalculation from './components/ZakatCalculation';
 import BackupHistory from './components/BackupHistory';
+import PaymentManagement from './components/PaymentManagement';
 import AccountsPool from './components/AccountsPool';
 import AdminPanel from './components/AdminPanel';
 import Login from './components/Login';
@@ -35,12 +36,12 @@ import {
 } from 'firebase/firestore';
 import { UserRole, AppUser } from './types';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend, LineChart, Line, XAxis, YAxis, CartesianGrid, BarChart, Bar } from 'recharts';
-import { Building2, LayoutDashboard, History, Settings, LogOut, Search, Filter, Download, Printer, Trash2, RotateCcw, FileText, Calendar, Receipt, Users, Database, AlertCircle, Menu, X, TrendingDown, Shield, ArrowLeftRight, Calculator } from 'lucide-react';
+import { Building2, LayoutDashboard, History, Settings, LogOut, Search, Filter, Download, Printer, Trash2, RotateCcw, FileText, Calendar, Receipt, Users, Database, AlertCircle, Menu, X, TrendingDown, Shield, ArrowLeftRight, Calculator, CreditCard } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import { cn } from './lib/utils';
+import { cn, formatCurrency } from './lib/utils';
 
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
@@ -56,7 +57,7 @@ export default function App() {
   const [partners, setPartners] = useState<Partner[]>([]);
   const [zakatSettings, setZakatSettings] = useState<ZakatSettings | null>(null);
 
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'history' | 'balance-sheet' | 'monthly-balance-sheet' | 'expense' | 'categorized-expense' | 'salary' | 'owners-capital' | 'zakat' | 'backup' | 'accounts' | 'admin'>('history');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'history' | 'balance-sheet' | 'monthly-balance-sheet' | 'expense' | 'categorized-expense' | 'salary' | 'owners-capital' | 'zakat' | 'backup' | 'payments-mgmt' | 'accounts' | 'admin'>('history');
   const [searchTerm, setSearchTerm] = useState('');
   const [editingEntry, setEditingEntry] = useState<LedgerEntry | null>(null);
 
@@ -413,10 +414,10 @@ export default function App() {
     const header = [['Month', 'Revenue', 'Expense', 'Net Income', 'Cumulative']];
     const rows = monthlyData.map(d => [
       d.month,
-      `$${d.revenue.toLocaleString()}`,
-      `$${d.expense.toLocaleString()}`,
-      `$${d.netIncome.toLocaleString()}`,
-      `$${d.cumulativeNetIncome.toLocaleString()}`
+      formatCurrency(d.revenue, true),
+      formatCurrency(d.expense, true),
+      formatCurrency(d.netIncome, true),
+      formatCurrency(d.cumulativeNetIncome, true)
     ]);
 
     autoTable(doc, {
@@ -460,7 +461,7 @@ export default function App() {
         </div>
       </div>
 
-      <nav className="flex-1 p-4 space-y-2 overflow-y-auto">
+      <nav className="flex-1 p-4 space-y-2 overflow-y-auto sidebar-scrollbar">
         <button 
           onClick={() => { setActiveTab('dashboard'); setIsMobileMenuOpen(false); }}
           className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-semibold transition-all ${
@@ -550,6 +551,15 @@ export default function App() {
         >
           <History size={20} />
           Backup & Restore
+        </button>
+        <button 
+          onClick={() => { setActiveTab('payments-mgmt'); setIsMobileMenuOpen(false); }}
+          className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-semibold transition-all ${
+            activeTab === 'payments-mgmt' ? 'bg-indigo-50 text-indigo-700' : 'text-slate-500 hover:bg-slate-50'
+          }`}
+        >
+          <CreditCard size={20} />
+          Client Payments
         </button>
         <button 
           onClick={() => { setActiveTab('accounts'); setIsMobileMenuOpen(false); }}
@@ -824,6 +834,7 @@ export default function App() {
                  activeTab === 'owners-capital' ? 'Owner’s Contribution' :
                  activeTab === 'zakat' ? 'Zakat Calculation' :
                  activeTab === 'backup' ? 'Backup & Restore' :
+                 activeTab === 'payments-mgmt' ? 'Client/Project Payment Management' :
                  activeTab === 'admin' ? 'Admin Panel' :
                  'Transaction Item Management'}
               </h2>
@@ -838,6 +849,7 @@ export default function App() {
                  activeTab === 'owners-capital' ? 'Owner’s Investment Management.' :
                  activeTab === 'zakat' ? 'Calculate and track your Zakat obligations.' :
                  activeTab === 'backup' ? 'Manage data backups and restore journal history.' :
+                 activeTab === 'payments-mgmt' ? 'Manage clients, invoices, and project payments.' :
                  activeTab === 'admin' ? 'Manage team members and system access.' :
                  ' Manage accounts and Transaction items, and sub-categories.'}
               </p>
@@ -898,9 +910,10 @@ export default function App() {
                               axisLine={false} 
                               tickLine={false} 
                               tick={{ fill: '#94a3b8', fontSize: 12 }}
-                              tickFormatter={(value) => `$${value}`}
+                              tickFormatter={(value) => formatCurrency(value)}
                             />
                             <Tooltip 
+                              formatter={(value: number) => [formatCurrency(value), '']}
                               contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
                             />
                             <Bar dataKey="revenue" fill="#10b981" radius={[4, 4, 0, 0]} />
@@ -951,19 +964,19 @@ export default function App() {
                             {monthlyData.map((data, idx) => (
                               <tr key={idx} className="group hover:bg-slate-50 transition-colors">
                                 <td className="py-4 text-sm font-semibold text-slate-700">{data.month}</td>
-                                <td className="py-4 text-sm font-medium text-emerald-600 text-right">${data.revenue.toLocaleString()}</td>
-                                <td className="py-4 text-sm font-medium text-rose-600 text-right">${data.expense.toLocaleString()}</td>
+                                <td className="py-4 text-sm font-medium text-emerald-600 text-right">{formatCurrency(data.revenue)}</td>
+                                <td className="py-4 text-sm font-medium text-rose-600 text-right">{formatCurrency(data.expense)}</td>
                                 <td className={cn(
                                   "py-4 text-sm font-bold text-right",
                                   data.netIncome >= 0 ? "text-indigo-600" : "text-rose-600"
                                 )}>
-                                  ${data.netIncome.toLocaleString()}
+                                  {formatCurrency(data.netIncome)}
                                 </td>
                                 <td className={cn(
                                   "py-4 text-sm font-bold text-right",
                                   data.cumulativeNetIncome >= 0 ? "text-indigo-600" : "text-rose-600"
                                 )}>
-                                  ${data.cumulativeNetIncome.toLocaleString()}
+                                  {formatCurrency(data.cumulativeNetIncome)}
                                 </td>
                               </tr>
                             ))}
@@ -1094,6 +1107,16 @@ export default function App() {
                 className="space-y-6"
               >
                 <BackupHistory userRole={userRole || 'viewer'} />
+              </motion.div>
+            ) : activeTab === 'payments-mgmt' ? (
+              <motion.div
+                key="payments-mgmt"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -20 }}
+                className="space-y-6"
+              >
+                <PaymentManagement userRole={userRole || 'viewer'} />
               </motion.div>
             ) : activeTab === 'admin' ? (
               <motion.div

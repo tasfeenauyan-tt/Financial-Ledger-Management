@@ -1,6 +1,6 @@
 import { LedgerEntry, UserRole } from '../types';
 import { Download, FileText, ChevronRight, ChevronDown } from 'lucide-react';
-import { cn } from '../lib/utils';
+import { cn, formatCurrency } from '../lib/utils';
 import * as XLSX from 'xlsx';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -117,18 +117,18 @@ export default function MonthlyBalanceSheet({ entries, userRole }: MonthlyBalanc
 
     const tableData = [
       [{ content: 'ASSETS', colSpan: 2, styles: { fillColor: [241, 245, 249], fontStyle: 'bold' } }],
-      ...assets.map((a: any) => [a.name, `$${a.amount.toLocaleString()}`]),
-      [{ content: 'TOTAL ASSETS', styles: { fontStyle: 'bold' } }, { content: `$${totalAssets.toLocaleString()}`, styles: { fontStyle: 'bold' } }],
+      ...assets.map((a: any) => [a.name, formatCurrency(a.amount, true)]),
+      [{ content: 'TOTAL ASSETS', styles: { fontStyle: 'bold' } }, { content: formatCurrency(totalAssets, true), styles: { fontStyle: 'bold' } }],
       [],
       [{ content: 'LIABILITIES', colSpan: 2, styles: { fillColor: [241, 245, 249], fontStyle: 'bold' } }],
-      ...liabilities.map((l: any) => [l.name, `$${l.amount.toLocaleString()}`]),
-      [{ content: 'TOTAL LIABILITIES', styles: { fontStyle: 'bold' } }, { content: `$${totalLiabilities.toLocaleString()}`, styles: { fontStyle: 'bold' } }],
+      ...liabilities.map((l: any) => [l.name, formatCurrency(l.amount, true)]),
+      [{ content: 'TOTAL LIABILITIES', styles: { fontStyle: 'bold' } }, { content: formatCurrency(totalLiabilities, true), styles: { fontStyle: 'bold' } }],
       [],
       [{ content: 'EQUITY', colSpan: 2, styles: { fillColor: [241, 245, 249], fontStyle: 'bold' } }],
-      ...equity.map((e: any) => [e.name, `$${e.amount.toLocaleString()}`]),
-      [{ content: 'TOTAL EQUITY', styles: { fontStyle: 'bold' } }, { content: `$${totalEquity.toLocaleString()}`, styles: { fontStyle: 'bold' } }],
+      ...equity.map((e: any) => [e.name, formatCurrency(e.amount, true)]),
+      [{ content: 'TOTAL EQUITY', styles: { fontStyle: 'bold' } }, { content: formatCurrency(totalEquity, true), styles: { fontStyle: 'bold' } }],
       [],
-      [{ content: 'TOTAL LIABILITIES AND EQUITY', styles: { fontStyle: 'bold', fillColor: [238, 242, 255] } }, { content: `$${totalLiabilitiesAndEquity.toLocaleString()}`, styles: { fontStyle: 'bold', fillColor: [238, 242, 255] } }],
+      [{ content: 'TOTAL LIABILITIES AND EQUITY', styles: { fontStyle: 'bold', fillColor: [238, 242, 255] } }, { content: formatCurrency(totalLiabilitiesAndEquity, true), styles: { fontStyle: 'bold', fillColor: [238, 242, 255] } }],
     ];
 
     autoTable(doc, {
@@ -194,18 +194,18 @@ export default function MonthlyBalanceSheet({ entries, userRole }: MonthlyBalanc
 
       const tableData = [
         [{ content: 'ASSETS', colSpan: 2, styles: { fillColor: [241, 245, 249], fontStyle: 'bold' } }],
-        ...assets.map((a: any) => [a.name, `$${a.amount.toLocaleString()}`]),
-        [{ content: 'TOTAL ASSETS', styles: { fontStyle: 'bold' } }, { content: `$${totalAssets.toLocaleString()}`, styles: { fontStyle: 'bold' } }],
+        ...assets.map((a: any) => [a.name, formatCurrency(a.amount, true)]),
+        [{ content: 'TOTAL ASSETS', styles: { fontStyle: 'bold' } }, { content: formatCurrency(totalAssets, true), styles: { fontStyle: 'bold' } }],
         [],
         [{ content: 'LIABILITIES', colSpan: 2, styles: { fillColor: [241, 245, 249], fontStyle: 'bold' } }],
-        ...liabilities.map((l: any) => [l.name, `$${l.amount.toLocaleString()}`]),
-        [{ content: 'TOTAL LIABILITIES', styles: { fontStyle: 'bold' } }, { content: `$${totalLiabilities.toLocaleString()}`, styles: { fontStyle: 'bold' } }],
+        ...liabilities.map((l: any) => [l.name, formatCurrency(l.amount, true)]),
+        [{ content: 'TOTAL LIABILITIES', styles: { fontStyle: 'bold' } }, { content: formatCurrency(totalLiabilities, true), styles: { fontStyle: 'bold' } }],
         [],
         [{ content: 'EQUITY', colSpan: 2, styles: { fillColor: [241, 245, 249], fontStyle: 'bold' } }],
-        ...equity.map((e: any) => [e.name, `$${e.amount.toLocaleString()}`]),
-        [{ content: 'TOTAL EQUITY', styles: { fontStyle: 'bold' } }, { content: `$${totalEquity.toLocaleString()}`, styles: { fontStyle: 'bold' } }],
+        ...equity.map((e: any) => [e.name, formatCurrency(e.amount, true)]),
+        [{ content: 'TOTAL EQUITY', styles: { fontStyle: 'bold' } }, { content: formatCurrency(totalEquity, true), styles: { fontStyle: 'bold' } }],
         [],
-        [{ content: 'TOTAL LIABILITIES AND EQUITY', styles: { fontStyle: 'bold', fillColor: [238, 242, 255] } }, { content: `$${totalLiabilitiesAndEquity.toLocaleString()}`, styles: { fontStyle: 'bold', fillColor: [238, 242, 255] } }],
+        [{ content: 'TOTAL LIABILITIES AND EQUITY', styles: { fontStyle: 'bold', fillColor: [238, 242, 255] } }, { content: formatCurrency(totalLiabilitiesAndEquity, true), styles: { fontStyle: 'bold', fillColor: [238, 242, 255] } }],
       ];
 
       autoTable(doc, {
@@ -290,13 +290,13 @@ export default function MonthlyBalanceSheet({ entries, userRole }: MonthlyBalanc
                       {assets.map((asset: any, idx: number) => (
                         <div key={idx} className="flex justify-between text-sm">
                           <span className="text-slate-500">{asset.name}</span>
-                          <span className="font-semibold text-slate-700">${asset.amount.toLocaleString()}</span>
+                          <span className="font-semibold text-slate-700">{formatCurrency(asset.amount)}</span>
                         </div>
                       ))}
                       {assets.length === 0 && <p className="text-slate-400 italic text-sm">No assets</p>}
                       <div className="pt-2 border-t border-slate-200 flex justify-between font-bold text-emerald-600">
                         <span>Total Assets</span>
-                        <span>${totalAssets.toLocaleString()}</span>
+                        <span>{formatCurrency(totalAssets)}</span>
                       </div>
                     </div>
                   </div>
@@ -307,7 +307,7 @@ export default function MonthlyBalanceSheet({ entries, userRole }: MonthlyBalanc
                       {liabilities.map((liab: any, idx: number) => (
                         <div key={idx} className="flex justify-between text-sm">
                           <span className="text-slate-500">{liab.name}</span>
-                          <span className="font-semibold text-slate-700">${liab.amount.toLocaleString()}</span>
+                          <span className="font-semibold text-slate-700">{formatCurrency(liab.amount)}</span>
                         </div>
                       ))}
                       {liabilities.length === 0 && <p className="text-slate-400 italic text-sm">No liabilities</p>}
@@ -317,14 +317,14 @@ export default function MonthlyBalanceSheet({ entries, userRole }: MonthlyBalanc
                       {equity.map((eq: any, idx: number) => (
                         <div key={idx} className="flex justify-between text-sm">
                           <span className="text-slate-500">{eq.name}</span>
-                          <span className="font-semibold text-slate-700">${eq.amount.toLocaleString()}</span>
+                          <span className="font-semibold text-slate-700">{formatCurrency(eq.amount)}</span>
                         </div>
                       ))}
                       {equity.length === 0 && <p className="text-slate-400 italic text-sm">No equity</p>}
 
                       <div className="pt-2 border-t border-slate-200 flex justify-between font-bold text-indigo-600">
                         <span>Total Liab. & Equity</span>
-                        <span>${totalLiabilitiesAndEquity.toLocaleString()}</span>
+                        <span>{formatCurrency(totalLiabilitiesAndEquity)}</span>
                       </div>
                     </div>
                   </div>

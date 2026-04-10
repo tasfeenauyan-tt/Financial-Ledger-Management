@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { LedgerEntry, UserRole } from '../types';
 import { Download, FileText, AlertCircle, CheckCircle2 } from 'lucide-react';
-import { cn } from '../lib/utils';
+import { cn, formatCurrency } from '../lib/utils';
 import * as XLSX from 'xlsx';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -84,18 +84,18 @@ export default function BalanceSheet({ entries, userRole }: BalanceSheetProps) {
 
     const tableData = [
       [{ content: 'ASSETS', colSpan: 2, styles: { fillColor: [241, 245, 249], fontStyle: 'bold' } }],
-      ...assets.map(a => [a.name, `$${a.amount.toLocaleString()}`]),
-      [{ content: 'TOTAL ASSETS', styles: { fontStyle: 'bold' } }, { content: `$${totalAssets.toLocaleString()}`, styles: { fontStyle: 'bold' } }],
+      ...assets.map(a => [a.name, formatCurrency(a.amount, true)]),
+      [{ content: 'TOTAL ASSETS', styles: { fontStyle: 'bold' } }, { content: formatCurrency(totalAssets, true), styles: { fontStyle: 'bold' } }],
       [],
       [{ content: 'LIABILITIES', colSpan: 2, styles: { fillColor: [241, 245, 249], fontStyle: 'bold' } }],
-      ...liabilities.map(l => [l.name, `$${l.amount.toLocaleString()}`]),
-      [{ content: 'TOTAL LIABILITIES', styles: { fontStyle: 'bold' } }, { content: `$${totalLiabilities.toLocaleString()}`, styles: { fontStyle: 'bold' } }],
+      ...liabilities.map(l => [l.name, formatCurrency(l.amount, true)]),
+      [{ content: 'TOTAL LIABILITIES', styles: { fontStyle: 'bold' } }, { content: formatCurrency(totalLiabilities, true), styles: { fontStyle: 'bold' } }],
       [],
       [{ content: 'EQUITY', colSpan: 2, styles: { fillColor: [241, 245, 249], fontStyle: 'bold' } }],
-      ...equity.map(e => [e.name, `$${e.amount.toLocaleString()}`]),
-      [{ content: 'TOTAL EQUITY', styles: { fontStyle: 'bold' } }, { content: `$${totalEquity.toLocaleString()}`, styles: { fontStyle: 'bold' } }],
+      ...equity.map(e => [e.name, formatCurrency(e.amount, true)]),
+      [{ content: 'TOTAL EQUITY', styles: { fontStyle: 'bold' } }, { content: formatCurrency(totalEquity, true), styles: { fontStyle: 'bold' } }],
       [],
-      [{ content: 'TOTAL LIABILITIES AND EQUITY', styles: { fontStyle: 'bold', fillColor: [238, 242, 255] } }, { content: `$${totalLiabilitiesAndEquity.toLocaleString()}`, styles: { fontStyle: 'bold', fillColor: [238, 242, 255] } }],
+      [{ content: 'TOTAL LIABILITIES AND EQUITY', styles: { fontStyle: 'bold', fillColor: [238, 242, 255] } }, { content: formatCurrency(totalLiabilitiesAndEquity, true), styles: { fontStyle: 'bold', fillColor: [238, 242, 255] } }],
     ];
 
     autoTable(doc, {
@@ -140,7 +140,7 @@ export default function BalanceSheet({ entries, userRole }: BalanceSheetProps) {
         <div className="flex items-center gap-3 p-4 bg-rose-50 border border-rose-100 rounded-2xl text-rose-700 animate-pulse">
           <AlertCircle size={20} />
           <p className="text-sm font-bold">
-            Accounting Equation Mismatch: Assets (${totalAssets.toLocaleString()}) ≠ Liabilities + Equity (${totalLiabilitiesAndEquity.toLocaleString()})
+            Accounting Equation Mismatch: Assets ({formatCurrency(totalAssets)}) ≠ Liabilities + Equity ({formatCurrency(totalLiabilitiesAndEquity)})
           </p>
         </div>
       )}
@@ -162,7 +162,7 @@ export default function BalanceSheet({ entries, userRole }: BalanceSheetProps) {
             {assets.map((asset, idx) => (
               <div key={idx} className="flex justify-between items-center">
                 <span className="text-slate-600">{asset.name}</span>
-                <span className="font-semibold text-slate-900">${asset.amount.toLocaleString()}</span>
+                <span className="font-semibold text-slate-900">{formatCurrency(asset.amount)}</span>
               </div>
             ))}
             {assets.length === 0 && <p className="text-slate-400 italic text-sm">No assets recorded</p>}
@@ -170,7 +170,7 @@ export default function BalanceSheet({ entries, userRole }: BalanceSheetProps) {
           <div className="pt-6 border-t border-slate-200 flex justify-between items-center">
             <span className="font-bold text-slate-800">Total Assets</span>
             <span className="text-xl font-bold text-emerald-600 underline decoration-double decoration-emerald-200 underline-offset-4">
-              ${totalAssets.toLocaleString()}
+              {formatCurrency(totalAssets)}
             </span>
           </div>
         </div>
@@ -184,7 +184,7 @@ export default function BalanceSheet({ entries, userRole }: BalanceSheetProps) {
               {liabilities.map((liab, idx) => (
                 <div key={idx} className="flex justify-between items-center">
                   <span className="text-slate-600">{liab.name}</span>
-                  <span className="font-semibold text-slate-900">${liab.amount.toLocaleString()}</span>
+                  <span className="font-semibold text-slate-900">{formatCurrency(liab.amount)}</span>
                 </div>
               ))}
               {liabilities.length === 0 && <p className="text-slate-400 italic text-sm">No liabilities recorded</p>}
@@ -192,7 +192,7 @@ export default function BalanceSheet({ entries, userRole }: BalanceSheetProps) {
             <div className="pt-6 border-t border-slate-200 flex justify-between items-center">
               <span className="font-bold text-slate-800">Total Liabilities</span>
               <span className="text-xl font-bold text-rose-600">
-                ${totalLiabilities.toLocaleString()}
+                {formatCurrency(totalLiabilities)}
               </span>
             </div>
           </div>
@@ -204,7 +204,7 @@ export default function BalanceSheet({ entries, userRole }: BalanceSheetProps) {
               {equity.map((eq, idx) => (
                 <div key={idx} className="flex justify-between items-center">
                   <span className="text-slate-600">{eq.name}</span>
-                  <span className="font-semibold text-slate-900">${eq.amount.toLocaleString()}</span>
+                  <span className="font-semibold text-slate-900">{formatCurrency(eq.amount)}</span>
                 </div>
               ))}
               {equity.length === 0 && <p className="text-slate-400 italic text-sm">No equity recorded</p>}
@@ -212,7 +212,7 @@ export default function BalanceSheet({ entries, userRole }: BalanceSheetProps) {
             <div className="pt-6 border-t border-slate-200 flex justify-between items-center">
               <span className="font-bold text-slate-800">Total Equity</span>
               <span className="text-xl font-bold text-indigo-600">
-                ${totalEquity.toLocaleString()}
+                {formatCurrency(totalEquity)}
               </span>
             </div>
           </div>
@@ -229,7 +229,7 @@ export default function BalanceSheet({ entries, userRole }: BalanceSheetProps) {
               "text-2xl font-bold underline decoration-double underline-offset-4",
               isBalanced ? "text-indigo-600 decoration-indigo-200" : "text-rose-600 decoration-rose-200"
             )}>
-              ${totalLiabilitiesAndEquity.toLocaleString()}
+              {formatCurrency(totalLiabilitiesAndEquity)}
             </span>
           </div>
         </div>

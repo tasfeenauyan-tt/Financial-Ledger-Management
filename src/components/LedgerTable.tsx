@@ -71,8 +71,8 @@ export default function LedgerTable({ entries, onDelete, onEdit, userRole }: Led
         tableData.push([
           idx === 0 ? formatDate(e.date) : '',
           { content: line.account, styles: { paddingLeft: line.cr > 0 ? 10 : 2 } },
-          line.dr > 0 ? formatCurrency(line.dr) : '',
-          line.cr > 0 ? formatCurrency(line.cr) : ''
+          line.dr > 0 ? formatCurrency(line.dr, true) : '',
+          line.cr > 0 ? formatCurrency(line.cr, true) : ''
         ]);
       });
       tableData.push([

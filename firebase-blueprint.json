@@ -107,6 +107,85 @@
         "storagePath": { "type": "string" }
       },
       "required": ["id", "entryId", "action", "timestamp", "storagePath"]
+    },
+    "Client": {
+      "title": "Client",
+      "description": "Client details",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "phone": { "type": "string" },
+        "company": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "name", "phone", "company"]
+    },
+    "Invoice": {
+      "title": "Invoice",
+      "description": "Invoice details",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "invoiceNumber": { "type": "string" },
+        "clientId": { "type": "string" },
+        "clientName": { "type": "string" },
+        "date": { "type": "string", "format": "date" },
+        "serviceDate": { "type": "string", "format": "date" },
+        "dueDate": { "type": "string", "format": "date" },
+        "paymentAccountId": { "type": "string" },
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "description": { "type": "string" },
+              "quantity": { "type": "number" },
+              "unitPrice": { "type": "number" },
+              "total": { "type": "number" }
+            }
+          }
+        },
+        "totalAmount": { "type": "number" },
+        "paidAmount": { "type": "number" },
+        "status": { "type": "string", "enum": ["Unpaid", "Partial", "Paid", "Carry Forward"] },
+        "carriedToInvoiceNumber": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "invoiceNumber", "clientId", "date", "totalAmount", "status"]
+    },
+    "Payment": {
+      "title": "Payment",
+      "description": "Payment records",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "invoiceId": { "type": "string" },
+        "invoiceNumber": { "type": "string" },
+        "clientId": { "type": "string" },
+        "amount": { "type": "number" },
+        "date": { "type": "string", "format": "date" },
+        "method": { "type": "string" },
+        "notes": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "invoiceId", "clientId", "amount", "date"]
+    },
+    "BankAccount": {
+      "title": "Bank Account",
+      "description": "Company bank account details for client payments",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "accountTitleName": { "type": "string" },
+        "accountName": { "type": "string" },
+        "accountNumber": { "type": "string" },
+        "bankName": { "type": "string" },
+        "branchName": { "type": "string" },
+        "routingNumber": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id"]
     }
   },
   "firestore": {
@@ -141,6 +220,22 @@
     "/entry_history/{historyId}": {
       "schema": "EntryHistory",
       "description": "Audit log and backup metadata for entries"
+    },
+    "/clients/{clientId}": {
+      "schema": "Client",
+      "description": "Clients list"
+    },
+    "/invoices/{invoiceId}": {
+      "schema": "Invoice",
+      "description": "Invoices list"
+    },
+    "/payments/{paymentId}": {
+      "schema": "Payment",
+      "description": "Payment records"
+    },
+    "/bankAccounts/{accountId}": {
+      "schema": "BankAccount",
+      "description": "Company bank accounts"
     }
   }
 }

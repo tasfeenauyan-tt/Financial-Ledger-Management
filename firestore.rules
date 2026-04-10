@@ -63,6 +63,26 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
+    match /clients/{clientId} {
+      allow read: if isViewer();
+      allow write: if isAdmin();
+    }
+
+    match /invoices/{invoiceId} {
+      allow read: if isViewer();
+      allow write: if isAdmin();
+    }
+
+    match /payments/{paymentId} {
+      allow read: if isViewer();
+      allow write: if isAdmin();
+    }
+
+    match /bankAccounts/{accountId} {
+      allow read: if isViewer();
+      allow write: if isAdmin();
+    }
+
     match /test/connection {
       allow read: if isAuthenticated();
     }

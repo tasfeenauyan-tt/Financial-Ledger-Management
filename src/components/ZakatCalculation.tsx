@@ -114,8 +114,8 @@ export default function ZakatCalculation({ entries, settings, onUpdateSettings, 
       head: [['Date', 'Daily Equity', 'Cumulative Equity']],
       body: dailyEquityData.map(d => [
         d.date,
-        formatCurrency(d.dailyEquity),
-        formatCurrency(d.cumulativeEquity)
+        formatCurrency(d.dailyEquity, true),
+        formatCurrency(d.cumulativeEquity, true)
       ]),
     });
     doc.save(`Zakat_Calculation_${new Date().toISOString().split('T')[0]}.pdf`);

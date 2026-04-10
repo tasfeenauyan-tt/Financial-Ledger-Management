@@ -57,6 +57,62 @@ export interface LedgerEntry {
   createdAt: string;
 }
 
+export interface Client {
+  id: string;
+  name: string;
+  phone: string;
+  company: string;
+  createdAt: string;
+}
+
+export interface InvoiceItem {
+  description: string;
+  quantity: number;
+  unitPrice: number;
+  total: number;
+}
+
+export interface Invoice {
+  id: string;
+  invoiceNumber: string;
+  clientId: string;
+  clientName: string;
+  date: string;
+  serviceDate?: string;
+  dueDate: string;
+  paymentAccountId?: string;
+  items: InvoiceItem[];
+  totalAmount: number;
+  paidAmount: number;
+  status: 'Unpaid' | 'Partial' | 'Paid' | 'Carry Forward';
+  carriedToInvoiceNumber?: string;
+  createdAt: string;
+}
+
+export interface PaymentRecord {
+  id: string;
+  invoiceId: string;
+  invoiceNumber?: string;
+  clientId: string;
+  amount: number;
+  date: string;
+  method: string;
+  bankAccountId?: string;
+  notes: string;
+  createdAt: string;
+}
+
+export interface BankAccount {
+  id: string;
+  accountTitleName: string;
+  accountName: string;
+  accountNumber: string;
+  bankName: string;
+  branchName: string;
+  routingNumber: string;
+  createdAt: string;
+}
+
 export interface LedgerTotals {
   assets: number;
   liabilities: number;

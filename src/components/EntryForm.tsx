@@ -218,6 +218,7 @@ export default function EntryForm({
                       required
                       placeholder="Enter manual transaction item"
                       value={formData.transactionItemName}
+                      maxLength={100}
                       onChange={(e) => {
                         const val = e.target.value;
                         setFormData(prev => ({ ...prev, transactionItemName: val, details: val }));
@@ -346,6 +347,7 @@ export default function EntryForm({
                       required
                       placeholder="Enter manual remarks"
                       value={formData.remarks}
+                      maxLength={100}
                       onChange={(e) => setFormData(prev => ({ ...prev, remarks: e.target.value }))}
                       className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
                     />
@@ -357,6 +359,7 @@ export default function EntryForm({
                 <textarea
                   rows={2}
                   value={formData.notes}
+                  maxLength={500}
                   onChange={(e) => setFormData(prev => ({ ...prev, notes: e.target.value }))}
                   className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500 outline-none resize-none"
                 />

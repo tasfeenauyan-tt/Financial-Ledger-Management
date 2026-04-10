@@ -28,6 +28,7 @@ export default function ProjectRevenue({ entries, userRole }: ProjectRevenueProp
       const details = e.details.toLowerCase();
       const itemName = e.transactionItemName.toLowerCase();
       const remarks = e.remarks.toLowerCase();
+      const notes = (e.notes || '').toLowerCase();
       
       // Flexible detection:
       // - Explicitly mentioned "project"
@@ -37,7 +38,9 @@ export default function ProjectRevenue({ entries, userRole }: ProjectRevenueProp
         details.includes('project') || 
         itemName.includes('project') || 
         remarks.includes('tt-lg') ||
-        ((details.includes('revenue') || itemName.includes('revenue')) && e.remarks.length > 0);
+        notes.includes('tt-lg') ||
+        remarks.includes('project') ||
+        ((details.includes('revenue') || itemName.includes('revenue') || details.includes('income') || details.includes('sales')) && e.remarks.length > 0);
       
       return hasRevenue && isProjectRelated;
     });
@@ -127,7 +130,7 @@ export default function ProjectRevenue({ entries, userRole }: ProjectRevenueProp
     const rows = projects.map((project, idx) => {
       const row = [idx + 1, project];
       monthKeys.forEach(key => {
-        row.push(formatCurrency(dataMap[project][key] || 0));
+        row.push(formatCurrency(dataMap[project][key] || 0, true));
       });
       return row;
     });
