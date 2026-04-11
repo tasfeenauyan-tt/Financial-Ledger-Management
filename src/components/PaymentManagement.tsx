@@ -92,11 +92,14 @@ export default function PaymentManagement({ userRole }: PaymentManagementProps) 
 
   // Dashboard Stats
   const stats = useMemo(() => {
-    const totalInvoiced = invoices.reduce((sum, inv) => sum + inv.totalAmount, 0);
-    const totalPaid = invoices.reduce((sum, inv) => sum + inv.paidAmount, 0);
+    // Only count invoices that are NOT carry forwarded for the totals
+    const activeInvoices = invoices.filter(inv => inv.status !== 'Carry Forward');
+    
+    const totalInvoiced = activeInvoices.reduce((sum, inv) => sum + inv.totalAmount, 0);
+    const totalPaid = activeInvoices.reduce((sum, inv) => sum + inv.paidAmount, 0);
     const totalOutstanding = totalInvoiced - totalPaid;
-    const unpaidCount = invoices.filter(inv => inv.status === 'Unpaid').length;
-    const partialCount = invoices.filter(inv => inv.status === 'Partial').length;
+    const unpaidCount = activeInvoices.filter(inv => inv.status === 'Unpaid').length;
+    const partialCount = activeInvoices.filter(inv => inv.status === 'Partial').length;
     
     return { totalInvoiced, totalPaid, totalOutstanding, unpaidCount, partialCount };
   }, [invoices]);
