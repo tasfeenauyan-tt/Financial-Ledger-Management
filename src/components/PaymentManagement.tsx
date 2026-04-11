@@ -108,8 +108,10 @@ export default function PaymentManagement({ userRole }: PaymentManagementProps) 
     const clientData: Client = {
       id: editingClient?.id || crypto.randomUUID(),
       name: formData.get('name') as string,
-      phone: formData.get('phone') as string,
-      company: formData.get('company') as string,
+      phone: formData.get('phone') as string || '',
+      company: formData.get('company') as string || '',
+      email: formData.get('email') as string || '',
+      address: formData.get('address') as string || '',
       createdAt: editingClient?.createdAt || new Date().toISOString(),
     };
 
@@ -553,14 +555,28 @@ export default function PaymentManagement({ userRole }: PaymentManagementProps) 
                     )}
                   </div>
                   <h4 className="text-lg font-bold text-slate-800 truncate" title={client.name}>{client.name}</h4>
-                  <p className="text-sm font-bold text-indigo-600 mb-2 truncate" title={client.company}>{client.company}</p>
-                  <div className="flex items-center gap-2 text-xs text-slate-500 font-medium">
-                    <Clock size={14} />
-                    Joined {format(new Date(client.createdAt), 'MMM yyyy')}
+                  {client.company && <p className="text-sm font-bold text-indigo-600 mb-2 truncate" title={client.company}>{client.company}</p>}
+                  <div className="flex flex-col gap-1 mt-2">
+                    <div className="flex items-center gap-2 text-xs text-slate-500 font-medium">
+                      <Clock size={14} />
+                      Joined {format(new Date(client.createdAt), 'MMM yyyy')}
+                    </div>
+                    {client.email && (
+                      <div className="flex items-center gap-2 text-xs text-slate-500 font-medium truncate">
+                        <span className="font-bold uppercase tracking-widest text-[10px] text-slate-400">Email:</span>
+                        {client.email}
+                      </div>
+                    )}
+                    {client.address && (
+                      <div className="flex items-center gap-2 text-xs text-slate-500 font-medium truncate">
+                        <span className="font-bold uppercase tracking-widest text-[10px] text-slate-400">Addr:</span>
+                        {client.address}
+                      </div>
+                    )}
                   </div>
                   <div className="mt-4 pt-4 border-t border-slate-50 flex items-center justify-between">
                     <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Phone</span>
-                    <span className="text-sm font-bold text-slate-700">{client.phone}</span>
+                    <span className="text-sm font-bold text-slate-700">{client.phone || '-'}</span>
                   </div>
                 </div>
               ))}
@@ -862,16 +878,24 @@ export default function PaymentManagement({ userRole }: PaymentManagementProps) 
               </div>
               <form onSubmit={handleSaveClient} className="p-6 space-y-4">
                 <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Client Name</label>
+                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Client Name *</label>
                   <input name="name" defaultValue={editingClient?.name} required maxLength={100} className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500 outline-none transition-all" />
                 </div>
                 <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Phone Number</label>
-                  <input name="phone" defaultValue={editingClient?.phone} required maxLength={20} className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500 outline-none transition-all" />
+                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Company Name</label>
+                  <input name="company" defaultValue={editingClient?.company} maxLength={100} className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500 outline-none transition-all" />
                 </div>
                 <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Company Name</label>
-                  <input name="company" defaultValue={editingClient?.company} required maxLength={100} className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500 outline-none transition-all" />
+                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Phone Number</label>
+                  <input name="phone" defaultValue={editingClient?.phone} maxLength={20} className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500 outline-none transition-all" />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Email Address</label>
+                  <input name="email" type="email" defaultValue={editingClient?.email} maxLength={100} className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500 outline-none transition-all" />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Address</label>
+                  <textarea name="address" defaultValue={editingClient?.address} rows={2} maxLength={200} className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500 outline-none transition-all resize-none" />
                 </div>
                 <button type="submit" className="w-full py-3 bg-indigo-600 text-white font-bold rounded-xl shadow-lg shadow-indigo-100 hover:bg-indigo-700 transition-all mt-4">
                   {editingClient ? 'Update Client' : 'Save Client'}

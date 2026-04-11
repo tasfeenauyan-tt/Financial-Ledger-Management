@@ -60,8 +60,10 @@ export interface LedgerEntry {
 export interface Client {
   id: string;
   name: string;
-  phone: string;
-  company: string;
+  phone?: string;
+  company?: string;
+  email?: string;
+  address?: string;
   createdAt: string;
 }
 
