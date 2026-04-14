@@ -311,6 +311,23 @@ export default function PaymentManagement({ userRole }: PaymentManagementProps) 
     XLSX.writeFile(wb, `Invoices_${format(new Date(), 'yyyy-MM-dd')}.xlsx`);
   };
 
+  const downloadPaymentsXLS = () => {
+    const data = payments.map(pay => ({
+      'Date': pay.date,
+      'Client': clients.find(c => c.id === pay.clientId)?.name || 'Unknown Client',
+      'Invoice #': invoices.find(i => i.id === pay.invoiceId)?.invoiceNumber || 'N/A',
+      'Method': pay.method,
+      'Received In': bankAccounts.find(acc => acc.id === pay.bankAccountId)?.accountTitleName || 
+                     bankAccounts.find(acc => acc.id === pay.bankAccountId)?.accountName || '-',
+      'Amount': pay.amount,
+      'Notes': pay.notes
+    }));
+    const ws = XLSX.utils.json_to_sheet(data);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Payments');
+    XLSX.writeFile(wb, `Payments_${format(new Date(), 'yyyy-MM-dd')}.xlsx`);
+  };
+
   const generateInvoicePDF = (invoice: Invoice) => {
     const doc = new jsPDF();
     
@@ -724,6 +741,14 @@ export default function PaymentManagement({ userRole }: PaymentManagementProps) 
                 <div className="px-4 py-2 bg-emerald-50 text-emerald-700 rounded-xl text-sm font-bold border border-emerald-100">
                   Total Collected: {formatCurrency(stats.totalPaid)}
                 </div>
+                <button 
+                  onClick={downloadPaymentsXLS}
+                  className="flex items-center gap-2 px-4 py-2.5 bg-white text-emerald-600 border border-emerald-100 rounded-xl font-bold hover:bg-emerald-50 transition-all shadow-sm"
+                  title="Export to Excel"
+                >
+                  <Download size={18} />
+                  Export XLS
+                </button>
                 {isAdmin && (
                   <button 
                     onClick={() => { setSelectedInvoiceForPayment(null); setIsPaymentModalOpen(true); }}
