@@ -21,7 +21,8 @@ import {
   Printer,
   X,
   Building2,
-  Eye
+  Eye,
+  ShieldAlert
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn, formatCurrency } from '../lib/utils';
@@ -104,11 +105,14 @@ export default function PaymentManagement({ userRole }: PaymentManagementProps) 
     // Total Received = All payments across all invoices (including those that were later carried forward)
     const totalPaid = invoices.reduce((sum, inv) => sum + inv.paidAmount, 0);
     
-    const totalOutstanding = totalInvoiced - totalPaid;
+    // Total Bad Debt = Sum of badDebtAmount across all invoices
+    const totalBadDebt = invoices.reduce((sum, inv) => sum + (inv.badDebtAmount || 0), 0);
+    
+    const totalOutstanding = totalInvoiced - totalPaid - totalBadDebt;
     const unpaidCount = activeInvoices.filter(inv => inv.status === 'Unpaid').length;
     const partialCount = activeInvoices.filter(inv => inv.status === 'Partial').length;
     
-    return { totalInvoiced, totalPaid, totalOutstanding, unpaidCount, partialCount };
+    return { totalInvoiced, totalPaid, totalOutstanding, totalBadDebt, unpaidCount, partialCount };
   }, [invoices]);
 
   // Handlers
@@ -245,15 +249,18 @@ export default function PaymentManagement({ userRole }: PaymentManagementProps) 
 
       // Update invoice
       const newPaidAmount = invoice.paidAmount + payment.amount;
-      let newStatus: 'Unpaid' | 'Partial' | 'Paid' = 'Partial';
-      if (newPaidAmount >= invoice.totalAmount) {
-        newStatus = 'Paid';
-      } else if (newPaidAmount <= 0) {
+      const newBadDebtAmount = (invoice.badDebtAmount || 0) + (payment.badDebtAmount || 0);
+      
+      let newStatus: 'Unpaid' | 'Partial' | 'Paid' | 'Bad Debt' = 'Partial';
+      if (newPaidAmount + newBadDebtAmount >= invoice.totalAmount) {
+        newStatus = newBadDebtAmount > 0 && newPaidAmount < invoice.totalAmount ? 'Bad Debt' : 'Paid';
+      } else if (newPaidAmount <= 0 && newBadDebtAmount <= 0) {
         newStatus = 'Unpaid';
       }
 
       batch.update(doc(db, 'invoices', invoice.id), {
         paidAmount: newPaidAmount,
+        badDebtAmount: newBadDebtAmount,
         status: newStatus
       });
 
@@ -452,7 +459,7 @@ export default function PaymentManagement({ userRole }: PaymentManagementProps) 
             exit={{ opacity: 0, y: -20 }}
             className="space-y-8"
           >
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
               <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm space-y-2">
                 <p className="text-sm font-bold text-slate-500 uppercase tracking-wider">Total Invoiced</p>
                 <p className="text-3xl font-black text-slate-900">{formatCurrency(stats.totalInvoiced)}</p>
@@ -475,6 +482,14 @@ export default function PaymentManagement({ userRole }: PaymentManagementProps) 
                 <div className="flex items-center gap-1 text-rose-600 text-xs font-bold">
                   <Clock size={14} />
                   <span>Pending Payments</span>
+                </div>
+              </div>
+              <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm space-y-2">
+                <p className="text-sm font-bold text-slate-500 uppercase tracking-wider">Bad Debt</p>
+                <p className="text-3xl font-black text-slate-400">{formatCurrency(stats.totalBadDebt)}</p>
+                <div className="flex items-center gap-1 text-slate-400 text-xs font-bold">
+                  <ShieldAlert size={14} />
+                  <span>Written Off</span>
                 </div>
               </div>
             </div>
@@ -665,13 +680,14 @@ export default function PaymentManagement({ userRole }: PaymentManagementProps) 
                         <td className="p-4 text-sm text-slate-500 font-medium">{inv.date}</td>
                         <td className="p-4 text-sm font-black text-slate-900 text-right">{formatCurrency(inv.totalAmount)}</td>
                         <td className="p-4 text-sm font-black text-emerald-600 text-right">{formatCurrency(inv.paidAmount)}</td>
-                        <td className="p-4 text-sm font-black text-rose-600 text-right">{formatCurrency(inv.totalAmount - inv.paidAmount)}</td>
+                        <td className="p-4 text-sm font-black text-rose-600 text-right">{formatCurrency(inv.totalAmount - inv.paidAmount - (inv.badDebtAmount || 0))}</td>
                         <td className="p-4 text-center">
                           <span className={cn(
                             "text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded-md whitespace-nowrap",
                             inv.status === 'Paid' ? "bg-emerald-100 text-emerald-700" :
                             inv.status === 'Partial' ? "bg-amber-100 text-amber-700" : 
                             inv.status === 'Carry Forward' ? "bg-slate-100 text-slate-600" :
+                            inv.status === 'Bad Debt' ? "bg-slate-200 text-slate-500" :
                             "bg-rose-100 text-rose-700"
                           )}>
                             {inv.status}
@@ -1584,6 +1600,7 @@ function PaymentModal({
 
     const formData = new FormData(e.currentTarget);
     const amount = Number(formData.get('amount'));
+    const badDebtAmount = Number(formData.get('badDebtAmount') || 0);
     const date = formData.get('date') as string;
     const method = formData.get('method') as string;
     const notes = formData.get('notes') as string;
@@ -1593,6 +1610,7 @@ function PaymentModal({
       invoiceId: selectedInvoice.id,
       clientId: selectedInvoice.clientId,
       amount,
+      badDebtAmount,
       date,
       method,
       bankAccountId,
@@ -1652,16 +1670,26 @@ function PaymentModal({
             </div>
           )}
 
-          <div className="space-y-1.5">
-            <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Payment Amount</label>
-            <input 
-              name="amount" 
-              type="number" 
-              step="0.01" 
-              max={outstanding > 0 ? outstanding : undefined}
-              required 
-              className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500 outline-none transition-all" 
-            />
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Payment Amount</label>
+              <input 
+                name="amount" 
+                type="number" 
+                step="0.01" 
+                required 
+                className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500 outline-none transition-all" 
+              />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-rose-500 uppercase tracking-wider">Bad Debt Amount</label>
+              <input 
+                name="badDebtAmount" 
+                type="number" 
+                step="0.01" 
+                className="w-full px-4 py-2.5 rounded-xl border border-rose-100 bg-rose-50/30 focus:ring-2 focus:ring-rose-500 outline-none transition-all" 
+              />
+            </div>
           </div>
           <div className="space-y-1.5">
             <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Payment Date</label>

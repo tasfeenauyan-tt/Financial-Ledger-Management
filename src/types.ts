@@ -86,7 +86,8 @@ export interface Invoice {
   items: InvoiceItem[];
   totalAmount: number;
   paidAmount: number;
-  status: 'Unpaid' | 'Partial' | 'Paid' | 'Carry Forward';
+  badDebtAmount?: number;
+  status: 'Unpaid' | 'Partial' | 'Paid' | 'Carry Forward' | 'Bad Debt';
   carriedToInvoiceNumber?: string;
   createdAt: string;
 }
@@ -97,6 +98,7 @@ export interface PaymentRecord {
   invoiceNumber?: string;
   clientId: string;
   amount: number;
+  badDebtAmount?: number;
   date: string;
   method: string;
   bankAccountId?: string;

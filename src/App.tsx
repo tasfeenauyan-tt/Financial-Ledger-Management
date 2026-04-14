@@ -546,15 +546,6 @@ export default function App() {
           Zakat Calculation
         </button>
         <button 
-          onClick={() => { setActiveTab('backup'); setIsMobileMenuOpen(false); }}
-          className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-semibold transition-all ${
-            activeTab === 'backup' ? 'bg-indigo-50 text-indigo-700' : 'text-slate-500 hover:bg-slate-50'
-          }`}
-        >
-          <History size={20} />
-          Backup & Restore
-        </button>
-        <button 
           onClick={() => { setActiveTab('payments-mgmt'); setIsMobileMenuOpen(false); }}
           className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-semibold transition-all ${
             activeTab === 'payments-mgmt' ? 'bg-indigo-50 text-indigo-700' : 'text-slate-500 hover:bg-slate-50'
@@ -571,6 +562,15 @@ export default function App() {
         >
           <Database size={20} />
           Transaction Item Pool
+        </button>
+        <button 
+          onClick={() => { setActiveTab('backup'); setIsMobileMenuOpen(false); }}
+          className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-semibold transition-all ${
+            activeTab === 'backup' ? 'bg-indigo-50 text-indigo-700' : 'text-slate-500 hover:bg-slate-50'
+          }`}
+        >
+          <History size={20} />
+          Backup & Restore
         </button>
 
         {userRole === 'admin' && (
