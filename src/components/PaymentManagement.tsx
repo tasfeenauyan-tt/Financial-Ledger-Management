@@ -92,11 +92,18 @@ export default function PaymentManagement({ userRole }: PaymentManagementProps) 
 
   // Dashboard Stats
   const stats = useMemo(() => {
-    // Only count invoices that are NOT carry forwarded for the totals
+    // Only count invoices that are NOT carry forwarded for the totals to avoid double counting
     const activeInvoices = invoices.filter(inv => inv.status !== 'Carry Forward');
+    const cfInvoices = invoices.filter(inv => inv.status === 'Carry Forward');
     
-    const totalInvoiced = activeInvoices.reduce((sum, inv) => sum + inv.totalAmount, 0);
-    const totalPaid = activeInvoices.reduce((sum, inv) => sum + inv.paidAmount, 0);
+    // Total Invoiced (Revenue) = Active Invoices Total + Paid portion of Carry Forwarded Invoices
+    // This correctly captures all unique billed items without double counting the carried balance
+    const totalInvoiced = activeInvoices.reduce((sum, inv) => sum + inv.totalAmount, 0) + 
+                         cfInvoices.reduce((sum, inv) => sum + inv.paidAmount, 0);
+    
+    // Total Received = All payments across all invoices (including those that were later carried forward)
+    const totalPaid = invoices.reduce((sum, inv) => sum + inv.paidAmount, 0);
+    
     const totalOutstanding = totalInvoiced - totalPaid;
     const unpaidCount = activeInvoices.filter(inv => inv.status === 'Unpaid').length;
     const partialCount = activeInvoices.filter(inv => inv.status === 'Partial').length;
