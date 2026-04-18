@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { db, auth } from '../firebase';
 import { collection, onSnapshot, doc, setDoc, deleteDoc, query, orderBy } from 'firebase/firestore';
 import { AppUser, UserRole } from '../types';
@@ -262,8 +262,8 @@ export default function AdminPanel({ userRole }: { userRole: UserRole | null }) 
                     onChange={(e) => setFormData(prev => ({ ...prev, role: e.target.value as UserRole }))}
                     className="w-full pl-12 pr-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500 outline-none transition-all bg-white"
                   >
-                    <option value="viewer">Viewer (Read-Only)</option>
                     <option value="admin">Admin (Full Access)</option>
+                    <option value="viewer">Viewer (Read-Only)</option>
                   </select>
                 </div>
               </div>

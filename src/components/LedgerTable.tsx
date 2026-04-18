@@ -39,6 +39,7 @@ export default function LedgerTable({ entries, onDelete, onEdit, userRole }: Led
         data.push({
           Date: idx === 0 ? e.date : '',
           'Account Titles & Explanation': line.cr > 0 ? `    ${line.account}` : line.account,
+          Remarks: idx === 0 ? e.remarks : '',
           'Debit (Dr)': line.dr > 0 ? line.dr : '',
           'Credit (Cr)': line.cr > 0 ? line.cr : ''
         });
@@ -71,6 +72,7 @@ export default function LedgerTable({ entries, onDelete, onEdit, userRole }: Led
         tableData.push([
           idx === 0 ? formatDate(e.date) : '',
           { content: line.account, styles: { paddingLeft: line.cr > 0 ? 10 : 2 } },
+          idx === 0 ? e.remarks : '',
           line.dr > 0 ? formatCurrency(line.dr, true) : '',
           line.cr > 0 ? formatCurrency(line.cr, true) : ''
         ]);
@@ -85,11 +87,11 @@ export default function LedgerTable({ entries, onDelete, onEdit, userRole }: Led
 
     autoTable(doc, {
       startY: 30,
-      head: [['Date', 'Account Titles & Explanation', 'Debit (Dr)', 'Credit (Cr)']],
+      head: [['Date', 'Account Titles & Explanation', 'Remarks', 'Debit (Dr)', 'Credit (Cr)']],
       body: tableData,
-      styles: { fontSize: 9 },
+      styles: { fontSize: 8 },
       headStyles: { fillColor: [79, 70, 229] },
-      columnStyles: { 2: { halign: 'right' }, 3: { halign: 'right' } }
+      columnStyles: { 3: { halign: 'right' }, 4: { halign: 'right' } }
     });
 
     doc.save(`Journal_Ledger_${new Date().toISOString().split('T')[0]}.pdf`);
@@ -169,6 +171,7 @@ export default function LedgerTable({ entries, onDelete, onEdit, userRole }: Led
               <tr className="bg-slate-50 border-b border-slate-200">
                 <th className="p-4 text-xs font-semibold text-slate-500 uppercase tracking-wider w-32">Date</th>
                 <th className="p-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">Account Titles & Explanation</th>
+                <th className="p-4 text-xs font-semibold text-slate-500 uppercase tracking-wider w-40">Remarks</th>
                 <th className="p-4 text-xs font-semibold text-slate-500 uppercase tracking-wider text-right w-40">Debit (Dr)</th>
                 <th className="p-4 text-xs font-semibold text-slate-500 uppercase tracking-wider text-right w-40">Credit (Cr)</th>
                 {isAdmin && <th className="p-4 text-xs font-semibold text-slate-500 uppercase tracking-wider text-center w-24 print:hidden">Actions</th>}
@@ -177,7 +180,7 @@ export default function LedgerTable({ entries, onDelete, onEdit, userRole }: Led
             <tbody className="divide-y divide-slate-100">
               {entries.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="p-12 text-center text-slate-400 italic">
+                  <td colSpan={6} className="p-12 text-center text-slate-400 italic">
                     No transactions recorded yet.
                   </td>
                 </tr>
@@ -204,6 +207,9 @@ export default function LedgerTable({ entries, onDelete, onEdit, userRole }: Led
                             ({entry.details})
                           </div>
                         </div>
+                      </td>
+                      <td className="p-4 text-sm text-slate-600 font-medium">
+                        {entry.remarks}
                       </td>
                       <td className="p-4 text-right">
                         <div className="space-y-1">

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { LedgerEntry, INITIAL_ENTRY, Account, TransactionItem, CustomAccountEntry, TransactionSubCategory } from '../types';
 import { Plus, X, Info, Database, Trash2, AlertCircle, Tags } from 'lucide-react';
@@ -24,6 +24,10 @@ export default function EntryForm({
   const [isOpen, setIsOpen] = useState(false);
   const [formData, setFormData] = useState<Omit<LedgerEntry, 'id'>>(INITIAL_ENTRY);
   const [error, setError] = useState<string | null>(null);
+
+  const sortedAccounts = useMemo(() => [...accounts].sort((a, b) => a.name.localeCompare(b.name)), [accounts]);
+  const sortedTransactionItems = useMemo(() => [...transactionItems].sort((a, b) => a.name.localeCompare(b.name)), [transactionItems]);
+  const sortedTransactionSubCategories = useMemo(() => [...transactionSubCategories].sort((a, b) => a.name.localeCompare(b.name)), [transactionSubCategories]);
 
   useEffect(() => {
     if (initialData) {
@@ -207,7 +211,7 @@ export default function EntryForm({
                     className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500 outline-none transition-all bg-white"
                   >
                     <option value="">-- Select Item --</option>
-                    {transactionItems.map(item => (
+                    {sortedTransactionItems.map(item => (
                       <option key={item.id} value={item.id}>{item.name}</option>
                     ))}
                     <option value="others">Others</option>
@@ -258,8 +262,8 @@ export default function EntryForm({
                         className="w-full px-3 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-indigo-500 outline-none bg-white text-sm"
                       >
                         <option value="Asset">Asset</option>
-                        <option value="Liability">Liability</option>
                         <option value="Equity">Equity</option>
+                        <option value="Liability">Liability</option>
                       </select>
                     </div>
                     <div className="md:col-span-3 space-y-1.5">
@@ -271,7 +275,7 @@ export default function EntryForm({
                         className="w-full px-3 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-indigo-500 outline-none bg-white text-sm"
                       >
                         <option value="">-- Select Account --</option>
-                        {accounts
+                        {sortedAccounts
                           .filter(acc => acc.category === entry.accountCategory)
                           .map(acc => (
                             <option key={acc.id} value={acc.id}>{acc.name}</option>
@@ -299,8 +303,8 @@ export default function EntryForm({
                         onChange={(e) => updateCustomEntry(entry.id, { type: e.target.value as 'Dr' | 'Cr' })}
                         className="w-full px-3 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-indigo-500 outline-none bg-white text-sm"
                       >
-                        <option value="Dr">Dr</option>
                         <option value="Cr">Cr</option>
+                        <option value="Dr">Dr</option>
                       </select>
                     </div>
                     <div className="md:col-span-1 flex justify-center pb-1">
@@ -336,7 +340,7 @@ export default function EntryForm({
                     className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500 outline-none transition-all bg-white"
                   >
                     <option value="">-- Select Sub-Category --</option>
-                    {transactionSubCategories.map(sub => (
+                    {sortedTransactionSubCategories.map(sub => (
                       <option key={sub.id} value={sub.id}>{sub.name}</option>
                     ))}
                     <option value="others">Others</option>

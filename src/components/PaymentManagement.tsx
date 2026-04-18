@@ -1268,6 +1268,9 @@ function InvoiceModal({ clients, invoices, bankAccounts, onClose, onSave, editin
   onSave: (inv: Invoice, carryForwardIds?: string[]) => void,
   editingInvoice: Invoice | null
 }) {
+  const sortedClients = useMemo(() => [...clients].sort((a, b) => a.name.localeCompare(b.name)), [clients]);
+  const sortedBankAccounts = useMemo(() => [...bankAccounts].sort((a, b) => (a.accountTitleName || a.accountName).localeCompare(b.accountTitleName || b.accountName)), [bankAccounts]);
+
   const [items, setItems] = useState<InvoiceItem[]>(editingInvoice?.items || [{ description: '', quantity: 1, unitPrice: 0, total: 0 }]);
   const [clientId, setClientId] = useState(editingInvoice?.clientId || '');
   const [paidAmount, setPaidAmount] = useState(editingInvoice?.paidAmount || 0);
@@ -1426,7 +1429,7 @@ function InvoiceModal({ clients, invoices, bankAccounts, onClose, onSave, editin
                 className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500 outline-none transition-all bg-white"
               >
                 <option value="">-- Select Client --</option>
-                {clients.map(c => <option key={c.id} value={c.id}>{c.name} ({c.company})</option>)}
+                {sortedClients.map(c => <option key={c.id} value={c.id}>{c.name} ({c.company})</option>)}
               </select>
             </div>
             <div className="space-y-1.5">
@@ -1477,7 +1480,7 @@ function InvoiceModal({ clients, invoices, bankAccounts, onClose, onSave, editin
                 className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500 outline-none transition-all bg-white"
               >
                 <option value="">-- Select Account --</option>
-                {bankAccounts.map(acc => <option key={acc.id} value={acc.id}>{acc.accountTitleName || acc.accountName}</option>)}
+                {sortedBankAccounts.map(acc => <option key={acc.id} value={acc.id}>{acc.accountTitleName || acc.accountName}</option>)}
               </select>
             </div>
             {!editingInvoice && previousDuesAmount > 0 && (
@@ -1582,6 +1585,14 @@ function PaymentModal({
   onSave: (payment: PaymentRecord, invoice: Invoice) => void,
   initialInvoice: Invoice | null
 }) {
+  const sortedActiveInvoices = useMemo(() => 
+    invoices
+      .filter(inv => inv.status !== 'Paid' && inv.status !== 'Carry Forward')
+      .sort((a, b) => a.invoiceNumber.localeCompare(b.invoiceNumber)),
+    [invoices]
+  );
+  const sortedBankAccounts = useMemo(() => [...bankAccounts].sort((a, b) => (a.accountTitleName || a.accountName).localeCompare(b.accountTitleName || b.accountName)), [bankAccounts]);
+
   const [selectedInvoiceId, setSelectedInvoiceId] = useState(initialInvoice?.id || '');
   const [bankAccountId, setBankAccountId] = useState(initialInvoice?.paymentAccountId || '');
   
@@ -1651,9 +1662,7 @@ function PaymentModal({
                 className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500 outline-none transition-all bg-white"
               >
                 <option value="">-- Select Invoice --</option>
-                {invoices
-                  .filter(inv => inv.status !== 'Paid' && inv.status !== 'Carry Forward')
-                  .map(inv => (
+                {sortedActiveInvoices.map(inv => (
                     <option key={inv.id} value={inv.id}>
                       {inv.invoiceNumber} - {inv.clientName} ({formatCurrency(inv.totalAmount - inv.paidAmount)} due)
                     </option>
@@ -1698,8 +1707,8 @@ function PaymentModal({
           <div className="space-y-1.5">
             <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Payment Method</label>
             <select name="method" required className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500 outline-none transition-all bg-white">
-              <option value="Cash">Cash</option>
               <option value="Bank Transfer">Bank Transfer</option>
+              <option value="Cash">Cash</option>
               <option value="Check">Check</option>
               <option value="Mobile Banking">Mobile Banking</option>
             </select>
@@ -1713,7 +1722,7 @@ function PaymentModal({
               className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500 outline-none transition-all bg-white"
             >
               <option value="">-- Select Account --</option>
-              {bankAccounts.map(acc => (
+              {sortedBankAccounts.map(acc => (
                 <option key={acc.id} value={acc.id}>
                   {acc.accountTitleName || acc.accountName}
                 </option>

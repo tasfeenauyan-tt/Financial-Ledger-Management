@@ -291,8 +291,8 @@ export default function AccountsPool({
                   className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500 outline-none transition-all bg-white"
                 >
                   <option value="Asset">Asset</option>
-                  <option value="Liability">Liability</option>
                   <option value="Equity">Equity</option>
+                  <option value="Liability">Liability</option>
                 </select>
               </div>
               <div className="flex gap-3 pt-4">

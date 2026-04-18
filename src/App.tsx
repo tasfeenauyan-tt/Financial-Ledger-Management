@@ -13,7 +13,6 @@ import SalaryReport from './components/SalaryReport';
 import ProjectRevenue from './components/ProjectRevenue';
 import OwnersCapital from './components/OwnersCapital';
 import ZakatCalculation from './components/ZakatCalculation';
-import BackupHistory from './components/BackupHistory';
 import FullDatabaseBackup from './components/FullDatabaseBackup';
 import PaymentManagement from './components/PaymentManagement';
 import AccountsPool from './components/AccountsPool';
@@ -59,7 +58,7 @@ export default function App() {
   const [zakatSettings, setZakatSettings] = useState<ZakatSettings | null>(null);
 
   const [activeTab, setActiveTab] = useState<'dashboard' | 'history' | 'balance-sheet' | 'monthly-balance-sheet' | 'expense' | 'categorized-expense' | 'salary' | 'owners-capital' | 'zakat' | 'backup' | 'payments-mgmt' | 'accounts' | 'admin'>('history');
-  const [backupSubTab, setBackupSubTab] = useState<'history' | 'full'>('history');
+
   const [searchTerm, setSearchTerm] = useState('');
   const [editingEntry, setEditingEntry] = useState<LedgerEntry | null>(null);
 
@@ -850,7 +849,7 @@ export default function App() {
                  activeTab === 'salary' ? ' Monthly breakdown of salary disbursements' : 
                  activeTab === 'owners-capital' ? 'Owner’s Investment Management.' :
                  activeTab === 'zakat' ? 'Calculate and track your Zakat obligations.' :
-                 activeTab === 'backup' ? 'Manage data backups and restore journal history.' :
+                 activeTab === 'backup' ? 'Manage data backups and restore' :
                  activeTab === 'payments-mgmt' ? 'Manage clients, invoices, and project payments.' :
                  activeTab === 'admin' ? 'Manage team members and system access.' :
                  ' Manage accounts and Transaction items, and sub-categories.'}
@@ -1108,32 +1107,7 @@ export default function App() {
                 exit={{ opacity: 0, y: -20 }}
                 className="space-y-6"
               >
-                <div className="flex items-center gap-2 p-1 bg-slate-100 rounded-2xl w-fit mb-6">
-                  <button
-                    onClick={() => setBackupSubTab('history')}
-                    className={cn(
-                      "px-4 py-2 rounded-xl text-sm font-bold transition-all",
-                      backupSubTab === 'history' ? "bg-white text-indigo-600 shadow-sm" : "text-slate-500 hover:text-slate-700"
-                    )}
-                  >
-                    Journal History
-                  </button>
-                  <button
-                    onClick={() => setBackupSubTab('full')}
-                    className={cn(
-                      "px-4 py-2 rounded-xl text-sm font-bold transition-all",
-                      backupSubTab === 'full' ? "bg-white text-indigo-600 shadow-sm" : "text-slate-500 hover:text-slate-700"
-                    )}
-                  >
-                    Full Database
-                  </button>
-                </div>
-
-                {backupSubTab === 'history' ? (
-                  <BackupHistory userRole={userRole || 'viewer'} />
-                ) : (
-                  <FullDatabaseBackup userRole={userRole || 'viewer'} />
-                )}
+                <FullDatabaseBackup userRole={userRole || 'viewer'} />
               </motion.div>
             ) : activeTab === 'payments-mgmt' ? (
               <motion.div
