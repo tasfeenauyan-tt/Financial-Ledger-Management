@@ -11,6 +11,7 @@ import {
   Search, 
   Download, 
   FileJson, 
+  List,
   Trash2, 
   Edit, 
   CheckCircle2, 
@@ -37,7 +38,7 @@ interface PaymentManagementProps {
 
 export default function PaymentManagement({ userRole }: PaymentManagementProps) {
   const isAdmin = userRole === 'admin';
-  const [activeSubTab, setActiveSubTab] = useState<'dashboard' | 'clients' | 'invoices' | 'payments' | 'bank-accounts'>('dashboard');
+  const [activeSubTab, setActiveSubTab] = useState<'dashboard' | 'clients' | 'invoices' | 'payments' | 'bank-accounts' | 'clients-status'>('dashboard');
   
   const [clients, setClients] = useState<Client[]>([]);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
@@ -114,6 +115,32 @@ export default function PaymentManagement({ userRole }: PaymentManagementProps) 
     
     return { totalInvoiced, totalPaid, totalOutstanding, totalBadDebt, unpaidCount, partialCount };
   }, [invoices]);
+
+  // Clients Payment Status Summary
+  const clientSummary = useMemo(() => {
+    const sortedClients = [...clients].sort((a, b) => a.name.localeCompare(b.name));
+    return sortedClients.map((client, index) => {
+      const clientInvoices = invoices.filter(inv => inv.clientId === client.id);
+      const activeInvoices = clientInvoices.filter(inv => inv.status !== 'Carry Forward');
+      const cfInvoices = clientInvoices.filter(inv => inv.status === 'Carry Forward');
+
+      const totalInvoiced = activeInvoices.reduce((sum, inv) => sum + inv.totalAmount, 0) + 
+                           cfInvoices.reduce((sum, inv) => sum + inv.paidAmount, 0);
+      const totalPaid = clientInvoices.reduce((sum, inv) => sum + inv.paidAmount, 0);
+      const totalBadDebt = clientInvoices.reduce((sum, inv) => sum + (inv.badDebtAmount || 0), 0);
+      const totalDue = totalInvoiced - totalPaid - totalBadDebt;
+
+      return {
+        slNumber: index + 1,
+        clientName: client.name,
+        company: client.company,
+        totalInvoiced,
+        totalPaid,
+        totalDue,
+        totalBadDebt
+      };
+    });
+  }, [clients, invoices]);
 
   // Handlers
   const handleSaveClient = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -342,6 +369,75 @@ export default function PaymentManagement({ userRole }: PaymentManagementProps) 
     XLSX.writeFile(wb, `Payments_${format(new Date(), 'yyyy-MM-dd')}.xlsx`);
   };
 
+  const downloadClientsStatusXLS = () => {
+    const data = clientSummary.map(row => ({
+      'Sl': row.slNumber,
+      'Clients': row.clientName,
+      'Total Invoiced': row.totalInvoiced,
+      'Total Paid': row.totalPaid,
+      'Total Due': row.totalDue,
+      'Total Bad Debt': row.totalBadDebt
+    }));
+
+    // Add Totals row
+    const totals = {
+      'Sl': '',
+      'Clients': 'TOTAL',
+      'Total Invoiced': clientSummary.reduce((sum, row) => sum + row.totalInvoiced, 0),
+      'Total Paid': clientSummary.reduce((sum, row) => sum + row.totalPaid, 0),
+      'Total Due': clientSummary.reduce((sum, row) => sum + row.totalDue, 0),
+      'Total Bad Debt': clientSummary.reduce((sum, row) => sum + row.totalBadDebt, 0)
+    };
+    data.push(totals);
+
+    const ws = XLSX.utils.json_to_sheet(data);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Clients Payment Status');
+    XLSX.writeFile(wb, `Clients_Payment_Status_${format(new Date(), 'yyyy-MM-dd')}.xlsx`);
+  };
+
+  const downloadClientsStatusPDF = () => {
+    const doc = new jsPDF();
+    doc.setFontSize(18);
+    doc.text('Clients Payment Status', 14, 22);
+
+    const tableData = clientSummary.map(row => [
+      row.slNumber,
+      row.clientName,
+      formatCurrency(row.totalInvoiced, true),
+      formatCurrency(row.totalPaid, true),
+      formatCurrency(row.totalDue, true),
+      formatCurrency(row.totalBadDebt, true)
+    ]);
+
+    // Add Totals row
+    tableData.push([
+      '',
+      'TOTAL',
+      formatCurrency(clientSummary.reduce((sum, row) => sum + row.totalInvoiced, 0), true),
+      formatCurrency(clientSummary.reduce((sum, row) => sum + row.totalPaid, 0), true),
+      formatCurrency(clientSummary.reduce((sum, row) => sum + row.totalDue, 0), true),
+      formatCurrency(clientSummary.reduce((sum, row) => sum + row.totalBadDebt, 0), true)
+    ]);
+
+    autoTable(doc, {
+      startY: 30,
+      head: [['Sl', 'Clients', 'Total Invoiced', 'Total Paid', 'Total Due', 'Total Bad Debt']],
+      body: tableData,
+      theme: 'grid',
+      headStyles: { fillColor: [79, 70, 229] },
+      columnStyles: { 
+        2: { halign: 'right' }, 
+        3: { halign: 'right' },
+        4: { halign: 'right' },
+        5: { halign: 'right' }
+      },
+      footStyles: { fillColor: [241, 245, 249], textColor: [0, 0, 0], fontStyle: 'bold' }
+    });
+
+    doc.save(`Clients_Payment_Status_${format(new Date(), 'yyyy-MM-dd')}.pdf`);
+  };
+
   const generateInvoicePDF = (invoice: Invoice) => {
     const doc = new jsPDF();
     
@@ -432,6 +528,7 @@ export default function PaymentManagement({ userRole }: PaymentManagementProps) 
           { id: 'clients', label: 'Clients', icon: Users },
           { id: 'invoices', label: 'Invoices', icon: FileText },
           { id: 'payments', label: 'Payments', icon: CreditCard },
+          { id: 'clients-status', label: 'Clients Payment Status', icon: List },
           { id: 'bank-accounts', label: 'TriloyTech Accounts', icon: Building2 },
         ].map((tab) => (
           <button
@@ -906,6 +1003,84 @@ export default function PaymentManagement({ userRole }: PaymentManagementProps) 
                   <p className="text-slate-500 font-medium">No bank accounts added yet.</p>
                 </div>
               )}
+            </div>
+          </motion.div>
+        )}
+
+        {activeSubTab === 'clients-status' && (
+          <motion.div
+            key="clients-status"
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -20 }}
+            className="space-y-6"
+          >
+            <div className="flex items-center justify-between">
+              <h3 className="text-xl font-bold text-slate-800">Clients Payment Status</h3>
+              <div className="flex gap-2">
+                <button 
+                  onClick={downloadClientsStatusXLS}
+                  className="flex items-center gap-2 px-4 py-2.5 bg-emerald-50 text-emerald-600 rounded-xl font-bold hover:bg-emerald-100 transition-all"
+                >
+                  <Download size={18} />
+                  Excel
+                </button>
+                <button 
+                  onClick={downloadClientsStatusPDF}
+                  className="flex items-center gap-2 px-4 py-2.5 bg-rose-50 text-rose-600 rounded-xl font-bold hover:bg-rose-100 transition-all"
+                >
+                  <FileText size={18} />
+                  PDF
+                </button>
+              </div>
+            </div>
+
+            <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="bg-slate-50 border-b border-slate-100">
+                      <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-widest w-16">Sl</th>
+                      <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Clients</th>
+                      <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Total Invoiced</th>
+                      <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Total Paid</th>
+                      <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Total Due</th>
+                      <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Total Bad Debt</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-50">
+                    {clientSummary.map((row) => (
+                      <tr key={row.slNumber} className="hover:bg-slate-50/50 transition-colors group">
+                        <td className="p-4 text-sm font-bold text-slate-500">{row.slNumber}</td>
+                        <td className="p-4">
+                          <p className="text-sm font-bold text-slate-800">{row.clientName}</p>
+                          {row.company && <p className="text-xs text-slate-500">{row.company}</p>}
+                        </td>
+                        <td className="p-4 text-sm font-black text-slate-900 text-right">{formatCurrency(row.totalInvoiced)}</td>
+                        <td className="p-4 text-sm font-black text-emerald-600 text-right">{formatCurrency(row.totalPaid)}</td>
+                        <td className="p-4 text-sm font-black text-rose-600 text-right">{formatCurrency(row.totalDue)}</td>
+                        <td className="p-4 text-sm font-black text-slate-400 text-right">{formatCurrency(row.totalBadDebt)}</td>
+                      </tr>
+                    ))}
+                    {clientSummary.length === 0 && (
+                      <tr>
+                        <td colSpan={6} className="p-8 text-center text-slate-400 italic">No client data available.</td>
+                      </tr>
+                    )}
+                  </tbody>
+                  {clientSummary.length > 0 && (
+                    <tfoot className="bg-slate-50/50 border-t-2 border-slate-100 font-black">
+                      <tr>
+                        <td colSpan={2} className="p-4 text-sm text-slate-900 uppercase tracking-widest">Totals</td>
+                        <td className="p-4 text-sm text-slate-900 text-right">{formatCurrency(clientSummary.reduce((s, r) => s + r.totalInvoiced, 0))}</td>
+                        <td className="p-4 text-sm text-emerald-600 text-right">{formatCurrency(clientSummary.reduce((s, r) => s + r.totalPaid, 0))}</td>
+                        <td className="p-4 text-sm text-rose-600 text-right">{formatCurrency(clientSummary.reduce((s, r) => s + r.totalDue, 0))}</td>
+                        <td className="p-4 text-sm text-slate-400 text-right">{formatCurrency(clientSummary.reduce((s, r) => s + r.totalBadDebt, 0))}</td>
+                      </tr>
+                    </tfoot>
+                  )}
+                </table>
+              </div>
             </div>
           </motion.div>
         )}
