@@ -118,6 +118,13 @@ export default function EntryForm({
             return { ...ce, ...updates, accountId: '', accountName: '' };
           }
           if (updates.accountId) {
+            if (updates.accountId === 'others') {
+              return { 
+                ...ce, 
+                ...updates, 
+                accountName: '', 
+              };
+            }
             const acc = accounts.find(a => a.id === updates.accountId);
             return { 
               ...ce, 
@@ -268,20 +275,33 @@ export default function EntryForm({
                     </div>
                     <div className="md:col-span-3 space-y-1.5">
                       <label className="text-xs font-bold text-slate-500">Select Account</label>
-                      <select
-                        required
-                        value={entry.accountId}
-                        onChange={(e) => updateCustomEntry(entry.id, { accountId: e.target.value })}
-                        className="w-full px-3 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-indigo-500 outline-none bg-white text-sm"
-                      >
-                        <option value="">-- Select Account --</option>
-                        {sortedAccounts
-                          .filter(acc => acc.category === entry.accountCategory)
-                          .map(acc => (
-                            <option key={acc.id} value={acc.id}>{acc.name}</option>
-                          ))
-                        }
-                      </select>
+                      <div className="space-y-2">
+                        <select
+                          required
+                          value={entry.accountId}
+                          onChange={(e) => updateCustomEntry(entry.id, { accountId: e.target.value })}
+                          className="w-full px-3 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-indigo-500 outline-none bg-white text-sm"
+                        >
+                          <option value="">-- Select Account --</option>
+                          {sortedAccounts
+                            .filter(acc => acc.category === entry.accountCategory)
+                            .map(acc => (
+                              <option key={acc.id} value={acc.id}>{acc.name}</option>
+                            ))
+                          }
+                          <option value="others">Others</option>
+                        </select>
+                        {entry.accountId === 'others' && (
+                          <input
+                            type="text"
+                            required
+                            placeholder="Manual account name"
+                            value={entry.accountName}
+                            onChange={(e) => updateCustomEntry(entry.id, { accountName: e.target.value })}
+                            className="w-full px-3 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-indigo-500 outline-none text-sm"
+                          />
+                        )}
+                      </div>
                     </div>
                     <div className="md:col-span-2 space-y-1.5">
                       <label className="text-xs font-bold text-slate-500">Amount</label>

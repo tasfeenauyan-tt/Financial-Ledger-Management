@@ -1,14 +1,22 @@
 import React, { useRef } from 'react';
 import * as XLSX from 'xlsx';
 import { Upload, FileSpreadsheet } from 'lucide-react';
-import { LedgerEntry, CustomAccountEntry } from '../types';
+import { LedgerEntry, CustomAccountEntry, Account, TransactionItem, TransactionSubCategory } from '../types';
 import { cn, formatDate } from '../lib/utils';
 
 interface ExcelImportProps {
   onImport: (entries: LedgerEntry[]) => void;
+  accounts: Account[];
+  transactionItems: TransactionItem[];
+  transactionSubCategories: TransactionSubCategory[];
 }
 
-export default function ExcelImport({ onImport }: ExcelImportProps) {
+export default function ExcelImport({ 
+  onImport, 
+  accounts = [], 
+  transactionItems = [], 
+  transactionSubCategories = [] 
+}: ExcelImportProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -24,17 +32,20 @@ export default function ExcelImport({ onImport }: ExcelImportProps) {
       const data = XLSX.utils.sheet_to_json(ws, { header: 1 }) as any[][];
 
       // Assuming first row is header
-      // Expected columns: Date, Transaction Details, Cash, Accounts Receivable, Supplies, Equipment, Accounts Payable, Owner's Capital, Revenue, Owner's Drawings, Expense, Remarks, Notes
+      // Expected columns: Date, Transaction Item, Cash, Accounts Receivable, Supplies, Equipment, Accounts Payable, Owner's Capital, Revenue, Owner's Drawings, Expense, Remarks, Notes
       const entries: LedgerEntry[] = data.slice(1).map((row, index) => {
         const customEntries: CustomAccountEntry[] = [];
         const addEntry = (name: string, amount: number, category: 'Asset' | 'Liability' | 'Equity', type: 'Dr' | 'Cr') => {
           if (amount !== 0) {
+            // Find account in pool
+            const foundAccount = accounts.find(a => a.name.toLowerCase() === name.toLowerCase());
             const isExpense = name.toLowerCase() === 'expense';
+            
             customEntries.push({
               id: crypto.randomUUID(),
-              accountId: `imported-${name.toLowerCase().replace(/\s+/g, '-')}`,
+              accountId: foundAccount ? foundAccount.id : 'others',
               accountName: name,
-              accountCategory: category,
+              accountCategory: foundAccount ? foundAccount.category : category,
               amount: Math.abs(amount),
               type: isExpense ? type : (amount > 0 ? type : (type === 'Dr' ? 'Cr' : 'Dr')),
             });
@@ -51,15 +62,21 @@ export default function ExcelImport({ onImport }: ExcelImportProps) {
         addEntry("Owner's Drawings", Number(row[9] || 0), 'Equity', 'Dr');
         addEntry('Expense', Number(row[10] || 0), 'Equity', 'Dr');
 
+        const itemName = String(row[1] || '');
+        const foundItem = transactionItems.find(i => i.name.toLowerCase() === itemName.toLowerCase());
+        
+        const remarksText = String(row[11] || '');
+        const foundSub = transactionSubCategories.find(s => s.name.toLowerCase() === remarksText.toLowerCase());
+
         return {
           id: crypto.randomUUID(),
           date: formatDate(row[0]),
-          transactionItemId: '',
-          transactionItemName: '',
-          details: String(row[1] || ''),
+          transactionItemId: foundItem ? foundItem.id : (itemName ? 'others' : ''),
+          transactionItemName: itemName,
+          details: itemName,
           customEntries,
-          remarksId: '',
-          remarks: String(row[11] || ''),
+          remarksId: foundSub ? foundSub.id : (remarksText ? 'others' : ''),
+          remarks: remarksText,
           notes: String(row[12] || ''),
           createdAt: new Date().toISOString(),
         };

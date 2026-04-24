@@ -111,7 +111,7 @@ export default function LedgerTable({ entries, onDelete, onEdit, userRole }: Led
 
       return {
         'Date': e.date,
-        'Transaction Details': e.details,
+        'Transaction Item': e.details,
         'Cash': getNet('Cash', 'Dr'),
         'Accounts Receivable': getNet('Accounts Receivable', 'Dr'),
         'Supplies': getNet('Supplies', 'Dr'),
