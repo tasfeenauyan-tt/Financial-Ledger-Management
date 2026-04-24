@@ -89,11 +89,15 @@ export default function MonthlyPandL({ entries, userRole }: MonthlyPandLProps) {
     
     return sortedKeys.map(key => {
       const { revenue, expense, revenueEntries, expenseEntries } = data[key];
+      const netProfit = revenue - expense;
+      const profitMargin = revenue > 0 ? (netProfit / revenue) * 100 : 0;
+      
       return {
         month: key,
         revenue,
         expense,
-        netProfit: revenue - expense,
+        netProfit,
+        profitMargin,
         revenueEntries,
         expenseEntries
       };
@@ -116,8 +120,8 @@ export default function MonthlyPandL({ entries, userRole }: MonthlyPandLProps) {
       ['Monthly Profit & Loss Summary'],
       ['Generated on ' + new Date().toLocaleDateString()],
       [],
-      ['Month', 'Revenue', 'Expense', 'Net Profit'],
-      ...monthlyData.map(row => [row.month, row.revenue, row.expense, row.netProfit]),
+      ['Month', 'Revenue', 'Expense', 'Net Profit', 'Profit Margin (%)'],
+      ...monthlyData.map(row => [row.month, row.revenue, row.expense, row.netProfit, row.profitMargin.toFixed(2) + '%']),
     ];
     const wsSummary = XLSX.utils.aoa_to_sheet(summaryData);
     XLSX.utils.book_append_sheet(wb, wsSummary, 'Summary');
@@ -148,19 +152,21 @@ export default function MonthlyPandL({ entries, userRole }: MonthlyPandLProps) {
       row.month,
       formatCurrency(row.revenue, true),
       formatCurrency(row.expense, true),
-      formatCurrency(row.netProfit, true)
+      formatCurrency(row.netProfit, true),
+      row.profitMargin.toFixed(2) + '%'
     ]);
 
     autoTable(doc, {
       startY: 40,
-      head: [['Month', 'Revenue', 'Expense', 'Net Profit']],
+      head: [['Month', 'Revenue', 'Expense', 'Net Profit', 'Margin']],
       body: tableData as any[],
       theme: 'grid',
       headStyles: { fillColor: [79, 70, 229] },
       columnStyles: { 
         1: { halign: 'right' },
         2: { halign: 'right' },
-        3: { halign: 'right' }
+        3: { halign: 'right' },
+        4: { halign: 'right' }
       }
     });
 
@@ -179,6 +185,7 @@ export default function MonthlyPandL({ entries, userRole }: MonthlyPandLProps) {
       ['Revenue', monthData.revenue],
       ['Expense', monthData.expense],
       ['Net Profit', monthData.netProfit],
+      ['Profit Margin', monthData.profitMargin.toFixed(2) + '%'],
       [],
       ['Revenue Details'],
       ['Date', 'Item', 'Amount', 'Remarks']
@@ -272,6 +279,15 @@ export default function MonthlyPandL({ entries, userRole }: MonthlyPandLProps) {
                         {formatCurrency(month.netProfit)}
                       </p>
                     </div>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-0.5">Margin</p>
+                    <p className={cn(
+                      "text-sm font-bold font-mono",
+                      month.profitMargin > 0 ? "text-emerald-600" : month.profitMargin < 0 ? "text-rose-600" : "text-slate-600"
+                    )}>
+                      {month.profitMargin.toFixed(1)}%
+                    </p>
                   </div>
                   {userRole === 'admin' && (
                     <button
