@@ -874,7 +874,7 @@ export default function App() {
                  activeTab === 'trial-balance' ? 'Summary of all ledger balances to verify accounting accuracy.' : 
                  activeTab === 'monthly-p-and-l' ? 'Monthly breakdown of revenue, expenses and profit.' : 
                  activeTab === 'expense' ? 'Detailed breakdown of company expenditures by month.' : 
-                 activeTab === 'categorized-expense' ? 'Categorized breakdown of Media Buy and Food Bill expenses.' : 
+                 activeTab === 'categorized-expense' ? 'Categorized breakdown of monthly expenses.' : 
                  activeTab === 'salary' ? ' Monthly breakdown of salary disbursements' : 
                  activeTab === 'owners-capital' ? 'Owner’s Investment Management.' :
                  activeTab === 'zakat' ? 'Calculate and track your Zakat obligations.' :
