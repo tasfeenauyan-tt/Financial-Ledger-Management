@@ -38,7 +38,25 @@ export default function BalanceSheet({ entries, userRole }: BalanceSheetProps) {
 
   const assets = accountTotals.filter(a => a.category === 'Asset' && Math.abs(a.amount) > 0.01);
   const liabilities = accountTotals.filter(a => a.category === 'Liability' && Math.abs(a.amount) > 0.01);
-  const equity = accountTotals.filter(a => a.category === 'Equity' && Math.abs(a.amount) > 0.01);
+  const equity = useMemo(() => {
+    const list = accountTotals.filter(a => a.category === 'Equity' && Math.abs(a.amount) > 0.01);
+    const order = ['revenue', 'expense', 'owner'];
+    return [...list].sort((a, b) => {
+      const getIndex = (name: string) => {
+        const lowerName = name.toLowerCase();
+        if (lowerName.includes('revenue')) return 0;
+        if (lowerName.includes('expense')) return 1;
+        if (lowerName.includes('owner')) return 2;
+        return 3;
+      };
+      
+      const idxA = getIndex(a.name);
+      const idxB = getIndex(b.name);
+      
+      if (idxA !== idxB) return idxA - idxB;
+      return a.name.localeCompare(b.name);
+    });
+  }, [accountTotals]);
 
   const totalAssets = assets.reduce((sum, a) => sum + a.amount, 0);
   const totalLiabilities = liabilities.reduce((sum, l) => sum + l.amount, 0);
