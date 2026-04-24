@@ -54,7 +54,21 @@ export default function MonthlyBalanceSheet({ entries, userRole }: MonthlyBalanc
       const totals = Object.values(cumulativeAccountTotals).map(t => ({ ...t }));
       const assets = totals.filter(t => t.category === 'Asset' && Math.abs(t.amount) > 0.01);
       const liabilities = totals.filter(t => t.category === 'Liability' && Math.abs(t.amount) > 0.01);
-      const equity = totals.filter(t => t.category === 'Equity' && Math.abs(t.amount) > 0.01);
+      const equity = totals
+        .filter(t => t.category === 'Equity' && Math.abs(t.amount) > 0.01)
+        .sort((a, b) => {
+          const getWeight = (name: string) => {
+            const lower = name.toLowerCase();
+            if (lower.includes('revenue') || lower.includes('income')) return 1;
+            if (lower.includes('expense') || lower.includes('cost')) return 2;
+            if (lower.includes('capital') || lower.includes("owner's") || lower.includes('owners')) return 3;
+            return 4;
+          };
+          const weightA = getWeight(a.name);
+          const weightB = getWeight(b.name);
+          if (weightA !== weightB) return weightA - weightB;
+          return a.name.localeCompare(b.name);
+        });
 
       return {
         monthKey,
