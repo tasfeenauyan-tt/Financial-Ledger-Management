@@ -13,6 +13,7 @@ import SalaryReport from './components/SalaryReport';
 import ProjectRevenue from './components/ProjectRevenue';
 import OwnersCapital from './components/OwnersCapital';
 import ZakatCalculation from './components/ZakatCalculation';
+import TrialBalance from './components/TrialBalance';
 import FullDatabaseBackup from './components/FullDatabaseBackup';
 import PaymentManagement from './components/PaymentManagement';
 import AccountsPool from './components/AccountsPool';
@@ -57,7 +58,7 @@ export default function App() {
   const [partners, setPartners] = useState<Partner[]>([]);
   const [zakatSettings, setZakatSettings] = useState<ZakatSettings | null>(null);
 
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'history' | 'balance-sheet' | 'monthly-balance-sheet' | 'expense' | 'categorized-expense' | 'salary' | 'owners-capital' | 'zakat' | 'backup' | 'payments-mgmt' | 'accounts' | 'admin'>('history');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'history' | 'balance-sheet' | 'monthly-balance-sheet' | 'trial-balance' | 'expense' | 'categorized-expense' | 'salary' | 'owners-capital' | 'zakat' | 'backup' | 'payments-mgmt' | 'accounts' | 'admin'>('history');
 
   const [searchTerm, setSearchTerm] = useState('');
   const [editingEntry, setEditingEntry] = useState<LedgerEntry | null>(null);
@@ -500,6 +501,15 @@ export default function App() {
           Monthly Balance Sheet
         </button>
         <button 
+          onClick={() => { setActiveTab('trial-balance'); setIsMobileMenuOpen(false); }}
+          className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-semibold transition-all ${
+            activeTab === 'trial-balance' ? 'bg-indigo-50 text-indigo-700' : 'text-slate-500 hover:bg-slate-50'
+          }`}
+        >
+          <Receipt size={20} />
+          Trial Balance
+        </button>
+        <button 
           onClick={() => { setActiveTab('expense'); setIsMobileMenuOpen(false); }}
           className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-semibold transition-all ${
             activeTab === 'expense' ? 'bg-indigo-50 text-indigo-700' : 'text-slate-500 hover:bg-slate-50'
@@ -829,6 +839,7 @@ export default function App() {
                  activeTab === 'history' ? 'Transaction History' : 
                  activeTab === 'balance-sheet' ? 'Balance Sheet' : 
                  activeTab === 'monthly-balance-sheet' ? 'Monthly Balance Sheet' : 
+                 activeTab === 'trial-balance' ? 'Trial Balance' : 
                  activeTab === 'expense' ? 'Expense Report' : 
                  activeTab === 'categorized-expense' ? 'Categorized Expense' : 
                  activeTab === 'salary' ? ' Salary Report' : 
@@ -844,6 +855,7 @@ export default function App() {
                  activeTab === 'history' ? 'Detailed record of all financial activities for TriloyTech.' : 
                  activeTab === 'balance-sheet' ? 'Statement of financial position as of the current date.' : 
                  activeTab === 'monthly-balance-sheet' ? 'Monthly breakdown of financial position.' : 
+                 activeTab === 'trial-balance' ? 'Summary of all ledger balances to verify accounting accuracy.' : 
                  activeTab === 'expense' ? 'Detailed breakdown of company expenditures by month.' : 
                  activeTab === 'categorized-expense' ? 'Categorized breakdown of Media Buy and Food Bill expenses.' : 
                  activeTab === 'salary' ? ' Monthly breakdown of salary disbursements' : 
@@ -1034,6 +1046,16 @@ export default function App() {
                 className="space-y-6"
               >
                 <MonthlyBalanceSheet entries={entries} userRole={userRole} />
+              </motion.div>
+            ) : activeTab === 'trial-balance' ? (
+              <motion.div
+                key="trial-balance"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -20 }}
+                className="space-y-6"
+              >
+                <TrialBalance entries={entries} userRole={userRole} accounts={accounts} />
               </motion.div>
             ) : activeTab === 'expense' ? (
               <motion.div
