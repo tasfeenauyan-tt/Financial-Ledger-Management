@@ -7,6 +7,7 @@ import EntryForm from './components/EntryForm';
 import ExcelImport from './components/ExcelImport';
 import BalanceSheet from './components/BalanceSheet';
 import MonthlyBalanceSheet from './components/MonthlyBalanceSheet';
+import MonthlyPandL from './components/MonthlyPandL';
 import ExpenseReport from './components/ExpenseReport';
 import CategorizedExpense from './components/CategorizedExpense';
 import SalaryReport from './components/SalaryReport';
@@ -37,7 +38,7 @@ import {
 } from 'firebase/firestore';
 import { UserRole, AppUser } from './types';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend, LineChart, Line, XAxis, YAxis, CartesianGrid, BarChart, Bar } from 'recharts';
-import { Building2, LayoutDashboard, History, Settings, LogOut, Search, Filter, Download, Printer, Trash2, RotateCcw, FileText, Calendar, Receipt, Users, Database, AlertCircle, Menu, X, TrendingDown, Shield, ArrowLeftRight, Calculator, CreditCard } from 'lucide-react';
+import { Building2, LayoutDashboard, History, Settings, LogOut, Search, Filter, Download, Printer, Trash2, RotateCcw, FileText, Calendar, Receipt, Users, Database, AlertCircle, Menu, X, TrendingDown, TrendingUp, Shield, ArrowLeftRight, Calculator, CreditCard } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
@@ -58,7 +59,7 @@ export default function App() {
   const [partners, setPartners] = useState<Partner[]>([]);
   const [zakatSettings, setZakatSettings] = useState<ZakatSettings | null>(null);
 
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'history' | 'balance-sheet' | 'monthly-balance-sheet' | 'trial-balance' | 'expense' | 'categorized-expense' | 'salary' | 'owners-capital' | 'zakat' | 'backup' | 'payments-mgmt' | 'accounts' | 'admin'>('history');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'history' | 'balance-sheet' | 'monthly-balance-sheet' | 'trial-balance' | 'monthly-p-and-l' | 'expense' | 'categorized-expense' | 'salary' | 'owners-capital' | 'zakat' | 'backup' | 'payments-mgmt' | 'accounts' | 'admin'>('history');
 
   const [searchTerm, setSearchTerm] = useState('');
   const [editingEntry, setEditingEntry] = useState<LedgerEntry | null>(null);
@@ -510,6 +511,15 @@ export default function App() {
           Trial Balance
         </button>
         <button 
+          onClick={() => { setActiveTab('monthly-p-and-l'); setIsMobileMenuOpen(false); }}
+          className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-semibold transition-all ${
+            activeTab === 'monthly-p-and-l' ? 'bg-indigo-50 text-indigo-700' : 'text-slate-500 hover:bg-slate-50'
+          }`}
+        >
+          <TrendingUp size={20} />
+          Monthly P&L
+        </button>
+        <button 
           onClick={() => { setActiveTab('expense'); setIsMobileMenuOpen(false); }}
           className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-semibold transition-all ${
             activeTab === 'expense' ? 'bg-indigo-50 text-indigo-700' : 'text-slate-500 hover:bg-slate-50'
@@ -840,6 +850,7 @@ export default function App() {
                  activeTab === 'balance-sheet' ? 'Balance Sheet' : 
                  activeTab === 'monthly-balance-sheet' ? 'Monthly Balance Sheet' : 
                  activeTab === 'trial-balance' ? 'Trial Balance' : 
+                 activeTab === 'monthly-p-and-l' ? 'Monthly P&L' : 
                  activeTab === 'expense' ? 'Expense Report' : 
                  activeTab === 'categorized-expense' ? 'Categorized Expense' : 
                  activeTab === 'salary' ? ' Salary Report' : 
@@ -856,6 +867,7 @@ export default function App() {
                  activeTab === 'balance-sheet' ? 'Statement of financial position as of the current date.' : 
                  activeTab === 'monthly-balance-sheet' ? 'Monthly breakdown of financial position.' : 
                  activeTab === 'trial-balance' ? 'Summary of all ledger balances to verify accounting accuracy.' : 
+                 activeTab === 'monthly-p-and-l' ? 'Monthly breakdown of revenue, expenses and profit.' : 
                  activeTab === 'expense' ? 'Detailed breakdown of company expenditures by month.' : 
                  activeTab === 'categorized-expense' ? 'Categorized breakdown of Media Buy and Food Bill expenses.' : 
                  activeTab === 'salary' ? ' Monthly breakdown of salary disbursements' : 
@@ -1056,6 +1068,16 @@ export default function App() {
                 className="space-y-6"
               >
                 <TrialBalance entries={entries} userRole={userRole} accounts={accounts} />
+              </motion.div>
+            ) : activeTab === 'monthly-p-and-l' ? (
+              <motion.div
+                key="monthly-p-and-l"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -20 }}
+                className="space-y-6"
+              >
+                <MonthlyPandL entries={entries} userRole={userRole} />
               </motion.div>
             ) : activeTab === 'expense' ? (
               <motion.div
