@@ -1,4 +1,4 @@
-import { LedgerEntry, UserRole } from '../types';
+import { LedgerEntry, UserRole, Employee } from '../types';
 import { formatCurrency } from '../lib/utils';
 import { Users, Download } from 'lucide-react';
 import { useMemo } from 'react';
@@ -7,12 +7,20 @@ import * as XLSX from 'xlsx';
 interface SalaryReportProps {
   entries: LedgerEntry[];
   userRole?: UserRole | null;
+  employees: Employee[];
 }
 
-export default function SalaryReport({ entries, userRole }: SalaryReportProps) {
+export default function SalaryReport({ entries, userRole, employees: employeeDb }: SalaryReportProps) {
   const salaryData = useMemo(() => {
+    // Create a map for quick employee lookup by name/shortName
+    const employeeMap: Record<string, Employee> = {};
+    employeeDb.forEach(emp => {
+      // Map by full name and short name for better matching
+      if (emp.fullName) employeeMap[emp.fullName.toLowerCase()] = emp;
+      if (emp.shortName) employeeMap[emp.shortName.toLowerCase()] = emp;
+    });
+
     // Filter entries that are salaries
-    // The user specified "Opex: Salary" in details and employee in remarks
     const salaryEntries = entries.filter(e => {
       let hasExpense = false;
       (e.customEntries || []).forEach(ce => {
@@ -26,21 +34,20 @@ export default function SalaryReport({ entries, userRole }: SalaryReportProps) {
       return hasExpense && e.details.toLowerCase().includes('opex: salary');
     });
 
-    const employees = new Set<string>();
+    const employeeNames = new Set<string>();
     const months = new Set<string>();
     const dataMap: Record<string, Record<string, number>> = {};
 
     salaryEntries.forEach(entry => {
       const date = new Date(entry.date);
-      const monthLabel = date.toLocaleDateString('en-US', { month: 'short', year: '2-digit' });
       const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-      const employee = entry.remarks || 'Unknown Employee';
+      const employeeName = entry.remarks || 'Unknown Employee';
 
-      employees.add(employee);
+      employeeNames.add(employeeName);
       months.add(monthKey);
 
-      if (!dataMap[employee]) {
-        dataMap[employee] = {};
+      if (!dataMap[employeeName]) {
+        dataMap[employeeName] = {};
       }
       
       let entryExpense = 0;
@@ -53,12 +60,24 @@ export default function SalaryReport({ entries, userRole }: SalaryReportProps) {
         }
       });
       
-      dataMap[employee][monthKey] = (dataMap[employee][monthKey] || 0) + entryExpense;
+      dataMap[employeeName][monthKey] = (dataMap[employeeName][monthKey] || 0) + entryExpense;
     });
 
     // Sort months latest to oldest
     const sortedMonthKeys = Array.from(months).sort((a, b) => b.localeCompare(a));
-    const sortedEmployees = Array.from(employees).sort();
+    
+    // Sort employees by their ID if found, otherwise by name
+    const sortedEmployees = Array.from(employeeNames).sort((a, b) => {
+      const empA = employeeMap[a.toLowerCase()];
+      const empB = employeeMap[b.toLowerCase()];
+      
+      if (empA && empB) {
+        return (empA.employeeId || '').localeCompare(empB.employeeId || '', undefined, { numeric: true });
+      }
+      if (empA) return -1;
+      if (empB) return 1;
+      return a.localeCompare(b);
+    });
 
     const monthLabels = sortedMonthKeys.map(key => {
       const [year, month] = key.split('-');
@@ -67,30 +86,32 @@ export default function SalaryReport({ entries, userRole }: SalaryReportProps) {
 
     return {
       employees: sortedEmployees,
+      employeeMap,
       monthKeys: sortedMonthKeys,
       monthLabels,
       dataMap
     };
-  }, [entries]);
+  }, [entries, employeeDb]);
 
   const downloadExcel = () => {
-    const { employees, monthKeys, monthLabels, dataMap } = salaryData;
+    const { employees: empNames, employeeMap, monthKeys, monthLabels, dataMap } = salaryData;
     
-    const header = ['SL', 'Employee', ...monthLabels];
-    const rows = employees.map((emp, idx) => {
-      const row: any = [idx + 1, emp];
+    const header = ['SL', 'ID', 'Employee', ...monthLabels];
+    const rows = empNames.map((name, idx) => {
+      const emp = employeeMap[name.toLowerCase()];
+      const row: any = [idx + 1, emp?.employeeId || '-', name];
       monthKeys.forEach(key => {
-        row.push(dataMap[emp][key] || 0);
+        row.push(dataMap[name][key] || 0);
       });
       return row;
     });
 
     // Add Total row
-    const totalRow = ['Total', 'Total Salary Disbursement'];
+    const totalRow = ['Total', '', 'Total Salary Disbursement'];
     monthKeys.forEach(key => {
       let monthTotal = 0;
-      employees.forEach(emp => {
-        monthTotal += dataMap[emp][key] || 0;
+      empNames.forEach(name => {
+        monthTotal += dataMap[name][key] || 0;
       });
       totalRow.push(monthTotal as any);
     });
@@ -114,7 +135,7 @@ export default function SalaryReport({ entries, userRole }: SalaryReportProps) {
     );
   }
 
-  const { employees, monthKeys, monthLabels, dataMap } = salaryData;
+  const { employees: empNames, employeeMap, monthKeys, monthLabels, dataMap } = salaryData;
 
   return (
     <div className="space-y-6">
@@ -140,6 +161,7 @@ export default function SalaryReport({ entries, userRole }: SalaryReportProps) {
             <thead>
               <tr className="bg-slate-50 border-b border-slate-200">
                 <th className="p-4 text-xs font-bold text-slate-400 uppercase tracking-widest w-16">SL</th>
+                <th className="p-4 text-xs font-bold text-slate-400 uppercase tracking-widest w-24">ID</th>
                 <th className="p-4 text-xs font-bold text-slate-400 uppercase tracking-widest min-w-[200px]">Employee</th>
                 {monthLabels.map((label, idx) => (
                   <th key={idx} className="p-4 text-xs font-bold text-slate-400 uppercase tracking-widest text-right">{label}</th>
@@ -147,23 +169,27 @@ export default function SalaryReport({ entries, userRole }: SalaryReportProps) {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {employees.map((emp, idx) => (
-                <tr key={emp} className="hover:bg-slate-50/50 transition-colors">
-                  <td className="p-4 text-sm text-slate-500 font-medium">{idx + 1}</td>
-                  <td className="p-4 text-sm text-slate-900 font-bold">{emp}</td>
-                  {monthKeys.map(key => (
-                    <td key={key} className="p-4 text-sm text-slate-700 font-semibold text-right">
-                      {dataMap[emp][key] ? formatCurrency(dataMap[emp][key]) : '-'}
-                    </td>
-                  ))}
-                </tr>
-              ))}
+              {empNames.map((name, idx) => {
+                const emp = employeeMap[name.toLowerCase()];
+                return (
+                  <tr key={name} className="hover:bg-slate-50/50 transition-colors">
+                    <td className="p-4 text-sm text-slate-500 font-medium">{idx + 1}</td>
+                    <td className="p-4 text-sm text-slate-600 font-mono">{emp?.employeeId || '-'}</td>
+                    <td className="p-4 text-sm text-slate-900 font-bold">{name}</td>
+                    {monthKeys.map(key => (
+                      <td key={key} className="p-4 text-sm text-slate-700 font-semibold text-right">
+                        {dataMap[name][key] ? formatCurrency(dataMap[name][key]) : '-'}
+                      </td>
+                    ))}
+                  </tr>
+                );
+              })}
             </tbody>
             <tfoot>
               <tr className="bg-indigo-50/50 font-bold border-t-2 border-indigo-100">
-                <td colSpan={2} className="p-4 text-sm text-indigo-700">Total Salary Disbursement</td>
+                <td colSpan={3} className="p-4 text-sm text-indigo-700">Total Salary Disbursement</td>
                 {monthKeys.map(key => {
-                  const monthTotal = employees.reduce((sum, emp) => sum + (dataMap[emp][key] || 0), 0);
+                  const monthTotal = empNames.reduce((sum, name) => sum + (dataMap[name][key] || 0), 0);
                   return (
                     <td key={key} className="p-4 text-sm text-indigo-700 text-right">
                       {formatCurrency(monthTotal)}

@@ -880,7 +880,7 @@ export default function App() {
                  activeTab === 'backup' ? 'Backup & Restore' :
                  activeTab === 'payments-mgmt' ? 'Client/Project Payment Management' :
                  activeTab === 'admin' ? 'Admin Panel' :
-                 'Transaction Item Management'}
+                 'Employee Management System'}
               </h2>
               <p className="text-slate-500">
                 {activeTab === 'dashboard' ? 'Visual analysis of your company\'s financial performance.' : 
@@ -897,7 +897,8 @@ export default function App() {
                  activeTab === 'backup' ? 'Manage data backups and restore' :
                  activeTab === 'payments-mgmt' ? 'Manage clients, invoices, and project payments.' :
                  activeTab === 'admin' ? 'Manage team members and system access.' :
-                 ' Manage accounts and Transaction items, and sub-categories.'}
+                 activeTab === 'employees' ? 'Manage employee information.' :
+                  'Manage employee information.'}
               </p>
             </div>
             <div className="text-right hidden md:block">
@@ -1128,7 +1129,7 @@ export default function App() {
                 exit={{ opacity: 0, y: -20 }}
                 className="space-y-6"
               >
-                <SalaryReport entries={entries} userRole={userRole} />
+                <SalaryReport entries={entries} userRole={userRole} employees={employees} />
               </motion.div>
             ) : activeTab === 'owners-capital' ? (
               <motion.div

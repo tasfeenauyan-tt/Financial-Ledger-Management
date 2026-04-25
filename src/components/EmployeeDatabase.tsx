@@ -494,9 +494,10 @@ export default function EmployeeDatabase({ employees, userRole }: EmployeeDataba
                           <label className="block text-xs font-bold text-slate-700 uppercase mb-1.5 ml-1">Gender</label>
                           <select
                             name="gender"
-                            defaultValue={editingEmployee?.gender}
+                            defaultValue={editingEmployee?.gender || ''}
                             className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none appearance-none"
                           >
+                            <option value="">Select Gender</option>
                             <option value="Male">Male</option>
                             <option value="Female">Female</option>
                             <option value="Other">Other</option>
@@ -507,9 +508,10 @@ export default function EmployeeDatabase({ employees, userRole }: EmployeeDataba
                         <label className="block text-xs font-bold text-slate-700 uppercase mb-1.5 ml-1">Blood Group</label>
                         <select
                           name="bloodGroup"
-                          defaultValue={editingEmployee?.bloodGroup}
+                          defaultValue={editingEmployee?.bloodGroup || ''}
                           className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none appearance-none"
                         >
+                          <option value="">Select Blood Group</option>
                           <option value="A+">A+</option>
                           <option value="A-">A-</option>
                           <option value="B+">B+</option>
