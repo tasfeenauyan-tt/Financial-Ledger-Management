@@ -117,6 +117,27 @@ export interface BankAccount {
   createdAt: string;
 }
 
+export interface Employee {
+  id: string;
+  employeeId: string;
+  fullName: string;
+  shortName: string;
+  mobileNo: string;
+  email: string;
+  nidNumber: string;
+  dateOfBirth: string;
+  gender: string;
+  bloodGroup: string;
+  location: string;
+  emergencyPocName: string;
+  emergencyPocMobile: string;
+  relationshipWithPoc: string;
+  joiningDate: string;
+  startingSalary: number;
+  currentSalary: number;
+  createdAt: string;
+}
+
 export interface LedgerTotals {
   assets: number;
   liabilities: number;

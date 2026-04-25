@@ -1,6 +1,6 @@
 import * as React from 'react';
 import { useState, useMemo, useEffect, Component, ErrorInfo, ReactNode } from 'react';
-import { LedgerEntry, LedgerTotals, Account, TransactionItem, TransactionSubCategory, Partner, ZakatSettings, UserRole, AppUser } from './types';
+import { LedgerEntry, LedgerTotals, Account, TransactionItem, TransactionSubCategory, Partner, ZakatSettings, UserRole, AppUser, Employee } from './types';
 import SummaryCards from './components/SummaryCards';
 import LedgerTable from './components/LedgerTable';
 import EntryForm from './components/EntryForm';
@@ -20,6 +20,7 @@ import PaymentManagement from './components/PaymentManagement';
 import AccountsPool from './components/AccountsPool';
 import AdminPanel from './components/AdminPanel';
 import Login from './components/Login';
+import EmployeeDatabase from './components/EmployeeDatabase';
 import { auth, logout, User, db } from './firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 import { handleFirestoreError, OperationType } from './lib/firestore-errors';
@@ -57,8 +58,9 @@ export default function App() {
   const [transactionSubCategories, setTransactionSubCategories] = useState<TransactionSubCategory[]>([]);
   const [partners, setPartners] = useState<Partner[]>([]);
   const [zakatSettings, setZakatSettings] = useState<ZakatSettings | null>(null);
+  const [employees, setEmployees] = useState<Employee[]>([]);
 
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'history' | 'balance-sheet' | 'monthly-balance-sheet' | 'trial-balance' | 'monthly-p-and-l' | 'expense' | 'categorized-expense' | 'salary' | 'owners-capital' | 'zakat' | 'backup' | 'payments-mgmt' | 'accounts' | 'admin'>('history');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'history' | 'balance-sheet' | 'monthly-balance-sheet' | 'trial-balance' | 'monthly-p-and-l' | 'expense' | 'categorized-expense' | 'salary' | 'owners-capital' | 'zakat' | 'backup' | 'payments-mgmt' | 'accounts' | 'admin' | 'employees'>('history');
 
   const [searchTerm, setSearchTerm] = useState('');
   const [editingEntry, setEditingEntry] = useState<LedgerEntry | null>(null);
@@ -161,6 +163,11 @@ export default function App() {
       }
     }, (error) => handleFirestoreError(error, OperationType.GET, 'settings/zakat-settings'));
 
+    const unsubEmployees = onSnapshot(collection(db, 'employees'), (snapshot) => {
+      const data = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Employee));
+      setEmployees(data);
+    }, (error) => handleFirestoreError(error, OperationType.GET, 'employees'));
+
     return () => {
       unsubEntries();
       unsubAccounts();
@@ -168,6 +175,7 @@ export default function App() {
       unsubSubs();
       unsubPartners();
       unsubZakat();
+      unsubEmployees();
     };
   }, [user]);
 
@@ -544,6 +552,15 @@ export default function App() {
         >
           <Users size={20} />
           Salary Report
+        </button>
+        <button 
+          onClick={() => { setActiveTab('employees'); setIsMobileMenuOpen(false); }}
+          className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-semibold transition-all ${
+            activeTab === 'employees' ? 'bg-indigo-50 text-indigo-700' : 'text-slate-500 hover:bg-slate-50'
+          }`}
+        >
+          <Database size={20} />
+          Employee Database
         </button>
         <button 
           onClick={() => { setActiveTab('owners-capital'); setIsMobileMenuOpen(false); }}
@@ -1166,6 +1183,16 @@ export default function App() {
                 className="space-y-6"
               >
                 <PaymentManagement userRole={userRole || 'viewer'} />
+              </motion.div>
+            ) : activeTab === 'employees' ? (
+              <motion.div
+                key="employees"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -20 }}
+                className="space-y-6"
+              >
+                <EmployeeDatabase employees={employees} userRole={userRole} />
               </motion.div>
             ) : activeTab === 'admin' ? (
               <motion.div
