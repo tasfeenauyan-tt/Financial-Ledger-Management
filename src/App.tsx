@@ -1,6 +1,6 @@
 import * as React from 'react';
 import { useState, useMemo, useEffect, Component, ErrorInfo, ReactNode } from 'react';
-import { LedgerEntry, LedgerTotals, Account, TransactionItem, TransactionSubCategory, Partner, ZakatSettings } from './types';
+import { LedgerEntry, LedgerTotals, Account, TransactionItem, TransactionSubCategory, Partner, ZakatSettings, UserRole, AppUser } from './types';
 import SummaryCards from './components/SummaryCards';
 import LedgerTable from './components/LedgerTable';
 import EntryForm from './components/EntryForm';
@@ -36,7 +36,6 @@ import {
   getDocFromServer,
   getDoc
 } from 'firebase/firestore';
-import { UserRole, AppUser } from './types';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend, LineChart, Line, XAxis, YAxis, CartesianGrid, BarChart, Bar } from 'recharts';
 import { Building2, LayoutDashboard, History, Settings, LogOut, Search, Filter, Download, Printer, Trash2, RotateCcw, FileText, Calendar, Receipt, Users, Database, AlertCircle, Menu, X, TrendingDown, TrendingUp, Shield, ArrowLeftRight, Calculator, CreditCard } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
