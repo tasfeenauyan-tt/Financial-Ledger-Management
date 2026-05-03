@@ -126,6 +126,13 @@ export default function ProjectClientDatabase({
     );
   }, [clients, searchTerm]);
 
+  const projectStats = useMemo(() => ({
+    total: clients.length,
+    active: clients.filter(c => c.status === 'Active').length,
+    inactive: clients.filter(c => c.status === 'Inactive').length,
+    halted: clients.filter(c => c.status === 'Halted').length,
+  }), [clients]);
+
   const syncProjectToPool = async (projectName: string) => {
     if (!projectName) return;
     const nameToSync = projectName.trim();
@@ -362,6 +369,24 @@ export default function ProjectClientDatabase({
             <Users className="text-indigo-600" />
             Project/Client Management System
           </h2>
+          <div className="flex flex-wrap items-center gap-3 mt-2">
+            <div className="flex items-center gap-1.5 px-2.5 py-1 bg-indigo-50 border border-indigo-100 rounded-lg">
+              <span className="text-[10px] font-black text-indigo-400 uppercase tracking-widest">Total Projects:</span>
+              <span className="text-xs font-bold text-indigo-700">{projectStats.total}</span>
+            </div>
+            <div className="flex items-center gap-1.5 px-2.5 py-1 bg-emerald-50 border border-emerald-100 rounded-lg">
+              <span className="text-[10px] font-black text-emerald-400 uppercase tracking-widest">Active:</span>
+              <span className="text-xs font-bold text-emerald-700">{projectStats.active}</span>
+            </div>
+            <div className="flex items-center gap-1.5 px-2.5 py-1 bg-slate-50 border border-slate-200 rounded-lg">
+              <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Inactive:</span>
+              <span className="text-xs font-bold text-slate-600">{projectStats.inactive}</span>
+            </div>
+            <div className="flex items-center gap-1.5 px-2.5 py-1 bg-amber-50 border border-amber-100 rounded-lg">
+              <span className="text-[10px] font-black text-amber-500 uppercase tracking-widest">Halted:</span>
+              <span className="text-xs font-bold text-amber-700">{projectStats.halted}</span>
+            </div>
+          </div>
           <p className="text-slate-500 text-sm font-medium mt-1">Manage project/client information.</p>
         </div>
         
