@@ -186,6 +186,32 @@
         "createdAt": { "type": "string", "format": "date-time" }
       },
       "required": ["id"]
+    },
+    "Employee": {
+      "title": "Employee",
+      "description": "Employee official records",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "employeeId": { "type": "string" },
+        "fullName": { "type": "string" },
+        "shortName": { "type": "string" },
+        "mobileNo": { "type": "string" },
+        "email": { "type": "string" },
+        "nidNumber": { "type": "string" },
+        "dateOfBirth": { "type": "string" },
+        "gender": { "type": "string" },
+        "bloodGroup": { "type": "string" },
+        "location": { "type": "string" },
+        "emergencyPocName": { "type": "string" },
+        "emergencyPocMobile": { "type": "string" },
+        "relationshipWithPoc": { "type": "string" },
+        "joiningDate": { "type": "string" },
+        "startingSalary": { "type": "number" },
+        "currentSalary": { "type": "number" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "employeeId", "fullName", "joiningDate", "startingSalary", "currentSalary"]
     }
   },
   "firestore": {
@@ -236,6 +262,10 @@
     "/bankAccounts/{accountId}": {
       "schema": "BankAccount",
       "description": "Company bank accounts"
+    },
+    "/employees/{employeeId}": {
+      "schema": "Employee",
+      "description": "Employee records"
     }
   }
 }

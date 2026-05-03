@@ -59,11 +59,21 @@ export interface LedgerEntry {
 
 export interface Client {
   id: string;
+  projectName: string;
+  crmLeadId: string;
   name: string;
-  phone?: string;
-  company?: string;
-  email?: string;
-  address?: string;
+  pocName: string;
+  company: string;
+  mobile: string;
+  email: string;
+  address: string;
+  country: string;
+  clientType: 'Recurring' | 'Non-Recurring';
+  status: 'Active' | 'Inactive' | 'Halted' | 'Closed';
+  budget: number;
+  onboardingDate: string;
+  closureDate?: string;
+  leadSource: 'Facebook Ads' | 'FNF' | 'Reference' | 'Web Search' | 'Others';
   createdAt: string;
 }
 

@@ -21,6 +21,7 @@ import AccountsPool from './components/AccountsPool';
 import AdminPanel from './components/AdminPanel';
 import Login from './components/Login';
 import EmployeeDatabase from './components/EmployeeDatabase';
+import ProjectClientDatabase from './components/ProjectClientDatabase';
 import { auth, logout, User, db } from './firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 import { handleFirestoreError, OperationType } from './lib/firestore-errors';
@@ -60,7 +61,7 @@ export default function App() {
   const [zakatSettings, setZakatSettings] = useState<ZakatSettings | null>(null);
   const [employees, setEmployees] = useState<Employee[]>([]);
 
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'history' | 'balance-sheet' | 'monthly-balance-sheet' | 'trial-balance' | 'monthly-p-and-l' | 'expense' | 'categorized-expense' | 'salary' | 'owners-capital' | 'zakat' | 'backup' | 'payments-mgmt' | 'accounts' | 'admin' | 'employees'>('history');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'history' | 'balance-sheet' | 'monthly-balance-sheet' | 'trial-balance' | 'monthly-p-and-l' | 'expense' | 'categorized-expense' | 'salary' | 'owners-capital' | 'zakat' | 'backup' | 'payments-mgmt' | 'accounts' | 'admin' | 'employees' | 'project-clients'>('history');
 
   const [searchTerm, setSearchTerm] = useState('');
   const [editingEntry, setEditingEntry] = useState<LedgerEntry | null>(null);
@@ -114,12 +115,17 @@ export default function App() {
     if (!user) return;
 
     // Test connection
-    const testConnection = async () => {
+    const testConnection = async (retries = 3) => {
       try {
         await getDocFromServer(doc(db, 'test', 'connection'));
       } catch (error) {
         if (error instanceof Error && error.message.includes('the client is offline')) {
-          console.error("Please check your Firebase configuration.");
+          if (retries > 0) {
+            console.warn(`Connection test failed (offline), retrying... (${retries} left)`);
+            setTimeout(() => testConnection(retries - 1), 2000);
+          } else {
+            console.error("Please check your Firebase configuration.");
+          }
         }
       }
     };
@@ -590,6 +596,15 @@ export default function App() {
           Client Payments
         </button>
         <button 
+          onClick={() => { setActiveTab('project-clients'); setIsMobileMenuOpen(false); }}
+          className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-semibold transition-all ${
+            activeTab === 'project-clients' ? 'bg-indigo-50 text-indigo-700' : 'text-slate-500 hover:bg-slate-50'
+          }`}
+        >
+          <Users size={20} />
+          Project/Client Database
+        </button>
+        <button 
           onClick={() => { setActiveTab('accounts'); setIsMobileMenuOpen(false); }}
           className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-semibold transition-all ${
             activeTab === 'accounts' ? 'bg-indigo-50 text-indigo-700' : 'text-slate-500 hover:bg-slate-50'
@@ -880,7 +895,8 @@ export default function App() {
                  activeTab === 'backup' ? 'Backup & Restore' :
                  activeTab === 'payments-mgmt' ? 'Client/Project Payment Management' :
                  activeTab === 'admin' ? 'Admin Panel' :
-                 'Employee Management System'}
+                 activeTab === 'employees' ? 'Employee Management System' :
+                 'Project/Client Management System'}
               </h2>
               <p className="text-slate-500">
                 {activeTab === 'dashboard' ? 'Visual analysis of your company\'s financial performance.' : 
@@ -898,7 +914,7 @@ export default function App() {
                  activeTab === 'payments-mgmt' ? 'Manage clients, invoices, and project payments.' :
                  activeTab === 'admin' ? 'Manage team members and system access.' :
                  activeTab === 'employees' ? 'Manage employee information.' :
-                  'Manage employee information.'}
+                 'Manage project/client information.'}
               </p>
             </div>
             <div className="text-right hidden md:block">
@@ -1184,6 +1200,26 @@ export default function App() {
                 className="space-y-6"
               >
                 <PaymentManagement userRole={userRole || 'viewer'} />
+              </motion.div>
+            ) : activeTab === 'project-clients' ? (
+              <motion.div
+                key="project-clients"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -20 }}
+                className="space-y-6"
+              >
+                <ProjectClientDatabase 
+                  userRole={userRole || 'viewer'} 
+                  transactionSubCategories={transactionSubCategories}
+                  onAddTransactionSubCategory={async (sub) => {
+                    try {
+                      await setDoc(doc(db, 'transactionSubCategories', sub.id), sub);
+                    } catch (error) {
+                      handleFirestoreError(error, OperationType.WRITE, `transactionSubCategories/${sub.id}`);
+                    }
+                  }}
+                />
               </motion.div>
             ) : activeTab === 'employees' ? (
               <motion.div

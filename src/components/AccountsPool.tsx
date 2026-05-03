@@ -45,7 +45,17 @@ export default function AccountsPool({
   
   const sortedAccounts = useMemo(() => [...accounts].sort((a, b) => a.name.localeCompare(b.name)), [accounts]);
   const sortedTransactionItems = useMemo(() => [...transactionItems].sort((a, b) => a.name.localeCompare(b.name)), [transactionItems]);
-  const sortedTransactionSubCategories = useMemo(() => [...transactionSubCategories].sort((a, b) => a.name.localeCompare(b.name)), [transactionSubCategories]);
+  const sortedTransactionSubCategories = useMemo(() => {
+    // Filter duplicates just in case some slipped into the DB
+    const uniqueMap = new Map<string, TransactionSubCategory>();
+    transactionSubCategories.forEach(sub => {
+      const key = sub.name.toLowerCase().trim();
+      if (!uniqueMap.has(key)) {
+        uniqueMap.set(key, sub);
+      }
+    });
+    return Array.from(uniqueMap.values()).sort((a, b) => a.name.localeCompare(b.name));
+  }, [transactionSubCategories]);
 
   const handleSubmitAccount = (e: React.FormEvent) => {
     e.preventDefault();

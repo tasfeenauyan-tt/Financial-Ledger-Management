@@ -146,13 +146,25 @@ export default function PaymentManagement({ userRole }: PaymentManagementProps) 
   const handleSaveClient = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
+    const name = formData.get('name') as string;
+    const crmId = editingClient?.crmLeadId || ('LEAD-' + Math.floor(Math.random() * 10000));
+    
     const clientData: Client = {
       id: editingClient?.id || crypto.randomUUID(),
-      name: formData.get('name') as string,
-      phone: formData.get('phone') as string || '',
+      projectName: editingClient?.projectName || `${name} (${crmId})`,
+      crmLeadId: crmId,
+      name,
+      pocName: editingClient?.pocName || (formData.get('name') as string),
       company: formData.get('company') as string || '',
+      mobile: formData.get('mobile') as string || '',
       email: formData.get('email') as string || '',
       address: formData.get('address') as string || '',
+      country: editingClient?.country || 'Bangladesh',
+      clientType: editingClient?.clientType || 'Recurring',
+      status: editingClient?.status || 'Active',
+      budget: editingClient?.budget || 0,
+      onboardingDate: editingClient?.onboardingDate || new Date().toISOString().split('T')[0],
+      leadSource: editingClient?.leadSource || 'Others',
       createdAt: editingClient?.createdAt || new Date().toISOString(),
     };
 
@@ -715,7 +727,7 @@ export default function PaymentManagement({ userRole }: PaymentManagementProps) 
                   </div>
                   <div className="mt-4 pt-4 border-t border-slate-50 flex items-center justify-between">
                     <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Phone</span>
-                    <span className="text-sm font-bold text-slate-700">{client.phone || '-'}</span>
+                    <span className="text-sm font-bold text-slate-700">{client.mobile || '-'}</span>
                   </div>
                 </div>
               ))}
@@ -1112,8 +1124,8 @@ export default function PaymentManagement({ userRole }: PaymentManagementProps) 
                   <input name="company" defaultValue={editingClient?.company} maxLength={100} className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500 outline-none transition-all" />
                 </div>
                 <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Phone Number</label>
-                  <input name="phone" defaultValue={editingClient?.phone} maxLength={20} className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500 outline-none transition-all" />
+                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Mobile Number</label>
+                  <input name="mobile" defaultValue={editingClient?.mobile} maxLength={20} className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500 outline-none transition-all" />
                 </div>
                 <div className="space-y-1.5">
                   <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Email Address</label>
@@ -1321,7 +1333,7 @@ function InvoicePreviewModal({ invoice, clients, bankAccounts, onClose }: {
                   {client && (
                     <div className="text-sm text-slate-500 font-medium space-y-0.5">
                       <p>{client.company}</p>
-                      <p>{client.phone}</p>
+                      <p>{client.mobile}</p>
                     </div>
                   )}
                 </div>
@@ -1588,7 +1600,7 @@ function InvoiceModal({ clients, invoices, bankAccounts, onClose, onSave, editin
             <div className="space-y-1.5">
               <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Invoice Number</label>
               <input 
-                value={invoiceNumber} 
+                value={invoiceNumber || ''} 
                 onChange={(e) => setInvoiceNumber(e.target.value)} 
                 required 
                 maxLength={30} 
@@ -1598,7 +1610,7 @@ function InvoiceModal({ clients, invoices, bankAccounts, onClose, onSave, editin
             <div className="space-y-1.5">
               <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Select Client</label>
               <select 
-                value={clientId} 
+                value={clientId || ''} 
                 onChange={(e) => setClientId(e.target.value)} 
                 required 
                 className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500 outline-none transition-all bg-white"
@@ -1611,7 +1623,7 @@ function InvoiceModal({ clients, invoices, bankAccounts, onClose, onSave, editin
               <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Service Date</label>
               <input 
                 type="date" 
-                value={serviceDate} 
+                value={serviceDate || ''} 
                 onChange={(e) => setServiceDate(e.target.value)} 
                 required 
                 className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500 outline-none transition-all" 
@@ -1621,7 +1633,7 @@ function InvoiceModal({ clients, invoices, bankAccounts, onClose, onSave, editin
               <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Invoice Date</label>
               <input 
                 type="date" 
-                value={invoiceDate} 
+                value={invoiceDate || ''} 
                 onChange={(e) => setInvoiceDate(e.target.value)} 
                 required 
                 className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500 outline-none transition-all" 
@@ -1631,7 +1643,7 @@ function InvoiceModal({ clients, invoices, bankAccounts, onClose, onSave, editin
               <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Due Date</label>
               <input 
                 type="date" 
-                value={dueDate} 
+                value={dueDate || ''} 
                 onChange={(e) => setDueDate(e.target.value)} 
                 required 
                 className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500 outline-none transition-all" 
@@ -1641,7 +1653,7 @@ function InvoiceModal({ clients, invoices, bankAccounts, onClose, onSave, editin
               <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Paid Amount</label>
               <input 
                 type="number" 
-                value={paidAmount || ''} 
+                value={paidAmount !== undefined ? paidAmount : ''} 
                 onChange={(e) => setPaidAmount(e.target.value === '' ? 0 : Number(e.target.value))} 
                 step="0.01"
                 className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500 outline-none transition-all" 
@@ -1650,7 +1662,7 @@ function InvoiceModal({ clients, invoices, bankAccounts, onClose, onSave, editin
             <div className="space-y-1.5">
               <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Payment Account</label>
               <select 
-                value={paymentAccountId} 
+                value={paymentAccountId || ''} 
                 onChange={(e) => setPaymentAccountId(e.target.value)} 
                 className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500 outline-none transition-all bg-white"
               >
@@ -1688,13 +1700,13 @@ function InvoiceModal({ clients, invoices, bankAccounts, onClose, onSave, editin
                 <div key={idx} className="grid grid-cols-1 md:grid-cols-12 gap-3 items-end bg-slate-50 p-4 rounded-2xl border border-slate-100">
                   <div className="md:col-span-5 space-y-1.5">
                     <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Description</label>
-                    <input value={item.description} onChange={(e) => updateItem(idx, { description: e.target.value })} required maxLength={200} className="w-full px-3 py-2 rounded-lg border border-slate-200 bg-white text-sm" />
+                    <input value={item.description || ''} onChange={(e) => updateItem(idx, { description: e.target.value })} required maxLength={200} className="w-full px-3 py-2 rounded-lg border border-slate-200 bg-white text-sm" />
                   </div>
                   <div className="md:col-span-2 space-y-1.5">
                     <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Qty</label>
                     <input 
                       type="number" 
-                      value={item.quantity || ''} 
+                      value={item.quantity !== undefined ? item.quantity : ''} 
                       onChange={(e) => updateItem(idx, { quantity: e.target.value === '' ? 0 : Number(e.target.value) })} 
                       required 
                       className="w-full px-3 py-2 rounded-lg border border-slate-200 bg-white text-sm" 
@@ -1704,7 +1716,7 @@ function InvoiceModal({ clients, invoices, bankAccounts, onClose, onSave, editin
                     <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Unit Price</label>
                     <input 
                       type="number" 
-                      value={item.unitPrice || ''} 
+                      value={item.unitPrice !== undefined ? item.unitPrice : ''} 
                       onChange={(e) => updateItem(idx, { unitPrice: e.target.value === '' ? 0 : Number(e.target.value) })} 
                       required 
                       className="w-full px-3 py-2 rounded-lg border border-slate-200 bg-white text-sm" 
@@ -1713,7 +1725,7 @@ function InvoiceModal({ clients, invoices, bankAccounts, onClose, onSave, editin
                   <div className="md:col-span-2 space-y-1.5">
                     <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Total</label>
                     <div className="w-full px-3 py-2 rounded-lg border border-slate-100 bg-slate-100 text-sm font-bold text-slate-600">
-                      {formatCurrency(item.total)}
+                      {formatCurrency(item.total || 0)}
                     </div>
                   </div>
                   <div className="md:col-span-1 flex justify-center pb-1">
@@ -1831,7 +1843,7 @@ function PaymentModal({
             <div className="space-y-1.5">
               <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Select Invoice</label>
               <select 
-                value={selectedInvoiceId} 
+                value={selectedInvoiceId || ''} 
                 onChange={(e) => setSelectedInvoiceId(e.target.value)} 
                 required 
                 className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500 outline-none transition-all bg-white"
@@ -1891,7 +1903,7 @@ function PaymentModal({
           <div className="space-y-1.5">
             <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Received In Account</label>
             <select 
-              value={bankAccountId} 
+              value={bankAccountId || ''} 
               onChange={(e) => setBankAccountId(e.target.value)} 
               required
               className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500 outline-none transition-all bg-white"

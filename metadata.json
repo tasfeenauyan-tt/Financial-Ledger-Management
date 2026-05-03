@@ -1,5 +1,5 @@
 {
   "name": "TriloyTech Financial Ledger",
-  "description": "A professional financial ledger for TriloyTech accounting department with Excel import and accounting equation validation.",
+  "description": "A professional financial ledger and Project/Client database for TriloyTech with Excel export, accounting equations, and CRM management.",
   "requestFramePermissions": []
 }
