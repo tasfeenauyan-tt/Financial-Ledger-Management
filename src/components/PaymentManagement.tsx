@@ -118,7 +118,7 @@ export default function PaymentManagement({ userRole }: PaymentManagementProps) 
 
   // Clients Payment Status Summary
   const clientSummary = useMemo(() => {
-    const sortedClients = [...clients].sort((a, b) => a.name.localeCompare(b.name));
+    const sortedClients = [...clients].sort((a, b) => a.projectName.localeCompare(b.projectName));
     return sortedClients.map((client, index) => {
       const clientInvoices = invoices.filter(inv => inv.clientId === client.id);
       const activeInvoices = clientInvoices.filter(inv => inv.status !== 'Carry Forward');
@@ -132,7 +132,7 @@ export default function PaymentManagement({ userRole }: PaymentManagementProps) 
 
       return {
         slNumber: index + 1,
-        clientName: client.name,
+        clientName: client.projectName,
         company: client.company,
         totalInvoiced,
         totalPaid,
@@ -367,7 +367,7 @@ export default function PaymentManagement({ userRole }: PaymentManagementProps) 
   const downloadPaymentsXLS = () => {
     const data = payments.map(pay => ({
       'Date': pay.date,
-      'Client': clients.find(c => c.id === pay.clientId)?.name || 'Unknown Client',
+      'Client': clients.find(c => c.id === pay.clientId)?.projectName || 'Unknown Client',
       'Invoice #': invoices.find(i => i.id === pay.invoiceId)?.invoiceNumber || 'N/A',
       'Method': pay.method,
       'Received In': bankAccounts.find(acc => acc.id === pay.bankAccountId)?.accountTitleName || 
@@ -643,7 +643,7 @@ export default function PaymentManagement({ userRole }: PaymentManagementProps) 
                           <CreditCard size={20} />
                         </div>
                         <div>
-                          <p className="text-sm font-bold text-slate-800">{clients.find(c => c.id === pay.clientId)?.name || 'Unknown Client'}</p>
+                          <p className="text-sm font-bold text-slate-800">{clients.find(c => c.id === pay.clientId)?.projectName || 'Unknown Client'}</p>
                           <p className="text-xs text-slate-500 font-medium">{pay.method} • {pay.date}</p>
                         </div>
                       </div>
@@ -705,8 +705,8 @@ export default function PaymentManagement({ userRole }: PaymentManagementProps) 
                       </div>
                     )}
                   </div>
-                  <h4 className="text-lg font-bold text-slate-800 truncate" title={client.name}>{client.name}</h4>
-                  {client.company && <p className="text-sm font-bold text-indigo-600 mb-2 truncate" title={client.company}>{client.company}</p>}
+                  <h4 className="text-lg font-bold text-slate-800 truncate" title={client.projectName}>{client.projectName}</h4>
+                  <p className="text-sm font-bold text-indigo-600 mb-2 truncate" title={client.name}>{client.name} {client.company ? `| ${client.company}` : ''}</p>
                   <div className="flex flex-col gap-1 mt-2">
                     <div className="flex items-center gap-2 text-xs text-slate-500 font-medium">
                       <Clock size={14} />
@@ -913,7 +913,7 @@ export default function PaymentManagement({ userRole }: PaymentManagementProps) 
                       <tr key={pay.id} className="hover:bg-slate-50/50 transition-colors group">
                         <td className="p-4 text-sm text-slate-500 font-medium">{pay.date}</td>
                         <td className="p-4 text-sm font-bold text-slate-700">
-                          {clients.find(c => c.id === pay.clientId)?.name || 'Unknown Client'}
+                          {clients.find(c => c.id === pay.clientId)?.projectName || 'Unknown Client'}
                         </td>
                         <td className="p-4 text-sm font-bold text-indigo-600">
                           {invoices.find(i => i.id === pay.invoiceId)?.invoiceNumber || 'N/A'}
@@ -1455,7 +1455,7 @@ function InvoiceModal({ clients, invoices, bankAccounts, onClose, onSave, editin
   onSave: (inv: Invoice, carryForwardIds?: string[]) => void,
   editingInvoice: Invoice | null
 }) {
-  const sortedClients = useMemo(() => [...clients].sort((a, b) => a.name.localeCompare(b.name)), [clients]);
+  const sortedClients = useMemo(() => [...clients].sort((a, b) => a.projectName.localeCompare(b.projectName)), [clients]);
   const sortedBankAccounts = useMemo(() => [...bankAccounts].sort((a, b) => (a.accountTitleName || a.accountName).localeCompare(b.accountTitleName || b.accountName)), [bankAccounts]);
 
   const [items, setItems] = useState<InvoiceItem[]>(editingInvoice?.items || [{ description: '', quantity: 1, unitPrice: 0, total: 0 }]);
@@ -1551,7 +1551,7 @@ function InvoiceModal({ clients, invoices, bankAccounts, onClose, onSave, editin
       id: editingInvoice?.id || crypto.randomUUID(),
       invoiceNumber,
       clientId,
-      clientName: client?.name || 'Unknown',
+      clientName: client?.projectName || 'Unknown',
       date: invoiceDate,
       serviceDate,
       dueDate,
@@ -1616,7 +1616,7 @@ function InvoiceModal({ clients, invoices, bankAccounts, onClose, onSave, editin
                 className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500 outline-none transition-all bg-white"
               >
                 <option value="">-- Select Client --</option>
-                {sortedClients.map(c => <option key={c.id} value={c.id}>{c.name} ({c.company})</option>)}
+                {sortedClients.map(c => <option key={c.id} value={c.id}>{c.projectName}</option>)}
               </select>
             </div>
             <div className="space-y-1.5">

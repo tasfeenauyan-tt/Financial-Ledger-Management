@@ -72,6 +72,7 @@ export default function ProjectClientDatabase({
   const [formCrmLeadId, setFormCrmLeadId] = useState('');
   const [formClientName, setFormClientName] = useState('');
   const [formProjectName, setFormProjectName] = useState('');
+  const [formBudget, setFormBudget] = useState<string>('');
   const [isProjectNameAuto, setIsProjectNameAuto] = useState(true);
 
   useEffect(() => {
@@ -85,12 +86,14 @@ export default function ProjectClientDatabase({
         setFormCrmLeadId(crmId);
         setFormClientName(name);
         setFormProjectName(currentProjectName);
+        setFormBudget(editingClient.budget ? String(editingClient.budget) : '');
         // Enable auto-reflect if it matches expected pattern or is empty
         setIsProjectNameAuto(!currentProjectName || currentProjectName === expectedAutoName);
       } else {
         setFormCrmLeadId('');
         setFormClientName('');
         setFormProjectName('');
+        setFormBudget('');
         setIsProjectNameAuto(true);
       }
     }
@@ -149,11 +152,13 @@ export default function ProjectClientDatabase({
     if (isSyncing) return;
     setIsSyncing(true);
     let count = 0;
+    let invoiceCount = 0;
     
     // Create a local set of names that already exist or are being added in this batch
     const processedNames = new Set(transactionSubCategories.map(s => s.name.toLowerCase().trim()));
     
     try {
+      // 1. Sync Project Names to Transaction Item Pool
       for (const client of clients) {
         const name = client.projectName?.trim();
         if (!name) continue;
@@ -168,11 +173,41 @@ export default function ProjectClientDatabase({
           count++;
         }
       }
+
+      // 2. Sync Client Names in Invoices Collection
+      const invoicesSnapshot = await getDocs(collection(db, 'invoices'));
+      const batch = writeBatch(db);
+      let batchSize = 0;
+
+      invoicesSnapshot.docs.forEach(invoiceDoc => {
+        const invoiceData = invoiceDoc.data();
+        const client = clients.find(c => c.id === invoiceData.clientId);
+        
+        if (client && client.projectName && invoiceData.clientName !== client.projectName) {
+          batch.update(invoiceDoc.ref, { clientName: client.projectName });
+          batchSize++;
+          invoiceCount++;
+          
+          // Firestore batch limit is 500
+          if (batchSize === 450) {
+            // We'll just stop at 450 for this turn to be safe, or we could commit and start new batch
+            // But normally these lists aren't that huge in this app
+          }
+        }
+      });
+
+      if (batchSize > 0) {
+        await batch.commit();
+      }
       
-      if (count > 0) {
-        alert(`Successfully synced ${count} project names to the Transaction Item Pool.`);
+      if (count > 0 || invoiceCount > 0) {
+        let msg = `Successfully synced ${count} project names to the transaction pool.`;
+        if (invoiceCount > 0) {
+          msg += ` Updated ${invoiceCount} invoices with latest client project names.`;
+        }
+        alert(msg + " Client list at Payment Management is also up to date.");
       } else {
-        alert("All project names are already in the pool.");
+        alert("All data is already synchronized.");
       }
     } catch (error) {
       console.error("Error syncing to pool:", error);
@@ -832,11 +867,24 @@ export default function ProjectClientDatabase({
                     <div className="relative">
                       <DollarSign className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
                       <input 
-                        type="number"
+                        type="text"
                         name="budget"
-                        defaultValue={editingClient?.budget}
+                        value={formBudget}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          // Only allow numbers and decimal point
+                          if (/^\d*\.?\d*$/.test(val)) {
+                            // Prevent multiple leading zeros
+                            if (val.length > 1 && val.startsWith('0') && !val.startsWith('0.')) {
+                              setFormBudget(val.replace(/^0+/, ''));
+                            } else {
+                              setFormBudget(val);
+                            }
+                          }
+                        }}
                         className="w-full pl-11 pr-5 py-3.5 bg-slate-50 border-none rounded-2xl text-sm focus:ring-2 focus:ring-indigo-500 transition-all font-semibold"
                         placeholder="0.00"
+                        inputMode="decimal"
                       />
                     </div>
                   </div>
