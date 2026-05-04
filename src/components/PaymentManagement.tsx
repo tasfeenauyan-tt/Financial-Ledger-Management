@@ -478,8 +478,8 @@ export default function PaymentManagement({ userRole }: PaymentManagementProps) 
     doc.text(invoice.clientName, 14, 67);
     const client = clients.find(c => c.id === invoice.clientId);
     if (client) {
-      doc.text(client.company, 14, 72);
-      doc.text(client.phone, 14, 77);
+      if (client.company) doc.text(client.company, 14, 72);
+      if (client.mobile) doc.text(client.mobile, 14, 77);
     }
 
     // Items Table
@@ -499,9 +499,21 @@ export default function PaymentManagement({ userRole }: PaymentManagementProps) 
     });
 
     // Summary & Payment Instruction
-    const finalY = (doc as any).lastAutoTable.finalY + 10;
+    let finalY = ((doc as any).lastAutoTable?.finalY || 100) + 10;
     
-        // Payment Instruction on the left
+    // Notes section
+    if (invoice.notes) {
+      doc.setFontSize(10);
+      doc.setTextColor(100);
+      doc.text('Notes:', 14, finalY);
+      doc.setFontSize(8);
+      doc.setTextColor(50);
+      const splitNotes = doc.splitTextToSize(invoice.notes, 120);
+      doc.text(splitNotes, 14, finalY + 7);
+      finalY += (splitNotes.length * 4) + 12;
+    }
+    
+    // Payment Instruction on the left
     if (invoice.paymentAccountId) {
       const paymentAccount = bankAccounts.find(acc => acc.id === invoice.paymentAccountId);
       if (paymentAccount) {
@@ -1378,6 +1390,15 @@ function InvoicePreviewModal({ invoice, clients, bankAccounts, onClose }: {
               </div>
             </div>
 
+            {invoice.notes && (
+              <div className="pt-6">
+                <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Notes</p>
+                <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100 italic text-sm text-slate-600 whitespace-pre-wrap">
+                  {invoice.notes}
+                </div>
+              </div>
+            )}
+
             {/* Totals & Payment Instruction */}
             <div className="flex flex-col md:flex-row justify-between gap-8 pt-8 border-t border-slate-100">
               <div className="flex-1">
@@ -1458,9 +1479,9 @@ function InvoiceModal({ clients, invoices, bankAccounts, onClose, onSave, editin
   const sortedClients = useMemo(() => [...clients].sort((a, b) => a.projectName.localeCompare(b.projectName)), [clients]);
   const sortedBankAccounts = useMemo(() => [...bankAccounts].sort((a, b) => (a.accountTitleName || a.accountName).localeCompare(b.accountTitleName || b.accountName)), [bankAccounts]);
 
-  const [items, setItems] = useState<InvoiceItem[]>(editingInvoice?.items || [{ description: '', quantity: 1, unitPrice: 0, total: 0 }]);
+  const [items, setItems] = useState<any[]>(editingInvoice?.items.map(item => ({ ...item })) || [{ description: '', quantity: 1, unitPrice: '', total: 0 }]);
   const [clientId, setClientId] = useState(editingInvoice?.clientId || '');
-  const [paidAmount, setPaidAmount] = useState(editingInvoice?.paidAmount || 0);
+  const [paidAmount, setPaidAmount] = useState<string | number>(editingInvoice?.paidAmount || '');
   const [addPreviousDues, setAddPreviousDues] = useState(false);
   const [paymentAccountId, setPaymentAccountId] = useState(editingInvoice?.paymentAccountId || '');
   
@@ -1468,6 +1489,7 @@ function InvoiceModal({ clients, invoices, bankAccounts, onClose, onSave, editin
   const [serviceDate, setServiceDate] = useState(editingInvoice?.serviceDate || format(new Date(), 'yyyy-MM-dd'));
   const [dueDate, setDueDate] = useState(editingInvoice?.dueDate || format(new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), 'yyyy-MM-dd'));
   const [invoiceNumber, setInvoiceNumber] = useState(editingInvoice?.invoiceNumber || '');
+  const [notes, setNotes] = useState(editingInvoice?.notes || '');
   const [error, setError] = useState<string | null>(null);
 
   // Auto-generate invoice number when service date changes (only for new invoices)
@@ -1516,17 +1538,22 @@ function InvoiceModal({ clients, invoices, bankAccounts, onClose, onSave, editin
   }, [previousDuesInvoices]);
 
   const totalAmount = useMemo(() => {
-    const currentItemsTotal = items.reduce((sum, item) => sum + item.total, 0);
+    const currentItemsTotal = items.reduce((sum, item) => sum + (Number(item.total) || 0), 0);
     return addPreviousDues ? currentItemsTotal + previousDuesAmount : currentItemsTotal;
   }, [items, addPreviousDues, previousDuesAmount]);
 
-  const addItem = () => setItems([...items, { description: '', quantity: 1, unitPrice: 0, total: 0 }]);
+  const addItem = () => setItems([...items, { description: '', quantity: 1, unitPrice: '', total: 0 }]);
   const removeItem = (idx: number) => setItems(items.filter((_, i) => i !== idx));
   
-  const updateItem = (idx: number, updates: Partial<InvoiceItem>) => {
+  const updateItem = (idx: number, updates: any) => {
     const newItems = [...items];
     const item = { ...newItems[idx], ...updates };
-    item.total = item.quantity * item.unitPrice;
+    
+    // Ensure numeric calculation
+    const q = (item.quantity === '' || item.quantity === '-') ? 0 : (Number(item.quantity) || 0);
+    const u = (item.unitPrice === '' || item.unitPrice === '-') ? 0 : (Number(item.unitPrice) || 0);
+    item.total = q * u;
+    
     newItems[idx] = item;
     setItems(newItems);
   };
@@ -1547,6 +1574,14 @@ function InvoiceModal({ clients, invoices, bankAccounts, onClose, onSave, editin
 
     const client = clients.find(c => c.id === clientId);
     
+    // Convert items properly for storage
+    const storageItems: InvoiceItem[] = items.map(item => ({
+      description: item.description,
+      quantity: Number(item.quantity) || 0,
+      unitPrice: Number(item.unitPrice) || 0,
+      total: Number(item.total) || 0
+    }));
+
     const invoice: Invoice = {
       id: editingInvoice?.id || crypto.randomUUID(),
       invoiceNumber,
@@ -1557,16 +1592,17 @@ function InvoiceModal({ clients, invoices, bankAccounts, onClose, onSave, editin
       dueDate,
       paymentAccountId,
       items: addPreviousDues ? [
-        ...items,
+        ...storageItems,
         { 
           description: `Previous Dues Carry Forward (${previousDuesInvoices.map(inv => inv.invoiceNumber).join(', ')})`, 
           quantity: 1, 
           unitPrice: previousDuesAmount, 
           total: previousDuesAmount 
         }
-      ] : items,
+      ] : storageItems,
       totalAmount,
       paidAmount,
+      notes,
       status: paidAmount >= totalAmount ? 'Paid' : paidAmount > 0 ? 'Partial' : 'Unpaid',
       createdAt: editingInvoice?.createdAt || new Date().toISOString(),
     };
@@ -1652,11 +1688,21 @@ function InvoiceModal({ clients, invoices, bankAccounts, onClose, onSave, editin
             <div className="space-y-1.5">
               <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Paid Amount</label>
               <input 
-                type="number" 
-                value={paidAmount !== undefined ? paidAmount : ''} 
-                onChange={(e) => setPaidAmount(e.target.value === '' ? 0 : Number(e.target.value))} 
-                step="0.01"
-                className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500 outline-none transition-all" 
+                type="text" 
+                value={paidAmount} 
+                onFocus={(e) => e.target.select()}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  if (val === '' || /^\d*\.?\d*$/.test(val)) {
+                    let processed = val;
+                    if (val.length > 1 && val.startsWith('0') && !val.startsWith('0.')) {
+                      processed = val.replace(/^0+/, '');
+                    }
+                    setPaidAmount(processed);
+                  }
+                }}
+                className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500 outline-none transition-all font-semibold" 
+                inputMode="decimal"
               />
             </div>
             <div className="space-y-1.5">
@@ -1686,6 +1732,17 @@ function InvoiceModal({ clients, invoices, bankAccounts, onClose, onSave, editin
             )}
           </div>
 
+          <div className="space-y-1.5">
+            <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Notes / Terms</label>
+            <textarea 
+              value={notes} 
+              onChange={(e) => setNotes(e.target.value)} 
+              placeholder="Enter payment terms, payment instructions, or other notes..."
+              rows={3}
+              className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500 outline-none transition-all resize-none text-sm" 
+            />
+          </div>
+
           <div className="space-y-4">
             <div className="flex items-center justify-between">
               <h3 className="text-sm font-bold text-slate-600 uppercase tracking-wider">Service Items</h3>
@@ -1705,21 +1762,52 @@ function InvoiceModal({ clients, invoices, bankAccounts, onClose, onSave, editin
                   <div className="md:col-span-2 space-y-1.5">
                     <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Qty</label>
                     <input 
-                      type="number" 
-                      value={item.quantity !== undefined ? item.quantity : ''} 
-                      onChange={(e) => updateItem(idx, { quantity: e.target.value === '' ? 0 : Number(e.target.value) })} 
+                      type="text" 
+                      value={item.quantity} 
+                      onFocus={(e) => e.target.select()}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        if (val === '' || val === '-' || /^-?\d*\.?\d*$/.test(val)) {
+                          let processed = val;
+                          const isNegative = val.startsWith('-');
+                          const numericPart = isNegative ? val.slice(1) : val;
+                          
+                          if (numericPart.length > 1 && numericPart.startsWith('0') && !numericPart.startsWith('0.')) {
+                            processed = (isNegative ? '-' : '') + numericPart.replace(/^0+/, '');
+                            if (processed === '-' || processed === '') processed = isNegative ? '-0' : '0';
+                          }
+                          updateItem(idx, { quantity: processed });
+                        }
+                      }}
                       required 
-                      className="w-full px-3 py-2 rounded-lg border border-slate-200 bg-white text-sm" 
+                      className="w-full px-3 py-2 rounded-lg border border-slate-200 bg-white text-sm font-semibold" 
+                      inputMode="decimal"
                     />
                   </div>
                   <div className="md:col-span-2 space-y-1.5">
                     <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Unit Price</label>
                     <input 
-                      type="number" 
-                      value={item.unitPrice !== undefined ? item.unitPrice : ''} 
-                      onChange={(e) => updateItem(idx, { unitPrice: e.target.value === '' ? 0 : Number(e.target.value) })} 
+                      type="text" 
+                      value={item.unitPrice} 
+                      onFocus={(e) => e.target.select()}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        if (val === '' || val === '-' || /^-?\d*\.?\d*$/.test(val)) {
+                          let processed = val;
+                          const isNegative = val.startsWith('-');
+                          const numericPart = isNegative ? val.slice(1) : val;
+                          
+                          if (numericPart.length > 1 && numericPart.startsWith('0') && !numericPart.startsWith('0.')) {
+                            processed = (isNegative ? '-' : '') + numericPart.replace(/^0+/, '');
+                            if (processed === '-' || processed === '') processed = isNegative ? '-0' : '0';
+                          }
+                          updateItem(idx, { unitPrice: processed });
+                        }
+                      }}
                       required 
-                      className="w-full px-3 py-2 rounded-lg border border-slate-200 bg-white text-sm" 
+                      placeholder="0.00"
+                      className="w-full px-3 py-2 rounded-lg border border-slate-200 bg-white text-sm font-semibold" 
+                      inputMode="decimal"
                     />
                   </div>
                   <div className="md:col-span-2 space-y-1.5">
@@ -1874,7 +1962,8 @@ function PaymentModal({
                 type="number" 
                 step="0.01" 
                 required 
-                className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500 outline-none transition-all" 
+                onFocus={(e) => e.target.select()}
+                className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500 outline-none transition-all font-semibold" 
               />
             </div>
             <div className="space-y-1.5">
@@ -1883,7 +1972,8 @@ function PaymentModal({
                 name="badDebtAmount" 
                 type="number" 
                 step="0.01" 
-                className="w-full px-4 py-2.5 rounded-xl border border-rose-100 bg-rose-50/30 focus:ring-2 focus:ring-rose-500 outline-none transition-all" 
+                onFocus={(e) => e.target.select()}
+                className="w-full px-4 py-2.5 rounded-xl border border-rose-100 bg-rose-50/30 focus:ring-2 focus:ring-rose-500 outline-none transition-all font-semibold" 
               />
             </div>
           </div>

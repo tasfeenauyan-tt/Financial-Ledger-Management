@@ -97,6 +97,7 @@ export interface Invoice {
   totalAmount: number;
   paidAmount: number;
   badDebtAmount?: number;
+  notes?: string;
   status: 'Unpaid' | 'Partial' | 'Paid' | 'Carry Forward' | 'Bad Debt';
   carriedToInvoiceNumber?: string;
   createdAt: string;
