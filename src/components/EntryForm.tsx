@@ -26,8 +26,26 @@ export default function EntryForm({
   const [error, setError] = useState<string | null>(null);
 
   const sortedAccounts = useMemo(() => [...accounts].sort((a, b) => a.name.localeCompare(b.name)), [accounts]);
-  const sortedTransactionItems = useMemo(() => [...transactionItems].sort((a, b) => a.name.localeCompare(b.name)), [transactionItems]);
-  const sortedTransactionSubCategories = useMemo(() => [...transactionSubCategories].sort((a, b) => a.name.localeCompare(b.name)), [transactionSubCategories]);
+  const sortedTransactionItems = useMemo(() => {
+    const uniqueMap = new Map<string, TransactionItem>();
+    transactionItems.forEach(item => {
+      const key = item.name.toLowerCase().trim();
+      if (!uniqueMap.has(key)) {
+        uniqueMap.set(key, item);
+      }
+    });
+    return Array.from(uniqueMap.values()).sort((a, b) => a.name.localeCompare(b.name));
+  }, [transactionItems]);
+  const sortedTransactionSubCategories = useMemo(() => {
+    const uniqueMap = new Map<string, TransactionSubCategory>();
+    transactionSubCategories.forEach(sub => {
+      const key = sub.name.toLowerCase().trim();
+      if (!uniqueMap.has(key)) {
+        uniqueMap.set(key, sub);
+      }
+    });
+    return Array.from(uniqueMap.values()).sort((a, b) => a.name.localeCompare(b.name));
+  }, [transactionSubCategories]);
 
   useEffect(() => {
     if (initialData) {
