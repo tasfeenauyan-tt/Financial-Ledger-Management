@@ -23,6 +23,7 @@ import Login from './components/Login';
 import EmployeeDatabase from './components/EmployeeDatabase';
 import ProjectClientDatabase from './components/ProjectClientDatabase';
 import AccountsPayable from './components/AccountsPayable';
+import AccountsReceivable from './components/AccountsReceivable';
 import { auth, logout, User, db } from './firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 import { handleFirestoreError, OperationType } from './lib/firestore-errors';
@@ -62,7 +63,7 @@ export default function App() {
   const [zakatSettings, setZakatSettings] = useState<ZakatSettings | null>(null);
   const [employees, setEmployees] = useState<Employee[]>([]);
 
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'history' | 'balance-sheet' | 'monthly-balance-sheet' | 'trial-balance' | 'monthly-p-and-l' | 'expense' | 'categorized-expense' | 'salary' | 'owners-capital' | 'zakat' | 'backup' | 'payments-mgmt' | 'accounts' | 'admin' | 'employees' | 'project-clients' | 'accounts-payable'>('history');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'history' | 'balance-sheet' | 'monthly-balance-sheet' | 'trial-balance' | 'monthly-p-and-l' | 'expense' | 'categorized-expense' | 'salary' | 'owners-capital' | 'zakat' | 'backup' | 'payments-mgmt' | 'accounts' | 'admin' | 'employees' | 'project-clients' | 'accounts-payable' | 'accounts-receivable'>('history');
 
   const [searchTerm, setSearchTerm] = useState('');
   const [editingEntry, setEditingEntry] = useState<LedgerEntry | null>(null);
@@ -597,6 +598,15 @@ export default function App() {
           Accounts Payable
         </button>
         <button 
+          onClick={() => { setActiveTab('accounts-receivable'); setIsMobileMenuOpen(false); }}
+          className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-semibold transition-all ${
+            activeTab === 'accounts-receivable' ? 'bg-indigo-50 text-indigo-700' : 'text-slate-500 hover:bg-slate-50'
+          }`}
+        >
+          <TrendingUp size={20} />
+          Accounts Receivable
+        </button>
+        <button 
           onClick={() => { setActiveTab('payments-mgmt'); setIsMobileMenuOpen(false); }}
           className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-semibold transition-all ${
             activeTab === 'payments-mgmt' ? 'bg-indigo-50 text-indigo-700' : 'text-slate-500 hover:bg-slate-50'
@@ -903,6 +913,7 @@ export default function App() {
                  activeTab === 'owners-capital' ? 'Owner’s Contribution' :
                  activeTab === 'zakat' ? 'Zakat Calculation' :
                  activeTab === 'accounts-payable' ? 'Accounts Payable' :
+                 activeTab === 'accounts-receivable' ? 'Accounts Receivable' :
                  activeTab === 'backup' ? 'Backup & Restore' :
                  activeTab === 'payments-mgmt' ? 'Client/Project Payment Management' :
                  activeTab === 'admin' ? 'Admin Panel' :
@@ -922,6 +933,7 @@ export default function App() {
                  activeTab === 'owners-capital' ? 'Owner’s Investment Management.' :
                  activeTab === 'zakat' ? 'Calculate and track your Zakat obligations.' :
                  activeTab === 'accounts-payable' ? 'Track pending payments to vendors and suppliers from remarks.' :
+                 activeTab === 'accounts-receivable' ? 'Track pending collections from projects and clients from remarks.' :
                  activeTab === 'backup' ? 'Manage data backups and restore' :
                  activeTab === 'payments-mgmt' ? 'Manage clients, invoices, and project payments.' :
                  activeTab === 'admin' ? 'Manage team members and system access.' :
@@ -1202,6 +1214,20 @@ export default function App() {
                 className="space-y-6"
               >
                 <AccountsPayable 
+                  entries={entries} 
+                  accounts={accounts}
+                  userRole={userRole || 'viewer'}
+                />
+              </motion.div>
+            ) : activeTab === 'accounts-receivable' ? (
+              <motion.div
+                key="accounts-receivable"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -20 }}
+                className="space-y-6"
+              >
+                <AccountsReceivable 
                   entries={entries} 
                   accounts={accounts}
                   userRole={userRole || 'viewer'}
