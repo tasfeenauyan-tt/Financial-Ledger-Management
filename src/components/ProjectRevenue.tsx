@@ -18,8 +18,15 @@ export default function ProjectRevenue({ entries, userRole }: ProjectRevenueProp
       let hasRevenue = false;
       (e.customEntries || []).forEach(ce => {
         if (ce.accountCategory === 'Equity') {
-          const name = ce.accountName.toLowerCase();
-          if (name.includes('revenue') || name.includes('income') || name.includes('sales')) {
+          const lowerName = ce.accountName.toLowerCase();
+          const isCapital = lowerName.includes('capital') || lowerName.includes('partner') || lowerName.includes('owner') || lowerName.includes('drawing');
+          
+          // Consistent keywords
+          const isRevKeywords = lowerName.includes('revenue') || lowerName.includes('income') || lowerName.includes('sales') || 
+                              lowerName.includes('fees') || lowerName.includes('service') || lowerName.includes('billing') ||
+                              lowerName.includes('retainer') || lowerName.includes('commission');
+          
+          if (isRevKeywords || (!isCapital && ce.type === 'Cr')) {
             hasRevenue = true;
           }
         }
@@ -64,8 +71,14 @@ export default function ProjectRevenue({ entries, userRole }: ProjectRevenueProp
       let entryRevenue = 0;
       (entry.customEntries || []).forEach(ce => {
         if (ce.accountCategory === 'Equity') {
-          const name = ce.accountName.toLowerCase();
-          if (name.includes('revenue') || name.includes('income') || name.includes('sales')) {
+          const lowerName = ce.accountName.toLowerCase();
+          const isCapital = lowerName.includes('capital') || lowerName.includes('partner') || lowerName.includes('owner') || lowerName.includes('drawing');
+          
+          const isRevKeywords = lowerName.includes('revenue') || lowerName.includes('income') || lowerName.includes('sales') || 
+                              lowerName.includes('fees') || lowerName.includes('service') || lowerName.includes('billing') ||
+                              lowerName.includes('retainer') || lowerName.includes('commission');
+
+          if (isRevKeywords || (!isCapital && ce.type === 'Cr')) {
             entryRevenue += ce.type === 'Cr' ? ce.amount : -ce.amount;
           }
         }

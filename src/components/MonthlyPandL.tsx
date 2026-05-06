@@ -51,12 +51,22 @@ export default function MonthlyPandL({ entries, userRole }: MonthlyPandLProps) {
 
       (entry.customEntries || []).forEach(ce => {
         const lowerName = ce.accountName.toLowerCase();
-        const isRevenue = lowerName.includes('revenue') || lowerName.includes('income');
-        const isExpense = lowerName.includes('expense') || lowerName.includes('cost');
+        const isEquity = ce.accountCategory === 'Equity';
+        const isCapital = lowerName.includes('capital') || lowerName.includes('partner') || lowerName.includes('owner') || lowerName.includes('drawing');
         
-        if (isRevenue) {
+        // Comprehensive keywords matching FinancialReport
+        const isRevKeywords = lowerName.includes('revenue') || lowerName.includes('income') || lowerName.includes('sales') || 
+                            lowerName.includes('fees') || lowerName.includes('service') || lowerName.includes('billing') ||
+                            lowerName.includes('retainer') || lowerName.includes('commission');
+        
+        const isExpKeywords = lowerName.includes('expense') || lowerName.includes('cost') || lowerName.includes('salary') || 
+                            lowerName.includes('rent') || lowerName.includes('bill') || lowerName.includes('tax') || 
+                            lowerName.includes('utility') || lowerName.includes('purchase') || lowerName.includes('wage') ||
+                            lowerName.includes('travel') || lowerName.includes('marketing') || lowerName.includes('allowance');
+        
+        if (isRevKeywords || (isEquity && !isCapital && ce.type === 'Cr')) {
           entryRevenue += ce.type === 'Cr' ? ce.amount : -ce.amount;
-        } else if (isExpense) {
+        } else if (isExpKeywords || (isEquity && !isCapital && ce.type === 'Dr')) {
           entryExpense += ce.type === 'Dr' ? ce.amount : -ce.amount;
         }
       });

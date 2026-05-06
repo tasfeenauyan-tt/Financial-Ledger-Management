@@ -1,6 +1,6 @@
 import * as React from 'react';
 import { useState, useMemo, useEffect, Component, ErrorInfo, ReactNode } from 'react';
-import { LedgerEntry, LedgerTotals, Account, TransactionItem, TransactionSubCategory, Partner, ZakatSettings, UserRole, AppUser, Employee } from './types';
+import { LedgerEntry, LedgerTotals, Account, TransactionItem, TransactionSubCategory, Partner, ZakatSettings, UserRole, AppUser, Employee, Client } from './types';
 import SummaryCards from './components/SummaryCards';
 import LedgerTable from './components/LedgerTable';
 import EntryForm from './components/EntryForm';
@@ -12,6 +12,7 @@ import ExpenseReport from './components/ExpenseReport';
 import CategorizedExpense from './components/CategorizedExpense';
 import SalaryReport from './components/SalaryReport';
 import ProjectRevenue from './components/ProjectRevenue';
+import FinancialReport from './components/FinancialReport';
 import OwnersCapital from './components/OwnersCapital';
 import ZakatCalculation from './components/ZakatCalculation';
 import TrialBalance from './components/TrialBalance';
@@ -41,7 +42,7 @@ import {
   getDoc
 } from 'firebase/firestore';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend, LineChart, Line, XAxis, YAxis, CartesianGrid, BarChart, Bar } from 'recharts';
-import { Building2, LayoutDashboard, History, Settings, LogOut, Search, Filter, Download, Printer, Trash2, RotateCcw, FileText, Calendar, Receipt, Users, Database, AlertCircle, Menu, X, TrendingDown, TrendingUp, Shield, ArrowLeftRight, Calculator, CreditCard } from 'lucide-react';
+import { Building2, LayoutDashboard, History, Settings, LogOut, Search, Filter, Download, Trash2, RotateCcw, FileText, Calendar, Receipt, Users, Database, AlertCircle, Menu, X, TrendingDown, TrendingUp, Shield, ArrowLeftRight, Calculator, CreditCard } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
@@ -62,8 +63,9 @@ export default function App() {
   const [partners, setPartners] = useState<Partner[]>([]);
   const [zakatSettings, setZakatSettings] = useState<ZakatSettings | null>(null);
   const [employees, setEmployees] = useState<Employee[]>([]);
+  const [clients, setClients] = useState<Client[]>([]);
 
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'history' | 'balance-sheet' | 'monthly-balance-sheet' | 'trial-balance' | 'monthly-p-and-l' | 'expense' | 'categorized-expense' | 'salary' | 'owners-capital' | 'zakat' | 'backup' | 'payments-mgmt' | 'accounts' | 'admin' | 'employees' | 'project-clients' | 'accounts-payable' | 'accounts-receivable'>('history');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'history' | 'balance-sheet' | 'monthly-balance-sheet' | 'trial-balance' | 'monthly-p-and-l' | 'expense' | 'categorized-expense' | 'salary' | 'financial-report' | 'owners-capital' | 'zakat' | 'backup' | 'payments-mgmt' | 'accounts' | 'admin' | 'employees' | 'project-clients' | 'accounts-payable' | 'accounts-receivable'>('history');
 
   const [searchTerm, setSearchTerm] = useState('');
   const [editingEntry, setEditingEntry] = useState<LedgerEntry | null>(null);
@@ -176,6 +178,11 @@ export default function App() {
       setEmployees(data);
     }, (error) => handleFirestoreError(error, OperationType.GET, 'employees'));
 
+    const unsubClients = onSnapshot(collection(db, 'clients'), (snapshot) => {
+      const data = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Client));
+      setClients(data);
+    }, (error) => handleFirestoreError(error, OperationType.GET, 'clients'));
+
     return () => {
       unsubEntries();
       unsubAccounts();
@@ -184,6 +191,7 @@ export default function App() {
       unsubPartners();
       unsubZakat();
       unsubEmployees();
+      unsubClients();
     };
   }, [user]);
 
@@ -449,10 +457,6 @@ export default function App() {
     doc.save(`Monthly_Performance_${new Date().toISOString().split('T')[0]}.pdf`);
   };
 
-  const handlePrint = () => {
-    window.print();
-  };
-
   const [isClearModalOpen, setIsClearModalOpen] = useState(false);
   const [entryToDelete, setEntryToDelete] = useState<string | null>(null);
 
@@ -560,6 +564,15 @@ export default function App() {
         >
           <Users size={20} />
           Salary Report
+        </button>
+        <button 
+          onClick={() => { setActiveTab('financial-report'); setIsMobileMenuOpen(false); }}
+          className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-semibold transition-all ${
+            activeTab === 'financial-report' ? 'bg-indigo-50 text-indigo-700' : 'text-slate-500 hover:bg-slate-50'
+          }`}
+        >
+          <FileText size={20} />
+          Financial Report
         </button>
         <button 
           onClick={() => { setActiveTab('employees'); setIsMobileMenuOpen(false); }}
@@ -1170,6 +1183,16 @@ export default function App() {
                 className="space-y-6"
               >
                 <SalaryReport entries={entries} userRole={userRole} employees={employees} />
+              </motion.div>
+            ) : activeTab === 'financial-report' ? (
+              <motion.div
+                key="financial-report"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -20 }}
+                className="space-y-6"
+              >
+                <FinancialReport entries={entries} clients={clients} />
               </motion.div>
             ) : activeTab === 'owners-capital' ? (
               <motion.div
