@@ -796,9 +796,9 @@ export default function ProjectClientDatabase({
               </h3>
 
               <form onSubmit={handleSaveClient} className="space-y-6">
-                {/* Project Name */}
+                {/* Client ID */}
                 <div className="space-y-2">
-                  <label className="text-xs font-black text-indigo-600 uppercase tracking-widest px-1">Project Name</label>
+                  <label className="text-xs font-black text-indigo-600 uppercase tracking-widest px-1">Client ID</label>
                   <input 
                     name="projectName"
                     value={formProjectName || ''}
@@ -810,7 +810,7 @@ export default function ProjectClientDatabase({
                     placeholder="Auto-filled: Client Name (CRM ID)"
                   />
                   <p className="text-[10px] text-slate-400 font-medium px-1 italic">
-                    {isProjectNameAuto ? "Auto-generating from Client Name & ID" : "Custom Project Name applied"}
+                    {isProjectNameAuto ? "Auto-generating from Client Name & ID" : "Custom Client ID applied"}
                   </p>
                 </div>
 
