@@ -6,6 +6,8 @@ import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
+import { getCountryRevenueData } from '../lib/revenueDataHelpers';
+
 interface CountryRevenueProps {
   entries: LedgerEntry[];
   clients: Client[];
@@ -13,148 +15,9 @@ interface CountryRevenueProps {
 }
 
 export default function CountryRevenue({ entries, clients, userRole }: CountryRevenueProps) {
-  const countryData = useMemo(() => {
-    // 1. Create a map of Client ID (projectName) to Country
-    const clientToCountryMap: Record<string, string> = {};
-    clients.forEach(c => {
-      if (c.projectName) {
-        clientToCountryMap[c.projectName.toLowerCase().trim()] = c.country || 'Unknown';
-      }
-    });
+  const countryData = useMemo(() => getCountryRevenueData(entries, clients), [entries, clients]);
 
-    // 2. Filter revenue entries
-    const revenueEntries = entries.filter(e => {
-      let hasRevenue = false;
-      (e.customEntries || []).forEach(ce => {
-        if (ce.accountCategory === 'Equity') {
-          const lowerName = ce.accountName.toLowerCase();
-          const isCapital = lowerName.includes('capital') || lowerName.includes('partner') || lowerName.includes('owner') || lowerName.includes('drawing');
-          
-          const isRevKeywords = lowerName.includes('revenue') || lowerName.includes('income') || lowerName.includes('sales') || 
-                              lowerName.includes('fees') || lowerName.includes('service') || lowerName.includes('billing') ||
-                              lowerName.includes('retainer') || lowerName.includes('commission');
-          
-          if (isRevKeywords || (!isCapital && ce.type === 'Cr')) {
-            hasRevenue = true;
-          }
-        }
-      });
-      
-      const details = e.details.toLowerCase();
-      const itemName = e.transactionItemName.toLowerCase();
-      const remarks = e.remarks.toLowerCase();
-      const notes = (e.notes || '').toLowerCase();
-      
-      const isProjectRelated = 
-        details.includes('project') || 
-        itemName.includes('project') || 
-        remarks.includes('tt-lg') ||
-        notes.includes('tt-lg') ||
-        remarks.includes('project') ||
-        ((details.includes('revenue') || itemName.includes('revenue') || details.includes('income') || details.includes('sales')) && e.remarks.length > 0);
-      
-      return hasRevenue && isProjectRelated;
-    });
-
-    const countriesList = new Set<string>();
-    const months = new Set<string>();
-    const dataMap: Record<string, Record<string, number>> = {};
-
-    revenueEntries.forEach(entry => {
-      const date = new Date(entry.date);
-      const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-      
-      const projectName = entry.remarks || entry.transactionItemName || 'General-Uncategorized';
-      let clientId = 'Uncategorized';
-      
-      // Extraction logic: first part before ")-" including ")"
-      if (projectName.includes(')-')) {
-        const parts = projectName.split(')-');
-        clientId = parts[0].trim() + ')';
-      } else {
-        const parts = projectName.split('-');
-        clientId = parts.length > 1 ? parts[0].trim() : projectName;
-      }
-
-      // Map Client ID to Country
-      const country = clientToCountryMap[clientId.toLowerCase().trim()] || 'Others';
-
-      countriesList.add(country);
-      months.add(monthKey);
-
-      if (!dataMap[country]) {
-        dataMap[country] = {};
-      }
-      
-      let entryRevenue = 0;
-      (entry.customEntries || []).forEach(ce => {
-        if (ce.accountCategory === 'Equity') {
-          const lowerName = ce.accountName.toLowerCase();
-          const isCapital = lowerName.includes('capital') || lowerName.includes('partner') || lowerName.includes('owner') || lowerName.includes('drawing');
-          
-          const isRevKeywords = lowerName.includes('revenue') || lowerName.includes('income') || lowerName.includes('sales') || 
-                              lowerName.includes('fees') || lowerName.includes('service') || lowerName.includes('billing') ||
-                              lowerName.includes('retainer') || lowerName.includes('commission');
-
-          if (isRevKeywords || (!isCapital && ce.type === 'Cr')) {
-            entryRevenue += ce.type === 'Cr' ? ce.amount : -ce.amount;
-          }
-        }
-      });
-      
-      dataMap[country][monthKey] = (dataMap[country][monthKey] || 0) + entryRevenue;
-    });
-
-    const sortedMonthKeys = Array.from(months).sort((a, b) => a.localeCompare(b));
-    
-    // Calculate totals for sorting
-    const rowTotals: Record<string, number> = {};
-    countriesList.forEach(country => {
-      let sum = 0;
-      sortedMonthKeys.forEach(month => {
-        sum += dataMap[country][month] || 0;
-      });
-      rowTotals[country] = sum;
-    });
-
-    // Sort countries by total revenue (highest to lowest)
-    const sortedCountries = Array.from(countriesList).sort((a, b) => rowTotals[b] - rowTotals[a]);
-
-    const monthLabels = sortedMonthKeys.map(key => {
-      const [year, month] = key.split('-');
-      return new Date(parseInt(year), parseInt(month) - 1).toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
-    });
-
-    return {
-      countries: sortedCountries,
-      monthKeys: sortedMonthKeys,
-      monthLabels,
-      dataMap
-    };
-  }, [entries, clients]);
-
-  const { countries, monthKeys, monthLabels, dataMap } = countryData;
-
-  const totals = useMemo(() => {
-    const rowTotals: Record<string, number> = {};
-    const colTotals: Record<string, number> = {};
-    let grandTotal = 0;
-
-    countries.forEach(country => {
-      let rowSum = 0;
-      monthKeys.forEach(key => {
-        const val = dataMap[country][key] || 0;
-        rowSum += val;
-        colTotals[key] = (colTotals[key] || 0) + val;
-      });
-      rowTotals[country] = rowSum;
-      grandTotal += rowSum;
-    });
-
-    return { rowTotals, colTotals, grandTotal };
-  }, [countries, monthKeys, dataMap]);
-
-  if (countries.length === 0) {
+  if (countryData.items.length === 0) {
     return (
       <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
         <h3 className="font-bold text-slate-800 mb-4">Country Revenue</h3>
@@ -162,6 +25,10 @@ export default function CountryRevenue({ entries, clients, userRole }: CountryRe
       </div>
     );
   }
+
+  const { items: countries, monthKeys, monthLabels, dataMap, rowTotals, colTotals, grandTotal } = countryData;
+
+  const totals = { rowTotals, colTotals, grandTotal };
 
   const downloadXLS = () => {
     const header = ['Sl', 'Country', ...monthLabels, 'Total Revenue', '%'];

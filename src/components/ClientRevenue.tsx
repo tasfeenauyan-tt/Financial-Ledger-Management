@@ -5,6 +5,7 @@ import { Download, FileText } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import { getClientRevenueData } from '../lib/revenueDataHelpers';
 
 interface ClientRevenueProps {
   entries: LedgerEntry[];
@@ -12,138 +13,9 @@ interface ClientRevenueProps {
 }
 
 export default function ClientRevenue({ entries, userRole }: ClientRevenueProps) {
-  const clientData = useMemo(() => {
-    // Filter entries that are project revenue
-    const revenueEntries = entries.filter(e => {
-      let hasRevenue = false;
-      (e.customEntries || []).forEach(ce => {
-        if (ce.accountCategory === 'Equity') {
-          const lowerName = ce.accountName.toLowerCase();
-          const isCapital = lowerName.includes('capital') || lowerName.includes('partner') || lowerName.includes('owner') || lowerName.includes('drawing');
-          
-          const isRevKeywords = lowerName.includes('revenue') || lowerName.includes('income') || lowerName.includes('sales') || 
-                              lowerName.includes('fees') || lowerName.includes('service') || lowerName.includes('billing') ||
-                              lowerName.includes('retainer') || lowerName.includes('commission');
-          
-          if (isRevKeywords || (!isCapital && ce.type === 'Cr')) {
-            hasRevenue = true;
-          }
-        }
-      });
-      
-      const details = e.details.toLowerCase();
-      const itemName = e.transactionItemName.toLowerCase();
-      const remarks = e.remarks.toLowerCase();
-      const notes = (e.notes || '').toLowerCase();
-      
-      const isProjectRelated = 
-        details.includes('project') || 
-        itemName.includes('project') || 
-        remarks.includes('tt-lg') ||
-        notes.includes('tt-lg') ||
-        remarks.includes('project') ||
-        ((details.includes('revenue') || itemName.includes('revenue') || details.includes('income') || details.includes('sales')) && e.remarks.length > 0);
-      
-      return hasRevenue && isProjectRelated;
-    });
+  const clientData = useMemo(() => getClientRevenueData(entries), [entries]);
 
-    const clientsList = new Set<string>();
-    const months = new Set<string>();
-    const dataMap: Record<string, Record<string, number>> = {};
-
-    revenueEntries.forEach(entry => {
-      const date = new Date(entry.date);
-      const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-      
-      const projectName = entry.remarks || entry.transactionItemName || 'General-Uncategorized';
-      let clientId = 'Uncategorized';
-      
-      // Extraction logic: first part before ")-" including ")"
-      if (projectName.includes(')-')) {
-        const parts = projectName.split(')-');
-        clientId = parts[0].trim() + ')';
-      } else {
-        // Fallback for cases without the exact format
-        const parts = projectName.split('-');
-        clientId = parts.length > 1 ? parts[0].trim() : projectName;
-      }
-
-      clientsList.add(clientId);
-      months.add(monthKey);
-
-      if (!dataMap[clientId]) {
-        dataMap[clientId] = {};
-      }
-      
-      let entryRevenue = 0;
-      (entry.customEntries || []).forEach(ce => {
-        if (ce.accountCategory === 'Equity') {
-          const lowerName = ce.accountName.toLowerCase();
-          const isCapital = lowerName.includes('capital') || lowerName.includes('partner') || lowerName.includes('owner') || lowerName.includes('drawing');
-          
-          const isRevKeywords = lowerName.includes('revenue') || lowerName.includes('income') || lowerName.includes('sales') || 
-                              lowerName.includes('fees') || lowerName.includes('service') || lowerName.includes('billing') ||
-                              lowerName.includes('retainer') || lowerName.includes('commission');
-
-          if (isRevKeywords || (!isCapital && ce.type === 'Cr')) {
-            entryRevenue += ce.type === 'Cr' ? ce.amount : -ce.amount;
-          }
-        }
-      });
-      
-      dataMap[clientId][monthKey] = (dataMap[clientId][monthKey] || 0) + entryRevenue;
-    });
-
-    const sortedMonthKeys = Array.from(months).sort((a, b) => a.localeCompare(b));
-    
-    // Calculate totals for sorting
-    const rowTotals: Record<string, number> = {};
-    clientsList.forEach(clientId => {
-      let sum = 0;
-      sortedMonthKeys.forEach(month => {
-        sum += dataMap[clientId][month] || 0;
-      });
-      rowTotals[clientId] = sum;
-    });
-
-    // Sort clients by total revenue (highest to lowest)
-    const sortedClients = Array.from(clientsList).sort((a, b) => rowTotals[b] - rowTotals[a]);
-
-    const monthLabels = sortedMonthKeys.map(key => {
-      const [year, month] = key.split('-');
-      return new Date(parseInt(year), parseInt(month) - 1).toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
-    });
-
-    return {
-      clients: sortedClients,
-      monthKeys: sortedMonthKeys,
-      monthLabels,
-      dataMap
-    };
-  }, [entries]);
-
-  const { clients, monthKeys, monthLabels, dataMap } = clientData;
-
-  const totals = useMemo(() => {
-    const rowTotals: Record<string, number> = {};
-    const colTotals: Record<string, number> = {};
-    let grandTotal = 0;
-
-    clients.forEach(clientId => {
-      let rowSum = 0;
-      monthKeys.forEach(key => {
-        const val = dataMap[clientId][key] || 0;
-        rowSum += val;
-        colTotals[key] = (colTotals[key] || 0) + val;
-      });
-      rowTotals[clientId] = rowSum;
-      grandTotal += rowSum;
-    });
-
-    return { rowTotals, colTotals, grandTotal };
-  }, [clients, monthKeys, dataMap]);
-
-  if (clients.length === 0) {
+  if (clientData.items.length === 0) {
     return (
       <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
         <h3 className="font-bold text-slate-800 mb-4">Client Revenue</h3>
@@ -151,6 +23,10 @@ export default function ClientRevenue({ entries, userRole }: ClientRevenueProps)
       </div>
     );
   }
+
+  const { items: clients, monthKeys, monthLabels, dataMap, rowTotals, colTotals, grandTotal } = clientData;
+
+  const totals = { rowTotals, colTotals, grandTotal };
 
   const downloadXLS = () => {
     const header = ['Sl', 'Client ID', ...monthLabels, 'Total Revenue', '%'];

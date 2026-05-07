@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { LedgerEntry, Client } from '../types';
+import { LedgerEntry, Client, UserRole } from '../types';
 import { formatCurrency, cn } from '../lib/utils';
 import { 
   Download, 
@@ -10,17 +10,24 @@ import {
   Target, 
   Filter,
   ChevronDown,
-  Wand2
+  Wand2,
+  PieChart
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { Document, Packer, Paragraph, Table, TableRow, TableCell, WidthType, AlignmentType, HeadingLevel, TextRun, BorderStyle } from 'docx';
 import { saveAs } from 'file-saver';
+import ServiceRevenue from './ServiceRevenue';
+import ClientRevenue from './ClientRevenue';
+import CountryRevenue from './CountryRevenue';
+
+import { getServiceRevenueData, getClientRevenueData, getCountryRevenueData } from '../lib/revenueDataHelpers';
 
 interface FinancialReportProps {
   entries: LedgerEntry[];
   clients: Client[];
+  userRole?: UserRole | null;
 }
 
 type PeriodType = 'monthly' | 'quarterly' | 'yearly' | 'upto-now' | 'custom';
@@ -36,7 +43,7 @@ interface ReportData {
   months: string[];
 }
 
-export default function FinancialReport({ entries, clients }: FinancialReportProps) {
+export default function FinancialReport({ entries, clients, userRole }: FinancialReportProps) {
   const [periodType, setPeriodType] = useState<PeriodType>('upto-now');
   const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
   const [selectedMonth, setSelectedMonth] = useState<number>(new Date().getMonth());
@@ -327,6 +334,117 @@ export default function FinancialReport({ entries, clients }: FinancialReportPro
         if (data.row.index === netRows.length - 1) data.cell.styles.fontStyle = 'bold';
       }
     });
+    y = (doc as any).lastAutoTable.finalY + 10;
+
+    // 5. Revenue Analysis (Service, Client, Country)
+    if (y > 230) { doc.addPage(); y = 20; }
+    doc.text('5. Revenue Analysis', 14, y);
+    y += 8;
+
+    // 5.1 Service Revenue
+    doc.setFontSize(10);
+    doc.setTextColor(100);
+    doc.text('5.1 Service Revenue Breakdown', 14, y);
+    y += 5;
+    const serviceData = getServiceRevenueData(filteredEntries);
+    if (serviceData.items.length > 0) {
+      const sHead = ['Sl', 'Service Name', ...serviceData.monthLabels, 'Total', '%'];
+      const sRows = serviceData.items.map((item, idx) => [
+        idx + 1,
+        item,
+        ...serviceData.monthKeys.map(m => formatCurrency(serviceData.dataMap[item][m] || 0, true)),
+        formatCurrency(serviceData.rowTotals[item], true),
+        serviceData.grandTotal > 0 ? ((serviceData.rowTotals[item] / serviceData.grandTotal) * 100).toFixed(1) + '%' : '0%'
+      ]);
+      sRows.push(['', 'Total', ...serviceData.monthKeys.map(m => formatCurrency(serviceData.colTotals[m] || 0, true)), formatCurrency(serviceData.grandTotal, true), '100%']);
+      
+      autoTable(doc, {
+        startY: y,
+        head: [sHead],
+        body: sRows,
+        theme: 'grid',
+        styles: { fontSize: 7 },
+        headStyles: { fillColor: [16, 185, 129] },
+        didParseCell: (data) => {
+          if (data.row.index === sRows.length - 1) data.cell.styles.fontStyle = 'bold';
+        }
+      });
+      y = (doc as any).lastAutoTable.finalY + 10;
+    } else {
+      doc.setFontSize(9);
+      doc.text('No service revenue data available for this period.', 14, y);
+      y += 10;
+    }
+
+    // 5.2 Client Revenue
+    if (y > 230) { doc.addPage(); y = 20; }
+    doc.setFontSize(10);
+    doc.setTextColor(100);
+    doc.text('5.2 Client Revenue Breakdown', 14, y);
+    y += 5;
+    const clData = getClientRevenueData(filteredEntries);
+    if (clData.items.length > 0) {
+      const cHead = ['Sl', 'Client ID', ...clData.monthLabels, 'Total', '%'];
+      const cRows = clData.items.map((item, idx) => [
+        idx + 1,
+        item,
+        ...clData.monthKeys.map(m => formatCurrency(clData.dataMap[item][m] || 0, true)),
+        formatCurrency(clData.rowTotals[item], true),
+        clData.grandTotal > 0 ? ((clData.rowTotals[item] / clData.grandTotal) * 100).toFixed(1) + '%' : '0%'
+      ]);
+      cRows.push(['', 'Total', ...clData.monthKeys.map(m => formatCurrency(clData.colTotals[m] || 0, true)), formatCurrency(clData.grandTotal, true), '100%']);
+
+      autoTable(doc, {
+        startY: y,
+        head: [cHead],
+        body: cRows,
+        theme: 'grid',
+        styles: { fontSize: 7 },
+        headStyles: { fillColor: [59, 130, 246] },
+        didParseCell: (data) => {
+          if (data.row.index === cRows.length - 1) data.cell.styles.fontStyle = 'bold';
+        }
+      });
+      y = (doc as any).lastAutoTable.finalY + 10;
+    } else {
+      doc.setFontSize(9);
+      doc.text('No client revenue data available for this period.', 14, y);
+      y += 10;
+    }
+
+    // 5.3 Country Revenue
+    if (y > 230) { doc.addPage(); y = 20; }
+    doc.setFontSize(10);
+    doc.setTextColor(100);
+    doc.text('5.3 Country Revenue Breakdown', 14, y);
+    y += 5;
+    const coData = getCountryRevenueData(filteredEntries, clients);
+    if (coData.items.length > 0) {
+      const coHead = ['Sl', 'Country', ...coData.monthLabels, 'Total', '%'];
+      const coRows = coData.items.map((item, idx) => [
+        idx + 1,
+        item,
+        ...coData.monthKeys.map(m => formatCurrency(coData.dataMap[item][m] || 0, true)),
+        formatCurrency(coData.rowTotals[item], true),
+        coData.grandTotal > 0 ? ((coData.rowTotals[item] / coData.grandTotal) * 100).toFixed(1) + '%' : '0%'
+      ]);
+      coRows.push(['', 'Total', ...coData.monthKeys.map(m => formatCurrency(coData.colTotals[m] || 0, true)), formatCurrency(coData.grandTotal, true), '100%']);
+
+      autoTable(doc, {
+        startY: y,
+        head: [coHead],
+        body: coRows,
+        theme: 'grid',
+        styles: { fontSize: 7 },
+        headStyles: { fillColor: [139, 92, 246] },
+        didParseCell: (data) => {
+          if (data.row.index === coRows.length - 1) data.cell.styles.fontStyle = 'bold';
+        }
+      });
+    } else {
+      doc.setFontSize(9);
+      doc.text('No country revenue data available for this period.', 14, y);
+    }
 
     doc.save(`${title.replace(/ /g, '_')}.pdf`);
   };
@@ -334,6 +452,10 @@ export default function FinancialReport({ entries, clients }: FinancialReportPro
   const downloadDOC = async () => {
     const { title, subtitle } = reportConfig;
     const { totalRevenue, totalExpenses, netProfit, margin, revenueByProject, expensesByCategory, monthlySummary, months } = reportData;
+
+    const sData = getServiceRevenueData(filteredEntries);
+    const cData = getClientRevenueData(filteredEntries);
+    const coData = getCountryRevenueData(filteredEntries, clients);
 
     const sections = [
       new Paragraph({ text: 'TriloyTech', heading: HeadingLevel.HEADING_1, alignment: AlignmentType.CENTER }),
@@ -447,6 +569,111 @@ export default function FinancialReport({ entries, clients }: FinancialReportPro
             ]
           })
         ]
+      }),
+
+      new Paragraph({ text: '', spacing: { before: 400 } }),
+      new Paragraph({ text: '5. Revenue Analysis', heading: HeadingLevel.HEADING_3 }),
+      
+      new Paragraph({ text: '5.1 Service Revenue', heading: HeadingLevel.HEADING_4, spacing: { before: 200 } }),
+      new Table({
+        width: { size: 100, type: WidthType.PERCENTAGE },
+        rows: [
+          new TableRow({
+            children: [
+              new TableCell({ children: [new Paragraph('Sl')] }),
+              new TableCell({ children: [new Paragraph('Service Name')] }),
+              ...sData.monthLabels.map(l => new TableCell({ children: [new Paragraph(l)] })),
+              new TableCell({ children: [new Paragraph('Total')] }),
+              new TableCell({ children: [new Paragraph('%')] }),
+            ]
+          }),
+          ...sData.items.map((item, idx) => new TableRow({
+            children: [
+              new TableCell({ children: [new Paragraph((idx + 1).toString())] }),
+              new TableCell({ children: [new Paragraph(item)] }),
+              ...sData.monthKeys.map(m => new TableCell({ children: [new Paragraph(formatCurrency(sData.dataMap[item][m] || 0, true))] })),
+              new TableCell({ children: [new Paragraph(formatCurrency(sData.rowTotals[item], true))] }),
+              new TableCell({ children: [new Paragraph(sData.grandTotal > 0 ? ((sData.rowTotals[item] / sData.grandTotal) * 100).toFixed(1) + '%' : '0%')] }),
+            ]
+          })),
+          new TableRow({
+            children: [
+              new TableCell({ children: [new Paragraph('')] }),
+              new TableCell({ children: [new Paragraph('Total')] }),
+              ...sData.monthKeys.map(m => new TableCell({ children: [new Paragraph(formatCurrency(sData.colTotals[m] || 0, true))] })),
+              new TableCell({ children: [new Paragraph(formatCurrency(sData.grandTotal, true))] }),
+              new TableCell({ children: [new Paragraph('100%')] }),
+            ]
+          })
+        ]
+      }),
+
+      new Paragraph({ text: '5.2 Client Revenue', heading: HeadingLevel.HEADING_4, spacing: { before: 300 } }),
+      new Table({
+        width: { size: 100, type: WidthType.PERCENTAGE },
+        rows: [
+          new TableRow({
+            children: [
+              new TableCell({ children: [new Paragraph('Sl')] }),
+              new TableCell({ children: [new Paragraph('Client ID')] }),
+              ...cData.monthLabels.map(l => new TableCell({ children: [new Paragraph(l)] })),
+              new TableCell({ children: [new Paragraph('Total')] }),
+              new TableCell({ children: [new Paragraph('%')] }),
+            ]
+          }),
+          ...cData.items.map((item, idx) => new TableRow({
+            children: [
+              new TableCell({ children: [new Paragraph((idx + 1).toString())] }),
+              new TableCell({ children: [new Paragraph(item)] }),
+              ...cData.monthKeys.map(m => new TableCell({ children: [new Paragraph(formatCurrency(cData.dataMap[item][m] || 0, true))] })),
+              new TableCell({ children: [new Paragraph(formatCurrency(cData.rowTotals[item], true))] }),
+              new TableCell({ children: [new Paragraph(cData.grandTotal > 0 ? ((cData.rowTotals[item] / cData.grandTotal) * 100).toFixed(1) + '%' : '0%')] }),
+            ]
+          })),
+          new TableRow({
+            children: [
+              new TableCell({ children: [new Paragraph('')] }),
+              new TableCell({ children: [new Paragraph('Total')] }),
+              ...cData.monthKeys.map(m => new TableCell({ children: [new Paragraph(formatCurrency(cData.colTotals[m] || 0, true))] })),
+              new TableCell({ children: [new Paragraph(formatCurrency(cData.grandTotal, true))] }),
+              new TableCell({ children: [new Paragraph('100%')] }),
+            ]
+          })
+        ]
+      }),
+
+      new Paragraph({ text: '5.3 Country Revenue', heading: HeadingLevel.HEADING_4, spacing: { before: 300 } }),
+      new Table({
+        width: { size: 100, type: WidthType.PERCENTAGE },
+        rows: [
+          new TableRow({
+            children: [
+              new TableCell({ children: [new Paragraph('Sl')] }),
+              new TableCell({ children: [new Paragraph('Country')] }),
+              ...coData.monthLabels.map(l => new TableCell({ children: [new Paragraph(l)] })),
+              new TableCell({ children: [new Paragraph('Total')] }),
+              new TableCell({ children: [new Paragraph('%')] }),
+            ]
+          }),
+          ...coData.items.map((item, idx) => new TableRow({
+            children: [
+              new TableCell({ children: [new Paragraph((idx + 1).toString())] }),
+              new TableCell({ children: [new Paragraph(item)] }),
+              ...coData.monthKeys.map(m => new TableCell({ children: [new Paragraph(formatCurrency(coData.dataMap[item][m] || 0, true))] })),
+              new TableCell({ children: [new Paragraph(formatCurrency(coData.rowTotals[item], true))] }),
+              new TableCell({ children: [new Paragraph(coData.grandTotal > 0 ? ((coData.rowTotals[item] / coData.grandTotal) * 100).toFixed(1) + '%' : '0%')] }),
+            ]
+          })),
+          new TableRow({
+            children: [
+              new TableCell({ children: [new Paragraph('')] }),
+              new TableCell({ children: [new Paragraph('Total')] }),
+              ...coData.monthKeys.map(m => new TableCell({ children: [new Paragraph(formatCurrency(coData.colTotals[m] || 0, true))] })),
+              new TableCell({ children: [new Paragraph(formatCurrency(coData.grandTotal, true))] }),
+              new TableCell({ children: [new Paragraph('100%')] }),
+            ]
+          })
+        ]
       })
     ];
 
@@ -462,14 +689,7 @@ export default function FinancialReport({ entries, clients }: FinancialReportPro
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <h2 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
-            <FileText className="text-indigo-600" />
-            Financial Report
-          </h2>
-          <p className="text-slate-500 text-sm font-medium mt-1">Generate comprehensive financial performance reports.</p>
-        </div>
+      <div className="flex flex-col md:flex-row md:items-center justify-end gap-4">
         <div className="flex items-center gap-2">
           <button 
             onClick={downloadPDF}
@@ -792,6 +1012,22 @@ export default function FinancialReport({ entries, clients }: FinancialReportPro
                 </tr>
               </tbody>
             </table>
+          </div>
+        </section>
+
+        {/* 5. Revenue Analysis */}
+        <section className="space-y-6">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-lg bg-indigo-50 flex items-center justify-center text-indigo-600">
+              <span className="font-black text-sm">5</span>
+            </div>
+            <h5 className="text-lg font-bold text-slate-800">Revenue Analysis</h5>
+          </div>
+          
+          <div className="space-y-12">
+            <ServiceRevenue entries={filteredEntries} userRole={userRole} />
+            <ClientRevenue entries={filteredEntries} userRole={userRole} />
+            <CountryRevenue entries={filteredEntries} clients={clients} userRole={userRole} />
           </div>
         </section>
       </div>

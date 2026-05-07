@@ -936,6 +936,7 @@ export default function App() {
                  activeTab === 'payments-mgmt' ? 'Client/Project Payment Management' :
                  activeTab === 'admin' ? 'Admin Panel' :
                  activeTab === 'employees' ? 'Employee Management System' :
+                 activeTab === 'financial-report' ? 'Financial Report' :
                  'Project/Client Management System'}
               </h2>
               <p className="text-slate-500">
@@ -956,6 +957,7 @@ export default function App() {
                  activeTab === 'payments-mgmt' ? 'Manage clients, invoices, and project payments.' :
                  activeTab === 'admin' ? 'Manage team members and system access.' :
                  activeTab === 'employees' ? 'Manage employee information.' :
+                 activeTab === 'financial-report' ? 'Generate comprehensive financial performance reports.' :
                  'Manage project/client information.'}
               </p>
             </div>
@@ -1206,7 +1208,7 @@ export default function App() {
                 exit={{ opacity: 0, y: -20 }}
                 className="space-y-6"
               >
-                <FinancialReport entries={entries} clients={clients} />
+                <FinancialReport entries={entries} clients={clients} userRole={userRole} />
               </motion.div>
             ) : activeTab === 'owners-capital' ? (
               <motion.div
