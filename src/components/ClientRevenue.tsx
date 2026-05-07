@@ -6,13 +6,13 @@ import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
-interface ProjectRevenueProps {
+interface ClientRevenueProps {
   entries: LedgerEntry[];
   userRole?: UserRole | null;
 }
 
-export default function ProjectRevenue({ entries, userRole }: ProjectRevenueProps) {
-  const projectData = useMemo(() => {
+export default function ClientRevenue({ entries, userRole }: ClientRevenueProps) {
+  const clientData = useMemo(() => {
     // Filter entries that are project revenue
     const revenueEntries = entries.filter(e => {
       let hasRevenue = false;
@@ -21,7 +21,6 @@ export default function ProjectRevenue({ entries, userRole }: ProjectRevenueProp
           const lowerName = ce.accountName.toLowerCase();
           const isCapital = lowerName.includes('capital') || lowerName.includes('partner') || lowerName.includes('owner') || lowerName.includes('drawing');
           
-          // Consistent keywords
           const isRevKeywords = lowerName.includes('revenue') || lowerName.includes('income') || lowerName.includes('sales') || 
                               lowerName.includes('fees') || lowerName.includes('service') || lowerName.includes('billing') ||
                               lowerName.includes('retainer') || lowerName.includes('commission');
@@ -37,10 +36,6 @@ export default function ProjectRevenue({ entries, userRole }: ProjectRevenueProp
       const remarks = e.remarks.toLowerCase();
       const notes = (e.notes || '').toLowerCase();
       
-      // Flexible detection:
-      // - Explicitly mentioned "project"
-      // - Project code pattern "TT-LG"
-      // - Revenue entry with a specific remark (usually the project name)
       const isProjectRelated = 
         details.includes('project') || 
         itemName.includes('project') || 
@@ -52,20 +47,32 @@ export default function ProjectRevenue({ entries, userRole }: ProjectRevenueProp
       return hasRevenue && isProjectRelated;
     });
 
-    const projects = new Set<string>();
+    const clientsList = new Set<string>();
     const months = new Set<string>();
     const dataMap: Record<string, Record<string, number>> = {};
 
     revenueEntries.forEach(entry => {
       const date = new Date(entry.date);
       const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-      const projectName = entry.remarks || 'General Project';
+      
+      const projectName = entry.remarks || entry.transactionItemName || 'General-Uncategorized';
+      let clientId = 'Uncategorized';
+      
+      // Extraction logic: first part before ")-" including ")"
+      if (projectName.includes(')-')) {
+        const parts = projectName.split(')-');
+        clientId = parts[0].trim() + ')';
+      } else {
+        // Fallback for cases without the exact format
+        const parts = projectName.split('-');
+        clientId = parts.length > 1 ? parts[0].trim() : projectName;
+      }
 
-      projects.add(projectName);
+      clientsList.add(clientId);
       months.add(monthKey);
 
-      if (!dataMap[projectName]) {
-        dataMap[projectName] = {};
+      if (!dataMap[clientId]) {
+        dataMap[clientId] = {};
       }
       
       let entryRevenue = 0;
@@ -84,12 +91,11 @@ export default function ProjectRevenue({ entries, userRole }: ProjectRevenueProp
         }
       });
       
-      dataMap[projectName][monthKey] = (dataMap[projectName][monthKey] || 0) + entryRevenue;
+      dataMap[clientId][monthKey] = (dataMap[clientId][monthKey] || 0) + entryRevenue;
     });
 
-    // Sort months chronologically
     const sortedMonthKeys = Array.from(months).sort((a, b) => a.localeCompare(b));
-    const sortedProjects = Array.from(projects).sort();
+    const sortedClients = Array.from(clientsList).sort();
 
     const monthLabels = sortedMonthKeys.map(key => {
       const [year, month] = key.split('-');
@@ -97,91 +103,80 @@ export default function ProjectRevenue({ entries, userRole }: ProjectRevenueProp
     });
 
     return {
-      projects: sortedProjects,
+      clients: sortedClients,
       monthKeys: sortedMonthKeys,
       monthLabels,
       dataMap
     };
   }, [entries]);
 
-  if (projectData.projects.length === 0) {
-    return (
-      <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
-        <h3 className="font-bold text-slate-800 mb-4">Project Revenue</h3>
-        <p className="text-sm text-slate-500 italic">No project revenue recorded yet. Ensure the transaction item or details mention "Project" or select a project in the Remarks field.</p>
-      </div>
-    );
-  }
-
-  const { projects, monthKeys, monthLabels, dataMap } = projectData;
+  const { clients, monthKeys, monthLabels, dataMap } = clientData;
 
   const totals = useMemo(() => {
     const rowTotals: Record<string, number> = {};
     const colTotals: Record<string, number> = {};
     let grandTotal = 0;
 
-    projects.forEach(project => {
+    clients.forEach(clientId => {
       let rowSum = 0;
       monthKeys.forEach(key => {
-        const val = dataMap[project][key] || 0;
+        const val = dataMap[clientId][key] || 0;
         rowSum += val;
         colTotals[key] = (colTotals[key] || 0) + val;
       });
-      rowTotals[project] = rowSum;
+      rowTotals[clientId] = rowSum;
       grandTotal += rowSum;
     });
 
     return { rowTotals, colTotals, grandTotal };
-  }, [projects, monthKeys, dataMap]);
+  }, [clients, monthKeys, dataMap]);
+
+  if (clients.length === 0) {
+    return (
+      <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+        <h3 className="font-bold text-slate-800 mb-4">Client Revenue</h3>
+        <p className="text-sm text-slate-500 italic">No client revenue recorded yet.</p>
+      </div>
+    );
+  }
 
   const downloadXLS = () => {
-    const header = ['Sl', 'Project Name', ...monthLabels, 'Total Revenue'];
-    const rows = projects.map((project, idx) => {
-      const row = [idx + 1, project];
+    const header = ['Sl', 'Client ID', ...monthLabels, 'Total Revenue'];
+    const rows = clients.map((client, idx) => {
+      const row = [idx + 1, client];
       monthKeys.forEach(key => {
-        row.push(dataMap[project][key] || 0);
+        row.push(dataMap[client][key] || 0);
       });
-      row.push(totals.rowTotals[project]);
+      row.push(totals.rowTotals[client]);
       return row;
     });
 
-    // Add footer row for XLS
     const footer = ['', 'Monthly Total'];
-    monthKeys.forEach(key => {
-      footer.push(totals.colTotals[key]);
-    });
+    monthKeys.forEach(key => footer.push(totals.colTotals[key]));
     footer.push(totals.grandTotal);
     rows.push(footer);
 
     const ws = XLSX.utils.aoa_to_sheet([header, ...rows]);
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Project Revenue');
-    XLSX.writeFile(wb, `Project_Revenue_${new Date().toISOString().split('T')[0]}.xlsx`);
+    XLSX.utils.book_append_sheet(wb, ws, 'Client Revenue');
+    XLSX.writeFile(wb, `Client_Revenue_${new Date().toISOString().split('T')[0]}.xlsx`);
   };
 
   const downloadPDF = () => {
     const doc = new jsPDF('l', 'mm', 'a4');
     doc.setFontSize(18);
-    doc.text('Project Revenue Report', 14, 22);
-    doc.setFontSize(11);
-    doc.setTextColor(100);
-    doc.text(`Generated on: ${new Date().toLocaleDateString()}`, 14, 30);
-
-    const header = ['Sl', 'Project Name', ...monthLabels, 'Total Revenue'];
-    const rows = projects.map((project, idx) => {
-      const row = [idx + 1, project];
-      monthKeys.forEach(key => {
-        row.push(formatCurrency(dataMap[project][key] || 0, true));
-      });
-      row.push(formatCurrency(totals.rowTotals[project], true));
+    doc.text('Client Revenue Report', 14, 22);
+    
+    const header = ['Sl', 'Client ID', ...monthLabels, 'Total Revenue'];
+    const rows = clients.map((client, idx) => {
+      const row = [idx + 1, client];
+      monthKeys.forEach(key => row.push(formatCurrency(dataMap[client][key] || 0, true)));
+      row.push(formatCurrency(totals.rowTotals[client], true));
       return row;
     });
 
-    // Add footer row for PDF
     const footer = ['', 'Monthly Total'];
-    monthKeys.forEach(key => {
-      footer.push(formatCurrency(totals.colTotals[key], true));
-    });
+    monthKeys.forEach(key => footer.push(formatCurrency(totals.colTotals[key], true)));
     footer.push(formatCurrency(totals.grandTotal, true));
     rows.push(footer);
 
@@ -200,31 +195,23 @@ export default function ProjectRevenue({ entries, userRole }: ProjectRevenueProp
       }
     });
 
-    doc.save(`Project_Revenue_${new Date().toISOString().split('T')[0]}.pdf`);
+    doc.save(`Client_Revenue_${new Date().toISOString().split('T')[0]}.pdf`);
   };
 
   return (
     <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h3 className="font-bold text-slate-800">Project Revenue</h3>
-          <p className="text-xs text-slate-500 font-medium">Monthly revenue breakdown by project</p>
+          <h3 className="font-bold text-slate-800">Client Revenue</h3>
+          <p className="text-xs text-slate-500 font-medium">Monthly revenue breakdown by Client ID</p>
         </div>
         {userRole === 'admin' && (
           <div className="flex items-center gap-2">
-            <button 
-              onClick={downloadXLS}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 text-emerald-600 hover:bg-emerald-100 rounded-lg text-xs font-bold transition-colors"
-            >
-              <Download size={14} />
-              XLS
+            <button onClick={downloadXLS} className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 text-emerald-600 hover:bg-emerald-100 rounded-lg text-xs font-bold transition-colors">
+              <Download size={14} /> XLS
             </button>
-            <button 
-              onClick={downloadPDF}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-rose-50 text-rose-600 hover:bg-rose-100 rounded-lg text-xs font-bold transition-colors"
-            >
-              <FileText size={14} />
-              PDF
+            <button onClick={downloadPDF} className="flex items-center gap-1.5 px-3 py-1.5 bg-rose-50 text-rose-600 hover:bg-rose-100 rounded-lg text-xs font-bold transition-colors">
+              <FileText size={14} /> PDF
             </button>
           </div>
         )}
@@ -234,7 +221,7 @@ export default function ProjectRevenue({ entries, userRole }: ProjectRevenueProp
           <thead>
             <tr className="border-b border-slate-100">
               <th className="pb-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest w-12 text-center">Sl</th>
-              <th className="pb-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest min-w-[200px] sticky left-0 bg-white z-10">Project Name</th>
+              <th className="pb-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest min-w-[200px] sticky left-0 bg-white z-10">Client ID</th>
               {monthLabels.map((label, idx) => (
                 <th key={idx} className="pb-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest text-right min-w-[120px] px-4">{label}</th>
               ))}
@@ -242,19 +229,19 @@ export default function ProjectRevenue({ entries, userRole }: ProjectRevenueProp
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-50">
-            {projects.map((project, idx) => (
-              <tr key={project} className="group hover:bg-slate-50 transition-colors">
+            {clients.map((client, idx) => (
+              <tr key={client} className="group hover:bg-slate-50 transition-colors">
                 <td className="py-4 text-sm font-medium text-slate-500 text-center">{idx + 1}</td>
                 <td className="py-4 text-sm font-bold text-slate-900 sticky left-0 bg-white group-hover:bg-slate-50 z-10 border-r border-transparent group-hover:border-slate-100 transition-colors">
-                  {project}
+                  {client}
                 </td>
                 {monthKeys.map(key => (
                   <td key={key} className="py-4 text-sm font-bold text-emerald-600 text-right px-4">
-                    {dataMap[project][key] ? formatCurrency(dataMap[project][key]) : '-'}
+                    {dataMap[client][key] ? formatCurrency(dataMap[client][key]) : '-'}
                   </td>
                 ))}
                 <td className="py-4 text-sm font-black text-indigo-600 text-right px-4 bg-indigo-50/30">
-                  {formatCurrency(totals.rowTotals[project])}
+                  {formatCurrency(totals.rowTotals[client])}
                 </td>
               </tr>
             ))}

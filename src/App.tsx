@@ -13,6 +13,7 @@ import CategorizedExpense from './components/CategorizedExpense';
 import SalaryReport from './components/SalaryReport';
 import ProjectRevenue from './components/ProjectRevenue';
 import ServiceRevenue from './components/ServiceRevenue';
+import ClientRevenue from './components/ClientRevenue';
 import FinancialReport from './components/FinancialReport';
 import OwnersCapital from './components/OwnersCapital';
 import ZakatCalculation from './components/ZakatCalculation';
@@ -1093,6 +1094,9 @@ export default function App() {
 
                     {/* Service Revenue Chart & Table */}
                     <ServiceRevenue entries={entries} userRole={userRole} />
+
+                    {/* Client Revenue Table */}
+                    <ClientRevenue entries={entries} userRole={userRole} />
                   </div>
 
                   <div className="space-y-8">
