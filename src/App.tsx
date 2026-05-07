@@ -14,6 +14,7 @@ import SalaryReport from './components/SalaryReport';
 import ProjectRevenue from './components/ProjectRevenue';
 import ServiceRevenue from './components/ServiceRevenue';
 import ClientRevenue from './components/ClientRevenue';
+import CountryRevenue from './components/CountryRevenue';
 import FinancialReport from './components/FinancialReport';
 import OwnersCapital from './components/OwnersCapital';
 import ZakatCalculation from './components/ZakatCalculation';
@@ -1097,6 +1098,9 @@ export default function App() {
 
                     {/* Client Revenue Table */}
                     <ClientRevenue entries={entries} userRole={userRole} />
+
+                    {/* Country Revenue Table */}
+                    <CountryRevenue entries={entries} clients={clients} userRole={userRole} />
                   </div>
 
                   <div className="space-y-8">

@@ -94,7 +94,19 @@ export default function ServiceRevenue({ entries, userRole }: ServiceRevenueProp
 
     // Sort months chronologically
     const sortedMonthKeys = Array.from(months).sort((a, b) => a.localeCompare(b));
-    const sortedServices = Array.from(servicesList).sort();
+    
+    // Calculate totals for sorting
+    const rowTotals: Record<string, number> = {};
+    servicesList.forEach(service => {
+      let sum = 0;
+      sortedMonthKeys.forEach(month => {
+        sum += dataMap[service][month] || 0;
+      });
+      rowTotals[service] = sum;
+    });
+
+    // Sort services by total revenue (highest to lowest)
+    const sortedServices = Array.from(servicesList).sort((a, b) => rowTotals[b] - rowTotals[a]);
 
     const monthLabels = sortedMonthKeys.map(key => {
       const [year, month] = key.split('-');
@@ -150,13 +162,14 @@ export default function ServiceRevenue({ entries, userRole }: ServiceRevenueProp
   }, [services, monthKeys, dataMap]);
 
   const downloadXLS = () => {
-    const header = ['Sl', 'Service Name', ...monthLabels, 'Total Revenue'];
+    const header = ['Sl', 'Service Name', ...monthLabels, 'Total Revenue', '%'];
     const rows = services.map((service, idx) => {
-      const row = [idx + 1, service];
+      const row: any[] = [idx + 1, service];
       monthKeys.forEach(key => {
         row.push(dataMap[service][key] || 0);
       });
       row.push(totals.rowTotals[service]);
+      row.push(totals.grandTotal > 0 ? ((totals.rowTotals[service] / totals.grandTotal) * 100).toFixed(2) + '%' : '0%');
       return row;
     });
 
@@ -166,6 +179,7 @@ export default function ServiceRevenue({ entries, userRole }: ServiceRevenueProp
       footer.push(totals.colTotals[key]);
     });
     footer.push(totals.grandTotal);
+    footer.push('100%');
     rows.push(footer);
 
     const ws = XLSX.utils.aoa_to_sheet([header, ...rows]);
@@ -182,13 +196,14 @@ export default function ServiceRevenue({ entries, userRole }: ServiceRevenueProp
     doc.setTextColor(100);
     doc.text(`Generated on: ${new Date().toLocaleDateString()}`, 14, 30);
 
-    const header = ['Sl', 'Service Name', ...monthLabels, 'Total Revenue'];
+    const header = ['Sl', 'Service Name', ...monthLabels, 'Total Revenue', '%'];
     const rows = services.map((service, idx) => {
       const row = [idx + 1, service];
       monthKeys.forEach(key => {
         row.push(formatCurrency(dataMap[service][key] || 0, true));
       });
       row.push(formatCurrency(totals.rowTotals[service], true));
+      row.push(totals.grandTotal > 0 ? ((totals.rowTotals[service] / totals.grandTotal) * 100).toFixed(2) + '%' : '0%');
       return row;
     });
 
@@ -198,6 +213,7 @@ export default function ServiceRevenue({ entries, userRole }: ServiceRevenueProp
       footer.push(formatCurrency(totals.colTotals[key], true));
     });
     footer.push(formatCurrency(totals.grandTotal, true));
+    footer.push('100%');
     rows.push(footer);
 
     autoTable(doc, {
@@ -256,6 +272,7 @@ export default function ServiceRevenue({ entries, userRole }: ServiceRevenueProp
                   <th key={idx} className="pb-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest text-right min-w-[120px] px-4">{label}</th>
                 ))}
                 <th className="pb-4 text-[10px] font-bold text-indigo-500 uppercase tracking-widest text-right min-w-[140px] px-4">Revenue Total</th>
+                <th className="pb-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest text-right min-w-[70px] px-4">%</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50">
@@ -273,6 +290,9 @@ export default function ServiceRevenue({ entries, userRole }: ServiceRevenueProp
                   <td className="py-4 text-sm font-black text-indigo-600 text-right px-4 bg-indigo-50/30">
                     {formatCurrency(totals.rowTotals[service])}
                   </td>
+                  <td className="py-4 text-sm font-medium text-slate-500 text-right px-4">
+                    {totals.grandTotal > 0 ? ((totals.rowTotals[service] / totals.grandTotal) * 100).toFixed(1) : '0'}%
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -288,6 +308,7 @@ export default function ServiceRevenue({ entries, userRole }: ServiceRevenueProp
                 <td className="py-4 text-sm font-black text-indigo-700 text-right px-4 bg-indigo-50">
                   {formatCurrency(totals.grandTotal)}
                 </td>
+                <td className="py-4 text-sm text-slate-900 text-right px-4">100%</td>
               </tr>
             </tfoot>
           </table>
