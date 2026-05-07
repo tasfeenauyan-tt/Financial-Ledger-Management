@@ -881,6 +881,7 @@ export default function App() {
                   accounts={accounts} 
                   transactionItems={transactionItems} 
                   transactionSubCategories={transactionSubCategories} 
+                  clients={clients}
                 />
                 <button
                   onClick={() => setIsClearModalOpen(true)}
@@ -890,7 +891,7 @@ export default function App() {
                   <RotateCcw size={18} />
                   <span className="hidden lg:inline">Clear All</span>
                 </button>
-                <EntryForm onSave={handleSaveEntry} accounts={accounts} transactionItems={transactionItems} transactionSubCategories={transactionSubCategories} />
+                <EntryForm onSave={handleSaveEntry} accounts={accounts} transactionItems={transactionItems} transactionSubCategories={transactionSubCategories} clients={clients} />
                 {editingEntry && (
                   <EntryForm 
                     onSave={handleSaveEntry} 
@@ -899,6 +900,7 @@ export default function App() {
                     accounts={accounts}
                     transactionItems={transactionItems}
                     transactionSubCategories={transactionSubCategories}
+                    clients={clients}
                   />
                 )}
               </div>
@@ -1371,6 +1373,7 @@ export default function App() {
                       handleFirestoreError(error, OperationType.DELETE, `transactionSubCategories/${id}`);
                     }
                   }}
+                  clients={clients}
                 />
               </motion.div>
             )}

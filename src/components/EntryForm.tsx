@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
-import { LedgerEntry, INITIAL_ENTRY, Account, TransactionItem, CustomAccountEntry, TransactionSubCategory } from '../types';
+import { LedgerEntry, INITIAL_ENTRY, Account, TransactionItem, CustomAccountEntry, TransactionSubCategory, Client } from '../types';
 import { Plus, X, Info, Database, Trash2, AlertCircle, Tags } from 'lucide-react';
 import { cn } from '../lib/utils';
 
@@ -11,6 +11,7 @@ interface EntryFormProps {
   accounts?: Account[];
   transactionItems?: TransactionItem[];
   transactionSubCategories?: TransactionSubCategory[];
+  clients?: Client[];
 }
 
 export default function EntryForm({ 
@@ -19,7 +20,8 @@ export default function EntryForm({
   onClose, 
   accounts = [], 
   transactionItems = [],
-  transactionSubCategories = []
+  transactionSubCategories = [],
+  clients = []
 }: EntryFormProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [formData, setFormData] = useState<Omit<LedgerEntry, 'id'>>(INITIAL_ENTRY);
@@ -37,15 +39,34 @@ export default function EntryForm({
     return Array.from(uniqueMap.values()).sort((a, b) => a.name.localeCompare(b.name));
   }, [transactionItems]);
   const sortedTransactionSubCategories = useMemo(() => {
-    const uniqueMap = new Map<string, TransactionSubCategory>();
+    const uniqueMap = new Map<string, TransactionSubCategory & { isProject?: boolean }>();
+    
+    // Add manual sub-categories
     transactionSubCategories.forEach(sub => {
       const key = sub.name.toLowerCase().trim();
       if (!uniqueMap.has(key)) {
         uniqueMap.set(key, sub);
       }
     });
+
+    // Add project items from clients
+    clients.forEach(c => {
+      (c.services || []).forEach(service => {
+        const serviceLabel = service === 'Others' ? (c.otherServiceDetails || 'Others') : service;
+        const projectName = `${c.name}${c.crmLeadId ? ` (${c.crmLeadId})` : ''}-${serviceLabel}`;
+        const key = projectName.toLowerCase().trim();
+        if (!uniqueMap.has(key)) {
+          uniqueMap.set(key, {
+            id: `project-${c.id}-${service}`,
+            name: projectName,
+            isProject: true
+          });
+        }
+      });
+    });
+
     return Array.from(uniqueMap.values()).sort((a, b) => a.name.localeCompare(b.name));
-  }, [transactionSubCategories]);
+  }, [transactionSubCategories, clients]);
 
   useEffect(() => {
     if (initialData) {

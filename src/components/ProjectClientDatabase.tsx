@@ -16,6 +16,7 @@ import { Client, TransactionSubCategory } from '../types';
 import { 
   Users, 
   Plus, 
+  Check,
   Search, 
   Edit, 
   Trash2, 
@@ -36,7 +37,8 @@ import {
   Eraser,
   LayoutGrid,
   List,
-  RefreshCw
+  RefreshCw,
+  Database
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn, formatCurrency } from '../lib/utils';
@@ -74,6 +76,8 @@ export default function ProjectClientDatabase({
   const [formProjectName, setFormProjectName] = useState('');
   const [formBudget, setFormBudget] = useState<string>('');
   const [isProjectNameAuto, setIsProjectNameAuto] = useState(true);
+  const [formServices, setFormServices] = useState<string[]>([]);
+  const [formOtherServiceDetails, setFormOtherServiceDetails] = useState('');
 
   useEffect(() => {
     if (isModalOpen) {
@@ -87,6 +91,8 @@ export default function ProjectClientDatabase({
         setFormClientName(name);
         setFormProjectName(currentProjectName);
         setFormBudget(editingClient.budget ? String(editingClient.budget) : '');
+        setFormServices(editingClient.services || []);
+        setFormOtherServiceDetails(editingClient.otherServiceDetails || '');
         // Enable auto-reflect if it matches expected pattern or is empty
         setIsProjectNameAuto(!currentProjectName || currentProjectName === expectedAutoName);
       } else {
@@ -94,6 +100,8 @@ export default function ProjectClientDatabase({
         setFormClientName('');
         setFormProjectName('');
         setFormBudget('');
+        setFormServices([]);
+        setFormOtherServiceDetails('');
         setIsProjectNameAuto(true);
       }
     }
@@ -239,6 +247,8 @@ export default function ProjectClientDatabase({
       onboardingDate: formData.get('onboardingDate') as string,
       closureDate: formData.get('closureDate') as string || '',
       leadSource: formData.get('leadSource') as any,
+      services: formServices,
+      otherServiceDetails: formOtherServiceDetails,
       createdAt: editingClient?.createdAt || new Date().toISOString(),
     };
 
@@ -310,6 +320,24 @@ export default function ProjectClientDatabase({
           const projectNameFromFile = row['Project Name'];
           const autoProjectName = `${name}${crmId ? ` (${crmId})` : ''}`;
 
+          // Parse Services and OtherServiceDetails
+          let services: string[] = [];
+          let otherServiceDetails = '';
+          if (row['Services']) {
+            const rawServices = String(row['Services']).split(',').map(s => s.trim());
+            services = rawServices.map(s => {
+              if (s.startsWith('Others:')) {
+                otherServiceDetails = s.replace('Others:', '').trim();
+                return 'Others';
+              }
+              if (s === 'Others' && !otherServiceDetails) {
+                // Check if there was a colon somewhere else or if it's just 'Others'
+                return 'Others';
+              }
+              return s;
+            });
+          }
+
           const clientData: Client = {
             id,
             projectName: projectNameFromFile || autoProjectName || 'Unnamed Project',
@@ -324,6 +352,8 @@ export default function ProjectClientDatabase({
             clientType: (row['Client Type'] as any) || 'Non-Recurring',
             status: (row['Client Status'] as any) || 'Active',
             budget: Number(row['Budget'] || 0),
+            services: services,
+            otherServiceDetails: otherServiceDetails,
             leadSource: (row['Lead Source'] as any) || 'Others',
             onboardingDate: row['Client On-Boarding Date'] || now.split('T')[0],
             closureDate: row['Client Halted/Closed Date'] || '',
@@ -373,23 +403,32 @@ export default function ProjectClientDatabase({
   };
 
   const handleExport = () => {
-    const data = clients.map(c => ({
-      'Project Name': c.projectName,
-      'CRM Lead ID': c.crmLeadId,
-      'Client Name': c.name,
-      'Client POC': c.pocName,
-      'Company Name': c.company,
-      'Mobile Number': c.mobile,
-      'Email Address': c.email,
-      'Address': c.address,
-      'Country': c.country,
-      'Client Type': c.clientType,
-      'Client Status': c.status,
-      'Budget': c.budget,
-      'Lead Source': c.leadSource,
-      'Client On-Boarding Date': c.onboardingDate,
-      'Client Halted/Closed Date': c.closureDate
-    }));
+    const data = clients.map(c => {
+      const projectsCombined = (c.services || []).map(service => {
+        const serviceLabel = service === 'Others' ? (c.otherServiceDetails || 'Others') : service;
+        return `${c.name}${c.crmLeadId ? ` (${c.crmLeadId})` : ''}-${serviceLabel}`;
+      }).join(', ');
+
+      return {
+        'Project Name': c.projectName,
+        'CRM Lead ID': c.crmLeadId,
+        'Client Name': c.name,
+        'Client POC': c.pocName,
+        'Company Name': c.company,
+        'Mobile Number': c.mobile,
+        'Email Address': c.email,
+        'Address': c.address,
+        'Country': c.country,
+        'Client Type': c.clientType,
+        'Client Status': c.status,
+        'Budget': c.budget,
+        'Services': (c.services || []).join(', ') + (c.services?.includes('Others') ? `: ${c.otherServiceDetails || ''}` : ''),
+        'Lead Source': c.leadSource,
+        'Client On-Boarding Date': c.onboardingDate ? format(new Date(c.onboardingDate), 'yyyy-MM-dd') : '',
+        'Client Halted/Closed Date': c.closureDate ? format(new Date(c.closureDate), 'yyyy-MM-dd') : '',
+        'Projects': projectsCombined
+      };
+    });
     const ws = XLSX.utils.json_to_sheet(data);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Clients");
@@ -590,6 +629,16 @@ export default function ProjectClientDatabase({
                 </div>
               </div>
 
+              {client.services && client.services.length > 0 && (
+                <div className="mt-4 flex flex-wrap gap-1.5">
+                  {client.services.map(s => (
+                    <span key={s} className="px-2 py-0.5 bg-indigo-50 text-indigo-700 rounded-md text-[9px] font-black uppercase tracking-widest border border-indigo-100">
+                      {s === 'Others' ? (client.otherServiceDetails || 'Others') : s}
+                    </span>
+                  ))}
+                </div>
+              )}
+
               <div className="mt-6 pt-4 border-t border-slate-50 grid grid-cols-2 gap-4">
                 <div>
                   <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Budget</p>
@@ -628,6 +677,7 @@ export default function ProjectClientDatabase({
               <tr className="bg-slate-50/50">
                 <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100">Project / Client</th>
                 <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100">Company</th>
+                <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100">Services</th>
                 <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100">Contact</th>
                 <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100 text-right">Budget</th>
                 <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100">Status</th>
@@ -651,6 +701,18 @@ export default function ProjectClientDatabase({
                   <td className="px-6 py-4">
                     <p className="text-sm font-semibold text-slate-700">{client.company}</p>
                     <p className="text-[10px] text-slate-400">{client.country}</p>
+                  </td>
+                  <td className="px-6 py-4">
+                    <div className="flex flex-wrap gap-1">
+                      {(client.services || []).map(s => (
+                        <span key={s} className="px-1.5 py-0.5 bg-slate-100 text-slate-600 rounded text-[8px] font-black uppercase">
+                          {s === 'Others' ? (client.otherServiceDetails || 'Others') : s}
+                        </span>
+                      ))}
+                      {(!client.services || client.services.length === 0) && (
+                        <span className="text-[10px] text-slate-400 font-medium">None</span>
+                      )}
+                    </div>
                   </td>
                   <td className="px-6 py-4">
                     <div className="flex flex-col">
@@ -925,6 +987,80 @@ export default function ProjectClientDatabase({
                       defaultValue={editingClient?.closureDate}
                       className="w-full px-5 py-3.5 bg-slate-50 border-none rounded-2xl text-sm focus:ring-2 focus:ring-indigo-500 transition-all font-semibold"
                     />
+                  </div>
+                </div>
+
+                {/* Services Section */}
+                <div className="space-y-4 p-5 bg-slate-50/50 rounded-2xl border border-slate-100">
+                  <label className="text-xs font-black text-slate-500 uppercase tracking-widest px-1 block mb-2">Services</label>
+                  <div className="flex flex-wrap gap-4">
+                    {['WEB', 'DM', 'SEO-AEO-GEO', 'SAAS', 'Others'].map((service) => (
+                      <label key={service} className="flex items-center gap-2 cursor-pointer group">
+                        <div 
+                          onClick={() => {
+                            setFormServices(prev => 
+                              prev.includes(service) 
+                                ? prev.filter(s => s !== service) 
+                                : [...prev, service]
+                            );
+                          }}
+                          className={cn(
+                            "w-5 h-5 rounded-md border-2 transition-all flex items-center justify-center",
+                            formServices.includes(service)
+                              ? "bg-indigo-600 border-indigo-600 text-white"
+                              : "bg-white border-slate-200 group-hover:border-indigo-300"
+                          )}
+                        >
+                          {formServices.includes(service) && <Check size={14} />}
+                        </div>
+                        <span className={cn(
+                          "text-sm font-bold transition-colors",
+                          formServices.includes(service) ? "text-indigo-600" : "text-slate-600"
+                        )}>
+                          {service}
+                        </span>
+                      </label>
+                    ))}
+                  </div>
+
+                  {formServices.includes('Others') && (
+                    <motion.div 
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: 'auto' }}
+                      exit={{ opacity: 0, height: 0 }}
+                      className="mt-4 pt-4 border-t border-slate-200"
+                    >
+                      <input 
+                        type="text"
+                        value={formOtherServiceDetails}
+                        onChange={(e) => setFormOtherServiceDetails(e.target.value)}
+                        className="w-full px-5 py-3 bg-white border-none rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 transition-all font-semibold"
+                        placeholder="Specify other services..."
+                      />
+                    </motion.div>
+                  )}
+                </div>
+
+                {/* Projects Section */}
+                <div className="space-y-4 p-5 bg-slate-50/50 rounded-2xl border border-slate-100">
+                  <label className="text-xs font-black text-slate-500 uppercase tracking-widest px-1 block mb-2">Projects</label>
+                  <div className="space-y-2">
+                    {formServices.length > 0 ? (
+                      formServices.map((service) => {
+                        const serviceLabel = service === 'Others' ? (formOtherServiceDetails || 'Others') : service;
+                        const projectName = `${formClientName || 'Client'}${formCrmLeadId ? ` (${formCrmLeadId})` : ''}-${serviceLabel}`;
+                        return (
+                          <div key={service} className="p-3 bg-white rounded-xl border border-slate-100 flex items-center gap-3">
+                            <div className="w-8 h-8 rounded-lg bg-indigo-50 flex items-center justify-center text-indigo-600">
+                              <Database size={16} />
+                            </div>
+                            <span className="text-sm font-semibold text-slate-700">{projectName}</span>
+                          </div>
+                        );
+                      })
+                    ) : (
+                      <p className="text-sm text-slate-400 italic font-medium px-1">Select services above to generate project names...</p>
+                    )}
                   </div>
                 </div>
 

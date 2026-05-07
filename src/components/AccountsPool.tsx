@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { createPortal } from 'react-dom';
-import { Account, TransactionItem, TransactionSubCategory, Partner } from '../types';
+import { Account, TransactionItem, TransactionSubCategory, Partner, Client } from '../types';
 import { Plus, Trash2, Wallet, Landmark, Scale, X, ListTodo, Tags, Users } from 'lucide-react';
 import { cn } from '../lib/utils';
 
@@ -15,6 +15,7 @@ interface AccountsPoolProps {
   onAddTransactionSubCategory: (sub: TransactionSubCategory) => void;
   onDeleteTransactionSubCategory: (id: string) => void;
   userRole: string;
+  clients?: Client[];
 }
 
 export default function AccountsPool({ 
@@ -27,7 +28,8 @@ export default function AccountsPool({
   transactionSubCategories,
   onAddTransactionSubCategory,
   onDeleteTransactionSubCategory,
-  userRole
+  userRole,
+  clients = []
 }: AccountsPoolProps) {
   const isAdmin = userRole === 'admin';
   const [isAdding, setIsAdding] = useState(false);
@@ -55,16 +57,34 @@ export default function AccountsPool({
     return Array.from(uniqueMap.values()).sort((a, b) => a.name.localeCompare(b.name));
   }, [transactionItems]);
   const sortedTransactionSubCategories = useMemo(() => {
-    // Filter duplicates just in case some slipped into the DB
-    const uniqueMap = new Map<string, TransactionSubCategory>();
+    const uniqueMap = new Map<string, TransactionSubCategory & { isProject?: boolean }>();
+    
+    // Add manual sub-categories
     transactionSubCategories.forEach(sub => {
       const key = sub.name.toLowerCase().trim();
       if (!uniqueMap.has(key)) {
         uniqueMap.set(key, sub);
       }
     });
+
+    // Add project items from clients
+    clients.forEach(c => {
+      (c.services || []).forEach(service => {
+        const serviceLabel = service === 'Others' ? (c.otherServiceDetails || 'Others') : service;
+        const projectName = `${c.name}${c.crmLeadId ? ` (${c.crmLeadId})` : ''}-${serviceLabel}`;
+        const key = projectName.toLowerCase().trim();
+        if (!uniqueMap.has(key)) {
+          uniqueMap.set(key, {
+            id: `project-${c.id}-${service}`,
+            name: projectName,
+            isProject: true
+          });
+        }
+      });
+    });
+
     return Array.from(uniqueMap.values()).sort((a, b) => a.name.localeCompare(b.name));
-  }, [transactionSubCategories]);
+  }, [transactionSubCategories, clients]);
 
   const handleSubmitAccount = (e: React.FormEvent) => {
     e.preventDefault();
@@ -258,8 +278,13 @@ export default function AccountsPool({
             ) : (
               sortedTransactionSubCategories.map(sub => (
                 <div key={sub.id} className="flex items-center justify-between p-3 bg-slate-50 rounded-xl group hover:bg-slate-100 transition-colors">
-                  <span className="text-sm font-semibold text-slate-700">{sub.name}</span>
-                  {isAdmin && (
+                  <div className="flex flex-col">
+                    <span className="text-sm font-semibold text-slate-700">{sub.name}</span>
+                    {sub.isProject && (
+                      <span className="text-[9px] font-black text-indigo-500 uppercase tracking-widest mt-0.5">Project Item</span>
+                    )}
+                  </div>
+                  {isAdmin && !sub.isProject && (
                     <button
                       onClick={() => onDeleteTransactionSubCategory(sub.id)}
                       className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-all opacity-0 group-hover:opacity-100"

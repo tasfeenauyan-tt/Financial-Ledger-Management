@@ -1,23 +1,40 @@
 import React, { useRef } from 'react';
 import * as XLSX from 'xlsx';
 import { Upload, FileSpreadsheet } from 'lucide-react';
-import { LedgerEntry, CustomAccountEntry, Account, TransactionItem, TransactionSubCategory } from '../types';
+import { LedgerEntry, CustomAccountEntry, Account, TransactionItem, TransactionSubCategory, Client } from '../types';
 import { cn, formatDate } from '../lib/utils';
+import { useMemo } from 'react';
 
 interface ExcelImportProps {
   onImport: (entries: LedgerEntry[]) => void;
   accounts: Account[];
   transactionItems: TransactionItem[];
   transactionSubCategories: TransactionSubCategory[];
+  clients?: Client[];
 }
 
 export default function ExcelImport({ 
   onImport, 
   accounts = [], 
   transactionItems = [], 
-  transactionSubCategories = [] 
+  transactionSubCategories = [],
+  clients = []
 }: ExcelImportProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const allSubCategories = useMemo(() => {
+    const projects = clients.flatMap(c => 
+      (c.services || []).map(service => {
+        const serviceLabel = service === 'Others' ? (c.otherServiceDetails || 'Others') : service;
+        const projectName = `${c.name}${c.crmLeadId ? ` (${c.crmLeadId})` : ''}-${serviceLabel}`;
+        return {
+          id: `project-${c.id}-${service}`,
+          name: projectName,
+        } as TransactionSubCategory;
+      })
+    );
+    return [...transactionSubCategories, ...projects];
+  }, [transactionSubCategories, clients]);
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -66,7 +83,7 @@ export default function ExcelImport({
         const foundItem = transactionItems.find(i => i.name.toLowerCase() === itemName.toLowerCase());
         
         const remarksText = String(row[11] || '');
-        const foundSub = transactionSubCategories.find(s => s.name.toLowerCase() === remarksText.toLowerCase());
+        const foundSub = allSubCategories.find(s => s.name.toLowerCase() === remarksText.toLowerCase());
 
         return {
           id: crypto.randomUUID(),

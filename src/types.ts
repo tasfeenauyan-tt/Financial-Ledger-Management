@@ -74,6 +74,8 @@ export interface Client {
   onboardingDate: string;
   closureDate?: string;
   leadSource: 'Facebook Ads' | 'FNF' | 'Reference' | 'Web Search' | 'Others';
+  services?: string[];
+  otherServiceDetails?: string;
   createdAt: string;
 }
 
