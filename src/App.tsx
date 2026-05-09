@@ -239,8 +239,34 @@ export default function App() {
     migrate();
   }, [user]);
 
+  const enrichedEntries = useMemo(() => {
+    const subCategoryMap = new Map<string, string>();
+    
+    // 1. Map manual sub-categories
+    transactionSubCategories.forEach(sub => subCategoryMap.set(sub.id, sub.name));
+    
+    // 2. Map project items from clients
+    clients.forEach(c => {
+      (c.services || []).forEach(service => {
+        const serviceLabel = service === 'Others' ? (c.otherServiceDetails || 'Others') : service;
+        const projectName = `${c.name}${c.crmLeadId ? ` (${c.crmLeadId})` : ''}-${serviceLabel}`;
+        subCategoryMap.set(`project-${c.id}-${service}`, projectName);
+      });
+    });
+
+    return entries.map(entry => {
+      if (entry.remarksId && !entry.remarks) {
+        const resolvedRemarks = subCategoryMap.get(entry.remarksId);
+        if (resolvedRemarks) {
+          return { ...entry, remarks: resolvedRemarks };
+        }
+      }
+      return entry;
+    });
+  }, [entries, transactionSubCategories, clients]);
+
   const totals = useMemo<LedgerTotals>(() => {
-    return entries.reduce(
+    return enrichedEntries.reduce(
       (acc, entry) => {
         let entryAssets = 0;
         let entryLiabilities = 0;
@@ -273,7 +299,7 @@ export default function App() {
   ].filter(d => d.value > 0);
 
   const trendData = useMemo(() => {
-    const sorted = [...entries].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+    const sorted = [...enrichedEntries].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
     let runningAssets = 0;
     let runningLiabilities = 0;
     
@@ -325,7 +351,7 @@ export default function App() {
       }
     }
     
-    entries.forEach(entry => {
+    enrichedEntries.forEach(entry => {
       const date = new Date(entry.date);
       const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
       
@@ -367,9 +393,9 @@ export default function App() {
     return monthlyData.find(d => d.month === monthLabel) || { revenue: 0, expense: 0, netIncome: 0 };
   }, [monthlyData]);
 
-  const filteredEntries = entries.filter(e => 
+  const filteredEntries = enrichedEntries.filter(e => 
     e.details.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    e.remarks.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (e.remarks || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
     e.date.includes(searchTerm)
   );
 
@@ -412,7 +438,7 @@ export default function App() {
   };
 
   const handleExport = () => {
-    const ws = XLSX.utils.json_to_sheet(entries);
+    const ws = XLSX.utils.json_to_sheet(enrichedEntries);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Ledger");
     XLSX.writeFile(wb, `TriloyTech_Ledger_${new Date().toISOString().split('T')[0]}.xlsx`);
@@ -1093,16 +1119,16 @@ export default function App() {
                     </div>
 
                     {/* Project Revenue Table */}
-                    <ProjectRevenue entries={entries} userRole={userRole} />
+                    <ProjectRevenue entries={enrichedEntries} userRole={userRole} />
 
                     {/* Service Revenue Chart & Table */}
-                    <ServiceRevenue entries={entries} userRole={userRole} />
+                    <ServiceRevenue entries={enrichedEntries} userRole={userRole} />
 
                     {/* Client Revenue Table */}
-                    <ClientRevenue entries={entries} userRole={userRole} />
+                    <ClientRevenue entries={enrichedEntries} userRole={userRole} />
 
                     {/* Country Revenue Table */}
-                    <CountryRevenue entries={entries} clients={clients} userRole={userRole} />
+                    <CountryRevenue entries={enrichedEntries} clients={clients} userRole={userRole} />
                   </div>
 
                   <div className="space-y-8">
@@ -1138,7 +1164,7 @@ export default function App() {
                 exit={{ opacity: 0, y: -20 }}
                 className="space-y-6"
               >
-                <BalanceSheet entries={entries} userRole={userRole} />
+                <BalanceSheet entries={enrichedEntries} userRole={userRole} />
               </motion.div>
             ) : activeTab === 'monthly-balance-sheet' ? (
               <motion.div
@@ -1148,7 +1174,7 @@ export default function App() {
                 exit={{ opacity: 0, y: -20 }}
                 className="space-y-6"
               >
-                <MonthlyBalanceSheet entries={entries} userRole={userRole} />
+                <MonthlyBalanceSheet entries={enrichedEntries} userRole={userRole} />
               </motion.div>
             ) : activeTab === 'trial-balance' ? (
               <motion.div
@@ -1158,7 +1184,7 @@ export default function App() {
                 exit={{ opacity: 0, y: -20 }}
                 className="space-y-6"
               >
-                <TrialBalance entries={entries} userRole={userRole} accounts={accounts} />
+                <TrialBalance entries={enrichedEntries} userRole={userRole} accounts={accounts} />
               </motion.div>
             ) : activeTab === 'monthly-p-and-l' ? (
               <motion.div
@@ -1168,7 +1194,7 @@ export default function App() {
                 exit={{ opacity: 0, y: -20 }}
                 className="space-y-6"
               >
-                <MonthlyPandL entries={entries} userRole={userRole} />
+                <MonthlyPandL entries={enrichedEntries} userRole={userRole} />
               </motion.div>
             ) : activeTab === 'expense' ? (
               <motion.div
@@ -1178,7 +1204,7 @@ export default function App() {
                 exit={{ opacity: 0, y: -20 }}
                 className="space-y-6"
               >
-                <ExpenseReport entries={entries} userRole={userRole} />
+                <ExpenseReport entries={enrichedEntries} userRole={userRole} />
               </motion.div>
             ) : activeTab === 'categorized-expense' ? (
               <motion.div
@@ -1188,7 +1214,7 @@ export default function App() {
                 exit={{ opacity: 0, y: -20 }}
                 className="space-y-6"
               >
-                <CategorizedExpense entries={entries} />
+                <CategorizedExpense entries={enrichedEntries} />
               </motion.div>
             ) : activeTab === 'salary' ? (
               <motion.div
@@ -1198,7 +1224,7 @@ export default function App() {
                 exit={{ opacity: 0, y: -20 }}
                 className="space-y-6"
               >
-                <SalaryReport entries={entries} userRole={userRole} employees={employees} />
+                <SalaryReport entries={enrichedEntries} userRole={userRole} employees={employees} />
               </motion.div>
             ) : activeTab === 'financial-report' ? (
               <motion.div
@@ -1208,7 +1234,7 @@ export default function App() {
                 exit={{ opacity: 0, y: -20 }}
                 className="space-y-6"
               >
-                <FinancialReport entries={entries} clients={clients} userRole={userRole} />
+                <FinancialReport entries={enrichedEntries} clients={clients} userRole={userRole} />
               </motion.div>
             ) : activeTab === 'owners-capital' ? (
               <motion.div
@@ -1219,7 +1245,7 @@ export default function App() {
                 className="space-y-6"
               >
                 <OwnersCapital 
-                  entries={entries} 
+                  entries={enrichedEntries} 
                   partners={partners} 
                 />
               </motion.div>
@@ -1232,7 +1258,7 @@ export default function App() {
                 className="space-y-6"
               >
                 <ZakatCalculation 
-                  entries={entries} 
+                  entries={enrichedEntries} 
                   settings={zakatSettings}
                   onUpdateSettings={async (s) => {
                     try {
@@ -1253,7 +1279,7 @@ export default function App() {
                 className="space-y-6"
               >
                 <AccountsPayable 
-                  entries={entries} 
+                  entries={enrichedEntries} 
                   accounts={accounts}
                   userRole={userRole || 'viewer'}
                 />
@@ -1267,7 +1293,7 @@ export default function App() {
                 className="space-y-6"
               >
                 <AccountsReceivable 
-                  entries={entries} 
+                  entries={enrichedEntries} 
                   accounts={accounts}
                   userRole={userRole || 'viewer'}
                 />

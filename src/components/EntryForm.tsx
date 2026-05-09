@@ -195,7 +195,7 @@ export default function EntryForm({
     if (value === 'others') {
       setFormData(prev => ({ ...prev, remarksId: 'others', remarks: '' }));
     } else {
-      const sub = transactionSubCategories.find(s => s.id === value);
+      const sub = sortedTransactionSubCategories.find(s => s.id === value);
       setFormData(prev => ({ ...prev, remarksId: value, remarks: sub?.name || '' }));
     }
   };
