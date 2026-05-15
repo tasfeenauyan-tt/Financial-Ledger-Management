@@ -347,7 +347,7 @@ export default function AccountsReceivable({ entries, accounts, userRole }: Acco
       </div>
 
       {/* Distribution Section */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 gap-6">
         <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
           <h3 className="font-bold text-slate-800 mb-6 flex items-center gap-2">
             <Layers className="text-indigo-500" size={20} />
@@ -377,27 +377,6 @@ export default function AccountsReceivable({ entries, accounts, userRole }: Acco
                 </div>
               </div>
             ))}
-          </div>
-        </div>
-
-        <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col justify-center items-center text-center">
-          <div className="w-16 h-16 bg-emerald-50 rounded-full flex items-center justify-center text-emerald-500 mb-4 animate-bounce">
-            <TrendingUp size={32} />
-          </div>
-          <h3 className="text-lg font-black text-slate-900 mb-2">Monitor Cash Flow</h3>
-          <p className="text-sm text-slate-500 max-w-xs">
-            Aged receivables impact liquidity. Use the detailed ledger view to track follow-ups and partial payments for specific projects.
-          </p>
-          <div className="mt-6 flex gap-4">
-            <div className="text-center">
-              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Total Invoiced</p>
-              <p className="text-base font-bold text-slate-700">{formatCurrency(filteredResults.reduce((s, p) => s + p.totalReceivable, 0))}</p>
-            </div>
-            <div className="w-px h-8 bg-slate-200" />
-            <div className="text-center">
-              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Total Collected</p>
-              <p className="text-base font-bold text-emerald-600">{formatCurrency(filteredResults.reduce((s, p) => s + p.totalReceived, 0))}</p>
-            </div>
           </div>
         </div>
       </div>
