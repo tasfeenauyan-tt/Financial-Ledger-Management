@@ -146,6 +146,7 @@ export interface Employee {
   emergencyPocMobile: string;
   relationshipWithPoc: string;
   joiningDate: string;
+  currentPosition?: string;
   startingSalary: number;
   currentSalary: number;
   createdAt: string;

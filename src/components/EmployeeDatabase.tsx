@@ -88,6 +88,7 @@ export default function EmployeeDatabase({ employees, userRole }: EmployeeDataba
       emergencyPocMobile: formData.get('emergencyPocMobile') as string,
       relationshipWithPoc: formData.get('relationshipWithPoc') as string,
       joiningDate: formData.get('joiningDate') as string,
+      currentPosition: formData.get('currentPosition') as string,
       startingSalary: Number(formData.get('startingSalary')),
       currentSalary: Number(formData.get('currentSalary')),
     };
@@ -161,6 +162,7 @@ export default function EmployeeDatabase({ employees, userRole }: EmployeeDataba
             emergencyPocMobile: String(row['Emergency POC Mobile No'] || row['POC Mobile'] || row['emergencyPocMobile'] || ''),
             relationshipWithPoc: String(row['Relationship With POC'] || row['Relationship'] || row['relationshipWithPoc'] || ''),
             joiningDate: formatDate(row['Joining Date'] || row['joiningDate'] || ''),
+            currentPosition: String(row['Current position'] || row['Current Position'] || row['currentPosition'] || ''),
             startingSalary: Number(row['Starting Salary'] || row['startingSalary'] || 0),
             currentSalary: Number(row['Current Salary'] || row['currentSalary'] || 0),
             createdAt: new Date().toISOString(),
@@ -197,6 +199,7 @@ export default function EmployeeDatabase({ employees, userRole }: EmployeeDataba
       'Emergency POC Mobile No': emp.emergencyPocMobile,
       'Relationship With POC': emp.relationshipWithPoc,
       'Joining Date': emp.joiningDate,
+      'Current position': emp.currentPosition || '',
       'Starting Salary': emp.startingSalary,
       'Current Salary': emp.currentSalary
     }));
@@ -269,7 +272,7 @@ export default function EmployeeDatabase({ employees, userRole }: EmployeeDataba
       {/* Table Section */}
       <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse min-w-[2400px]">
+          <table className="w-full text-left border-collapse min-w-[2600px]">
             <thead>
               <tr className="bg-slate-50/50 border-b border-slate-100">
                 <th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-wider w-16">SI</th>
@@ -288,6 +291,7 @@ export default function EmployeeDatabase({ employees, userRole }: EmployeeDataba
                 <th className="px-4 py-4 text-xs font-bold text-slate-400 uppercase tracking-wider">Relationship</th>
                 <th className="px-4 py-4 text-xs font-bold text-slate-400 uppercase tracking-wider text-center">Age</th>
                 <th className="px-4 py-4 text-xs font-bold text-slate-400 uppercase tracking-wider">Joining Date</th>
+                <th className="px-4 py-4 text-xs font-bold text-slate-400 uppercase tracking-wider">Current Position</th>
                 <th className="px-4 py-4 text-xs font-bold text-slate-400 uppercase tracking-wider">Starting Salary</th>
                 <th className="px-4 py-4 text-xs font-bold text-slate-400 uppercase tracking-wider">Current Salary</th>
                 <th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-wider text-center sticky right-0 bg-slate-50/50">Actions</th>
@@ -362,6 +366,9 @@ export default function EmployeeDatabase({ employees, userRole }: EmployeeDataba
                   </td>
                   <td className="px-4 py-4 whitespace-nowrap">
                     <span className="text-sm text-slate-600">{displayDate(emp.joiningDate)}</span>
+                  </td>
+                  <td className="px-4 py-4 whitespace-nowrap">
+                    <span className="text-sm text-slate-600">{emp.currentPosition || 'N/A'}</span>
                   </td>
                   <td className="px-4 py-4 whitespace-nowrap">
                     <span className="text-sm font-medium text-slate-600">{formatCurrency(emp.startingSalary, true)}</span>
@@ -562,6 +569,15 @@ export default function EmployeeDatabase({ employees, userRole }: EmployeeDataba
                           name="joiningDate"
                           type="date"
                           defaultValue={editingEmployee?.joiningDate}
+                          className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 uppercase mb-1.5 ml-1">Current Position</label>
+                        <input
+                          name="currentPosition"
+                          defaultValue={editingEmployee?.currentPosition}
+                          placeholder="Software Engineer, Executive, etc."
                           className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none"
                         />
                       </div>
