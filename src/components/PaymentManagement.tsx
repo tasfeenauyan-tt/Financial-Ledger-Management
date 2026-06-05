@@ -365,16 +365,20 @@ export default function PaymentManagement({ userRole }: PaymentManagementProps) 
   };
 
   const downloadPaymentsXLS = () => {
-    const data = payments.map(pay => ({
-      'Date': pay.date,
-      'Client': clients.find(c => c.id === pay.clientId)?.projectName || 'Unknown Client',
-      'Invoice #': invoices.find(i => i.id === pay.invoiceId)?.invoiceNumber || 'N/A',
-      'Method': pay.method,
-      'Received In': bankAccounts.find(acc => acc.id === pay.bankAccountId)?.accountTitleName || 
-                     bankAccounts.find(acc => acc.id === pay.bankAccountId)?.accountName || '-',
-      'Amount': pay.amount,
-      'Notes': pay.notes
-    }));
+    const data = payments.map(pay => {
+      const pmInvoice = invoices.find(i => i.id === pay.invoiceId || (pay.invoiceNumber && i.invoiceNumber === pay.invoiceNumber));
+      const clientName = clients.find(c => c.id === pay.clientId)?.projectName || pmInvoice?.clientName || 'Unknown Client';
+      return {
+        'Date': pay.date,
+        'Client': clientName,
+        'Invoice #': pmInvoice?.invoiceNumber || pay.invoiceNumber || 'N/A',
+        'Method': pay.method,
+        'Received In': bankAccounts.find(acc => acc.id === pay.bankAccountId)?.accountTitleName || 
+                       bankAccounts.find(acc => acc.id === pay.bankAccountId)?.accountName || '-',
+        'Amount': pay.amount,
+        'Notes': pay.notes
+      };
+    });
     const ws = XLSX.utils.json_to_sheet(data);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Payments');
@@ -648,23 +652,27 @@ export default function PaymentManagement({ userRole }: PaymentManagementProps) 
               <div className="bg-white p-8 rounded-3xl border border-slate-100 shadow-sm space-y-6">
                 <h3 className="text-lg font-bold text-slate-800">Recent Payments</h3>
                 <div className="space-y-4">
-                  {payments.slice(0, 5).map(pay => (
-                    <div key={pay.id} className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl">
-                      <div className="flex items-center gap-4">
-                        <div className="w-10 h-10 rounded-xl bg-white flex items-center justify-center text-emerald-500 shadow-sm">
-                          <CreditCard size={20} />
+                  {payments.slice(0, 5).map(pay => {
+                    const pmInvoice = invoices.find(i => i.id === pay.invoiceId || (pay.invoiceNumber && i.invoiceNumber === pay.invoiceNumber));
+                    const clientName = clients.find(c => c.id === pay.clientId)?.projectName || pmInvoice?.clientName || 'Unknown Client';
+                    return (
+                      <div key={pay.id} className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl">
+                        <div className="flex items-center gap-4">
+                          <div className="w-10 h-10 rounded-xl bg-white flex items-center justify-center text-emerald-500 shadow-sm">
+                            <CreditCard size={20} />
+                          </div>
+                          <div>
+                            <p className="text-sm font-bold text-slate-800">{clientName}</p>
+                            <p className="text-xs text-slate-500 font-medium">{pay.method} • {pay.date}</p>
+                          </div>
                         </div>
-                        <div>
-                          <p className="text-sm font-bold text-slate-800">{clients.find(c => c.id === pay.clientId)?.projectName || 'Unknown Client'}</p>
-                          <p className="text-xs text-slate-500 font-medium">{pay.method} • {pay.date}</p>
+                        <div className="text-right">
+                          <p className="text-sm font-black text-emerald-600">+{formatCurrency(pay.amount)}</p>
+                          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Received</p>
                         </div>
                       </div>
-                      <div className="text-right">
-                        <p className="text-sm font-black text-emerald-600">+{formatCurrency(pay.amount)}</p>
-                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Received</p>
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
             </div>
@@ -921,35 +929,39 @@ export default function PaymentManagement({ userRole }: PaymentManagementProps) 
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-50">
-                    {payments.map(pay => (
-                      <tr key={pay.id} className="hover:bg-slate-50/50 transition-colors group">
-                        <td className="p-4 text-sm text-slate-500 font-medium">{pay.date}</td>
-                        <td className="p-4 text-sm font-bold text-slate-700">
-                          {clients.find(c => c.id === pay.clientId)?.projectName || 'Unknown Client'}
-                        </td>
-                        <td className="p-4 text-sm font-bold text-indigo-600">
-                          {invoices.find(i => i.id === pay.invoiceId)?.invoiceNumber || 'N/A'}
-                        </td>
-                        <td className="p-4 text-sm text-slate-500 font-medium">{pay.method}</td>
-                        <td className="p-4 text-sm font-bold text-slate-600">
-                          {bankAccounts.find(acc => acc.id === pay.bankAccountId)?.accountTitleName || 
-                           bankAccounts.find(acc => acc.id === pay.bankAccountId)?.accountName || '-'}
-                        </td>
-                        <td className="p-4 text-sm font-black text-emerald-600 text-right">{formatCurrency(pay.amount)}</td>
-                        <td className="p-4 text-xs text-slate-400 italic max-w-xs truncate">{pay.notes}</td>
-                        {isAdmin && (
-                          <td className="p-4 text-right">
-                            <button 
-                              onClick={() => { setDeleteType('payment'); setItemToDelete(pay.id); setIsDeleteConfirmOpen(true); }}
-                              className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-all opacity-0 group-hover:opacity-100"
-                              title="Delete Payment"
-                            >
-                              <Trash2 size={18} />
-                            </button>
+                    {payments.map(pay => {
+                      const pmInvoice = invoices.find(i => i.id === pay.invoiceId || (pay.invoiceNumber && i.invoiceNumber === pay.invoiceNumber));
+                      const clientName = clients.find(c => c.id === pay.clientId)?.projectName || pmInvoice?.clientName || 'Unknown Client';
+                      return (
+                        <tr key={pay.id} className="hover:bg-slate-50/50 transition-colors group">
+                          <td className="p-4 text-sm text-slate-500 font-medium">{pay.date}</td>
+                          <td className="p-4 text-sm font-bold text-slate-700">
+                            {clientName}
                           </td>
-                        )}
-                      </tr>
-                    ))}
+                          <td className="p-4 text-sm font-bold text-indigo-600">
+                            {pmInvoice?.invoiceNumber || pay.invoiceNumber || 'N/A'}
+                          </td>
+                          <td className="p-4 text-sm text-slate-500 font-medium">{pay.method}</td>
+                          <td className="p-4 text-sm font-bold text-slate-600">
+                            {bankAccounts.find(acc => acc.id === pay.bankAccountId)?.accountTitleName || 
+                             bankAccounts.find(acc => acc.id === pay.bankAccountId)?.accountName || '-'}
+                          </td>
+                          <td className="p-4 text-sm font-black text-emerald-600 text-right">{formatCurrency(pay.amount)}</td>
+                          <td className="p-4 text-xs text-slate-400 italic max-w-xs truncate">{pay.notes}</td>
+                          {isAdmin && (
+                            <td className="p-4 text-right">
+                              <button 
+                                onClick={() => { setDeleteType('payment'); setItemToDelete(pay.id); setIsDeleteConfirmOpen(true); }}
+                                className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-all opacity-0 group-hover:opacity-100"
+                                title="Delete Payment"
+                              >
+                                <Trash2 size={18} />
+                              </button>
+                            </td>
+                          )}
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
