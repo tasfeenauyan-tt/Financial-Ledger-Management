@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { db } from '../firebase';
 import { collection, query, orderBy, onSnapshot, doc, setDoc, deleteDoc, writeBatch, getDoc, updateDoc, deleteField } from 'firebase/firestore';
 import { Client, Invoice, PaymentRecord, InvoiceItem, BankAccount } from '../types';
+import { handleFirestoreError, OperationType } from '../lib/firestore-errors';
 import { 
   Users, 
   FileText, 
@@ -69,20 +70,20 @@ export default function PaymentManagement({ userRole }: PaymentManagementProps) 
   useEffect(() => {
     const unsubClients = onSnapshot(query(collection(db, 'clients'), orderBy('createdAt', 'desc')), (snapshot) => {
       setClients(snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Client)));
-    });
+    }, (error) => handleFirestoreError(error, OperationType.GET, 'clients'));
 
     const unsubInvoices = onSnapshot(query(collection(db, 'invoices'), orderBy('createdAt', 'desc')), (snapshot) => {
       setInvoices(snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Invoice)));
-    });
+    }, (error) => handleFirestoreError(error, OperationType.GET, 'invoices'));
 
     const unsubPayments = onSnapshot(query(collection(db, 'payments'), orderBy('createdAt', 'desc')), (snapshot) => {
       setPayments(snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as PaymentRecord)));
-    });
+    }, (error) => handleFirestoreError(error, OperationType.GET, 'payments'));
 
     const unsubBankAccounts = onSnapshot(query(collection(db, 'bankAccounts'), orderBy('createdAt', 'desc')), (snapshot) => {
       setBankAccounts(snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as BankAccount)));
       setLoading(false);
-    });
+    }, (error) => handleFirestoreError(error, OperationType.GET, 'bankAccounts'));
 
     return () => {
       unsubClients();

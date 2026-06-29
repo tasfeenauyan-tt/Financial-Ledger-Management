@@ -88,6 +88,21 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
+    match /payslip_items/{itemId} {
+      allow read: if isViewer();
+      allow write: if isAdmin();
+    }
+
+    match /payslips/{slipId} {
+      allow read: if isViewer();
+      allow write: if isAdmin();
+    }
+
+    match /employee_salaries/{employeeId} {
+      allow read: if isViewer();
+      allow write: if isAuthenticated();
+    }
+
     match /test/connection {
       allow read: if isAuthenticated();
     }

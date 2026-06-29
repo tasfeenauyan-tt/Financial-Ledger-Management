@@ -29,6 +29,7 @@ import ProjectClientDatabase from './components/ProjectClientDatabase';
 import AccountsPayable from './components/AccountsPayable';
 import AccountsReceivable from './components/AccountsReceivable';
 import RevenueProjection from './components/RevenueProjection';
+import PaySlipManagement from './components/PaySlipManagement';
 import { auth, logout, User, db } from './firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 import { handleFirestoreError, OperationType } from './lib/firestore-errors';
@@ -46,7 +47,7 @@ import {
   getDoc
 } from 'firebase/firestore';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend, LineChart, Line, XAxis, YAxis, CartesianGrid, BarChart, Bar } from 'recharts';
-import { Building2, LayoutDashboard, History, Settings, LogOut, Search, Filter, Download, Trash2, RotateCcw, FileText, Calendar, Receipt, Users, Database, AlertCircle, Menu, X, TrendingDown, TrendingUp, Shield, ArrowLeftRight, Calculator, CreditCard, BarChart3 } from 'lucide-react';
+import { Building2, LayoutDashboard, History, Settings, LogOut, Search, Filter, Download, Trash2, RotateCcw, FileText, Calendar, Receipt, Users, Database, AlertCircle, Menu, X, TrendingDown, TrendingUp, Shield, ArrowLeftRight, Calculator, CreditCard, BarChart3, Coins } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
@@ -69,7 +70,7 @@ export default function App() {
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
 
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'history' | 'balance-sheet' | 'monthly-balance-sheet' | 'trial-balance' | 'monthly-p-and-l' | 'expense' | 'categorized-expense' | 'salary' | 'financial-report' | 'owners-capital' | 'zakat' | 'backup' | 'payments-mgmt' | 'accounts' | 'admin' | 'employees' | 'project-clients' | 'accounts-payable' | 'accounts-receivable' | 'revenue-projection'>('history');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'history' | 'balance-sheet' | 'monthly-balance-sheet' | 'trial-balance' | 'monthly-p-and-l' | 'expense' | 'categorized-expense' | 'salary' | 'pay-slips' | 'financial-report' | 'owners-capital' | 'zakat' | 'backup' | 'payments-mgmt' | 'accounts' | 'admin' | 'employees' | 'project-clients' | 'accounts-payable' | 'accounts-receivable' | 'revenue-projection'>('history');
 
   const [searchTerm, setSearchTerm] = useState('');
   const [editingEntry, setEditingEntry] = useState<LedgerEntry | null>(null);
@@ -596,6 +597,15 @@ export default function App() {
           Salary Report
         </button>
         <button 
+          onClick={() => { setActiveTab('pay-slips'); setIsMobileMenuOpen(false); }}
+          className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-semibold transition-all ${
+            activeTab === 'pay-slips' ? 'bg-indigo-50 text-indigo-700' : 'text-slate-500 hover:bg-slate-50'
+          }`}
+        >
+          <Coins size={20} />
+          Pay Slips
+        </button>
+        <button 
           onClick={() => { setActiveTab('financial-report'); setIsMobileMenuOpen(false); }}
           className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-semibold transition-all ${
             activeTab === 'financial-report' ? 'bg-indigo-50 text-indigo-700' : 'text-slate-500 hover:bg-slate-50'
@@ -964,6 +974,7 @@ export default function App() {
                  activeTab === 'expense' ? 'Expense Report' : 
                  activeTab === 'categorized-expense' ? 'Categorized Expense' : 
                  activeTab === 'salary' ? ' Salary Report' : 
+                 activeTab === 'pay-slips' ? 'Pay Slip Management' : 
                  activeTab === 'owners-capital' ? 'Owner’s Contribution' :
                  activeTab === 'zakat' ? 'Zakat Calculation' :
                  activeTab === 'accounts-payable' ? 'Accounts Payable' :
@@ -985,6 +996,7 @@ export default function App() {
                  activeTab === 'expense' ? 'Detailed breakdown of company expenditures by month.' : 
                  activeTab === 'categorized-expense' ? 'Categorized breakdown of monthly expenses.' : 
                  activeTab === 'salary' ? ' Monthly breakdown of salary disbursements' : 
+                 activeTab === 'pay-slips' ? 'Generate and manage employee pay slips, item pools, and payment records.' : 
                  activeTab === 'owners-capital' ? 'Owner’s Investment Management.' :
                  activeTab === 'zakat' ? 'Calculate and track your Zakat obligations.' :
                  activeTab === 'accounts-payable' ? 'Track pending payments to vendors and suppliers from remarks.' :
@@ -1371,6 +1383,16 @@ export default function App() {
                 className="space-y-6"
               >
                 <EmployeeDatabase employees={employees} userRole={userRole} />
+              </motion.div>
+            ) : activeTab === 'pay-slips' ? (
+              <motion.div
+                key="pay-slips"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -20 }}
+                className="space-y-6"
+              >
+                <PaySlipManagement employees={employees} userRole={userRole} />
               </motion.div>
             ) : activeTab === 'admin' ? (
               <motion.div

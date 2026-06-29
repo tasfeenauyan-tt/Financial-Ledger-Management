@@ -2,7 +2,8 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { db, auth } from '../firebase';
 import { collection, onSnapshot, doc, setDoc, deleteDoc, query, orderBy } from 'firebase/firestore';
 import { AppUser, UserRole } from '../types';
-import { Plus, Trash2, Edit2, X, UserPlus, Mail, Shield, User, Lock, AlertCircle } from 'lucide-react';
+import { handleFirestoreError, OperationType } from '../lib/firestore-errors';
+import { Plus, Trash2, Edit2, X, UserPlus, Mail, Shield, User, Lock, AlertCircle, Check } from 'lucide-react';
 import { initializeApp } from 'firebase/app';
 import { getAuth, createUserWithEmailAndPassword } from 'firebase/auth';
 import firebaseConfig from '../../firebase-applet-config.json';
@@ -17,6 +18,8 @@ export default function AdminPanel({ userRole }: { userRole: UserRole | null }) 
   const [editingUser, setEditingUser] = useState<AppUser | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [deleteConfirmUid, setDeleteConfirmUid] = useState<string | null>(null);
+  const [ownAccountError, setOwnAccountError] = useState<string | null>(null);
 
   const [formData, setFormData] = useState({
     fullName: '',
@@ -30,7 +33,7 @@ export default function AdminPanel({ userRole }: { userRole: UserRole | null }) 
     const q = query(collection(db, 'users'), orderBy('createdAt', 'desc'));
     return onSnapshot(q, (snapshot) => {
       setUsers(snapshot.docs.map(doc => doc.data() as AppUser));
-    });
+    }, (error) => handleFirestoreError(error, OperationType.GET, 'users'));
   }, [userRole]);
 
   if (userRole !== 'admin') {
@@ -94,10 +97,10 @@ export default function AdminPanel({ userRole }: { userRole: UserRole | null }) 
 
   const handleDelete = async (uid: string) => {
     if (uid === auth.currentUser?.uid) {
-      alert("You cannot delete your own admin account.");
+      setOwnAccountError("You cannot delete your own admin account.");
+      setTimeout(() => setOwnAccountError(null), 4000);
       return;
     }
-    if (!confirm('Are you sure you want to delete this team member? This will NOT remove their login credentials from Firebase Auth, only their profile from this dashboard.')) return;
     
     try {
       await deleteDoc(doc(db, 'users', uid));
@@ -121,6 +124,13 @@ export default function AdminPanel({ userRole }: { userRole: UserRole | null }) 
           Add Team Member
         </button>
       </div>
+
+      {ownAccountError && (
+        <div className="p-4 bg-rose-50 border border-rose-100 rounded-2xl flex items-center gap-2 text-rose-600 text-sm font-semibold animate-in fade-in slide-in-from-top-2">
+          <AlertCircle size={18} className="shrink-0" />
+          {ownAccountError}
+        </div>
+      )}
 
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
@@ -164,12 +174,36 @@ export default function AdminPanel({ userRole }: { userRole: UserRole | null }) 
                       >
                         <Edit2 size={16} />
                       </button>
-                      <button
-                        onClick={() => handleDelete(user.uid)}
-                        className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-all"
-                      >
-                        <Trash2 size={16} />
-                      </button>
+                      {deleteConfirmUid === user.uid ? (
+                        <div className="flex items-center gap-1 bg-rose-50 p-0.5 rounded-lg border border-rose-100">
+                          <span className="text-[10px] font-bold text-rose-600 px-1">Delete?</span>
+                          <button
+                            onClick={async () => {
+                              await handleDelete(user.uid);
+                              setDeleteConfirmUid(null);
+                            }}
+                            className="p-1 text-emerald-600 hover:bg-emerald-50 rounded transition-colors"
+                            title="Confirm Delete"
+                          >
+                            <Check size={12} />
+                          </button>
+                          <button
+                            onClick={() => setDeleteConfirmUid(null)}
+                            className="p-1 text-slate-400 hover:bg-slate-100 rounded transition-colors"
+                            title="Cancel"
+                          >
+                            <X size={12} />
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => setDeleteConfirmUid(user.uid)}
+                          className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-all"
+                          title="Delete User"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      )}
                     </div>
                   </td>
                 </tr>

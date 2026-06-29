@@ -13,6 +13,7 @@ import {
   getDocs
 } from 'firebase/firestore';
 import { Client, TransactionSubCategory } from '../types';
+import { handleFirestoreError, OperationType } from '../lib/firestore-errors';
 import { 
   Users, 
   Plus, 
@@ -123,7 +124,7 @@ export default function ProjectClientDatabase({
     const unsub = onSnapshot(query(collection(db, 'clients'), orderBy('createdAt', 'desc')), (snapshot) => {
       setClients(snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Client)));
       setLoading(false);
-    });
+    }, (error) => handleFirestoreError(error, OperationType.GET, 'clients'));
     return () => unsub();
   }, []);
 

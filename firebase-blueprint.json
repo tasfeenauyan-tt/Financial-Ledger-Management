@@ -207,11 +207,59 @@
         "emergencyPocMobile": { "type": "string" },
         "relationshipWithPoc": { "type": "string" },
         "joiningDate": { "type": "string" },
+        "currentPosition": { "type": "string" },
+        "unit": { "type": "string" },
+        "division": { "type": "string" },
         "startingSalary": { "type": "number" },
         "currentSalary": { "type": "number" },
         "createdAt": { "type": "string", "format": "date-time" }
       },
       "required": ["id", "employeeId", "fullName", "joiningDate", "startingSalary", "currentSalary"]
+    },
+    "PaySlipItem": {
+      "title": "Pay Slip Item",
+      "description": "An item pool field (payment or deduction) for payslips",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "type": { "type": "string", "enum": ["payment", "deduction"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "name", "type"]
+    },
+    "PaySlipRecord": {
+      "title": "Pay Slip Record",
+      "description": "A generated pay slip record for an employee",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "employeeId": { "type": "string" },
+        "employeeIdCode": { "type": "string" },
+        "employeeName": { "type": "string" },
+        "monthYear": { "type": "string" },
+        "periodType": { "type": "string", "enum": ["Half month", "Full month"] },
+        "payments": { "type": "object" },
+        "deductions": { "type": "object" },
+        "totalPayments": { "type": "number" },
+        "totalDeductions": { "type": "number" },
+        "netPayment": { "type": "number" },
+        "disbursementStatus": { "type": "string", "enum": ["Done", "Pending"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "employeeId", "employeeIdCode", "employeeName", "monthYear", "periodType", "totalPayments", "totalDeductions", "netPayment", "disbursementStatus", "createdAt"]
+    },
+    "EmployeeSalaryProfile": {
+      "title": "Employee Salary Profile",
+      "description": "Pre-configured recurring payments and deductions structure for an employee",
+      "type": "object",
+      "properties": {
+        "employeeId": { "type": "string" },
+        "payments": { "type": "object" },
+        "deductions": { "type": "object" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["employeeId", "payments", "deductions", "updatedAt"]
     }
   },
   "firestore": {
@@ -266,6 +314,18 @@
     "/employees/{employeeId}": {
       "schema": "Employee",
       "description": "Employee records"
+    },
+    "/payslip_items/{itemId}": {
+      "schema": "PaySlipItem",
+      "description": "Item pool fields for pay slips"
+    },
+    "/payslips/{slipId}": {
+      "schema": "PaySlipRecord",
+      "description": "Generated employee pay slip records"
+    },
+    "/employee_salaries/{employeeId}": {
+      "schema": "EmployeeSalaryProfile",
+      "description": "Pre-configured recurring salary structures for employees"
     }
   }
 }

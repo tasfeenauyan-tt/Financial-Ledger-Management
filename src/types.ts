@@ -147,6 +147,8 @@ export interface Employee {
   relationshipWithPoc: string;
   joiningDate: string;
   currentPosition?: string;
+  unit?: string;
+  division?: string;
   startingSalary: number;
   currentSalary: number;
   createdAt: string;
