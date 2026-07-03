@@ -719,9 +719,30 @@ export default function PaySlipManagement({ employees, userRole }: PaySlipManage
     doc.text(`Full Name:    ${rec.employeeName}`, 15, 65);
     doc.text(`Designation:  ${empDetails?.currentPosition || 'N/A'}`, 15, 72);
 
-    // Earnings and Deductions tables in parallel or serial using autoTable
-    const earningsBody = Object.entries(rec.payments).filter(([_, v]) => v > 0).map(([k, v]) => [k, v.toLocaleString('en-US')]);
-    const deductionsBody = Object.entries(rec.deductions).filter(([_, v]) => v > 0).map(([k, v]) => [k, v.toLocaleString('en-US')]);
+    // Earnings and Deductions tables in parallel or serial using autoTable - Sorted as per Pay Slip Item pools
+    const earningsBody = Object.entries(rec.payments)
+      .filter(([_, v]) => v > 0)
+      .sort(([nameA], [nameB]) => {
+        const indexA = paymentFields.findIndex(f => f.name === nameA);
+        const indexB = paymentFields.findIndex(f => f.name === nameB);
+        const orderA = indexA !== -1 ? indexA : 10000;
+        const orderB = indexB !== -1 ? indexB : 10000;
+        if (orderA !== orderB) return orderA - orderB;
+        return nameA.localeCompare(nameB);
+      })
+      .map(([k, v]) => [k, v.toLocaleString('en-US')]);
+
+    const deductionsBody = Object.entries(rec.deductions)
+      .filter(([_, v]) => v > 0)
+      .sort(([nameA], [nameB]) => {
+        const indexA = deductionFields.findIndex(f => f.name === nameA);
+        const indexB = deductionFields.findIndex(f => f.name === nameB);
+        const orderA = indexA !== -1 ? indexA : 10000;
+        const orderB = indexB !== -1 ? indexB : 10000;
+        if (orderA !== orderB) return orderA - orderB;
+        return nameA.localeCompare(nameB);
+      })
+      .map(([k, v]) => [k, v.toLocaleString('en-US')]);
 
     // Construct unified table of earnings and deductions
     const maxLen = Math.max(earningsBody.length, deductionsBody.length);
