@@ -681,47 +681,43 @@ export default function PaySlipManagement({ employees, userRole }: PaySlipManage
     const doc = new jsPDF();
     const empDetails = employees.find(e => e.id === rec.employeeId);
 
-    // Document header / Company Branding
-    doc.setFillColor(99, 102, 241); // Indigo color banner
-    doc.rect(0, 0, 210, 40, 'F');
+    // Document header / Company Branding - Clean Modern Letterhead format
+    doc.setFillColor(30, 41, 59); // Slate 800 top border band
+    doc.rect(0, 0, 210, 4, 'F');
     
-    doc.setTextColor(255, 255, 255);
+    doc.setTextColor(15, 23, 42); // Slate 900
     doc.setFont("helvetica", "bold");
-    doc.setFontSize(22);
-    doc.text("TriloyTech", 15, 25);
-    
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(10);
-    doc.text("Premium Financial Solutions & IT Services", 15, 32);
+    doc.setFontSize(24);
+    doc.text("TriloyTech", 15, 24);
 
-    // Pay Slip Label
-    doc.setFillColor(243, 244, 246); // Gray background for pay period label
-    doc.rect(120, 15, 75, 18, 'F');
-    doc.setTextColor(51, 65, 85);
+    // Pay Slip Label (Top Right Badge)
+    doc.setFillColor(248, 250, 252); // Slate 50
+    doc.rect(120, 14, 75, 18, 'F');
+    doc.setDrawColor(226, 232, 240); // Slate 200 border
+    doc.rect(120, 14, 75, 18, 'D');
+
+    doc.setTextColor(15, 23, 42); // Slate 900
     doc.setFont("helvetica", "bold");
     doc.setFontSize(11);
-    doc.text("PAY SLIP RECORD", 125, 21);
+    doc.text("PAY SLIP RECORD", 125, 20);
     doc.setFont("helvetica", "normal");
     doc.setFontSize(9);
-    doc.text(`Period: ${rec.monthYear} (${rec.periodType})`, 125, 29);
+    doc.text(`Period: ${rec.monthYear} (${rec.periodType})`, 125, 28);
 
     // Employee & Summary Details Block
     doc.setTextColor(15, 23, 42);
     doc.setFontSize(12);
     doc.setFont("helvetica", "bold");
-    doc.text("Employee Information", 15, 55);
-    doc.line(15, 57, 195, 57);
+    doc.text("Employee Information", 15, 48);
+    
+    doc.setDrawColor(226, 232, 240); // Slate 200 divider line
+    doc.line(15, 50, 195, 50);
 
     doc.setFont("helvetica", "normal");
     doc.setFontSize(10);
-    doc.text(`Employee ID:  ${rec.employeeIdCode}`, 15, 65);
-    doc.text(`Full Name:    ${rec.employeeName}`, 15, 72);
-    doc.text(`Designation:  ${empDetails?.currentPosition || 'N/A'}`, 15, 79);
-    doc.text(`Joining Date: ${empDetails?.joiningDate || 'N/A'}`, 15, 86);
-
-    doc.text(`Generated At: ${new Date(rec.createdAt).toLocaleDateString()}`, 120, 65);
-    doc.text(`Status:       ${rec.disbursementStatus === 'Done' ? 'Disbursed (Paid)' : 'Pending Disbursement'}`, 120, 72);
-    doc.text(`Net Payable:  BDT ${rec.netPayment.toLocaleString('en-US')}/-`, 120, 79);
+    doc.text(`Employee ID:  ${rec.employeeIdCode}`, 15, 58);
+    doc.text(`Full Name:    ${rec.employeeName}`, 15, 65);
+    doc.text(`Designation:  ${empDetails?.currentPosition || 'N/A'}`, 15, 72);
 
     // Earnings and Deductions tables in parallel or serial using autoTable
     const earningsBody = Object.entries(rec.payments).filter(([_, v]) => v > 0).map(([k, v]) => [k, `BDT ${v.toLocaleString('en-US')}`]);
@@ -740,42 +736,49 @@ export default function PaySlipManagement({ employees, userRole }: PaySlipManage
     }
 
     autoTable(doc, {
-      startY: 95,
+      startY: 82,
       head: [['Earnings / Payments', 'Amount', 'Deductions', 'Amount']],
       body: tableData,
       theme: 'striped',
-      headStyles: { fillColor: [99, 102, 241], fontStyle: 'bold', fontSize: 10 },
+      headStyles: { fillColor: [30, 41, 59], fontStyle: 'bold', fontSize: 10 },
       styles: { fontSize: 9 },
       columnStyles: {
         1: { halign: 'right', fontStyle: 'bold' },
         3: { halign: 'right', fontStyle: 'bold' }
+      },
+      didParseCell: (data) => {
+        if (data.column.index === 1 || data.column.index === 3) {
+          data.cell.styles.halign = 'right';
+        }
       }
     });
 
     // Summary Totals
-    const finalY = (doc as any).lastAutoTable.finalY + 10;
+    const finalY = (doc as any).lastAutoTable.finalY + 8;
     doc.setFillColor(248, 250, 252);
     doc.rect(15, finalY, 180, 28, 'F');
+    doc.setDrawColor(226, 232, 240);
+    doc.rect(15, finalY, 180, 28, 'D');
 
     doc.setFont("helvetica", "bold");
     doc.setFontSize(10);
-    doc.setTextColor(51, 65, 85);
+    doc.setTextColor(71, 85, 105);
     doc.text(`Total Earnings: BDT ${rec.totalPayments.toLocaleString('en-US')}`, 20, finalY + 8);
     doc.text(`Total Deductions: BDT ${rec.totalDeductions.toLocaleString('en-US')}`, 20, finalY + 16);
     
     doc.setFontSize(11);
-    doc.setTextColor(79, 70, 229);
+    doc.setTextColor(15, 23, 42);
     doc.text(`Net Paid Salary: BDT ${rec.netPayment.toLocaleString('en-US')}/-`, 20, finalY + 24);
 
     // Footer signature spaces
     doc.setFont("helvetica", "normal");
     doc.setFontSize(9);
     doc.setTextColor(148, 163, 184);
-    doc.text("-----------------------------------------", 20, finalY + 60);
-    doc.text("Employer / Authorized Signature", 20, finalY + 64);
+    doc.text("-----------------------------------------", 20, finalY + 54);
+    doc.text("Employer / Authorized Signature", 20, finalY + 58);
 
-    doc.text("-----------------------------------------", 125, finalY + 60);
-    doc.text("Employee Signature / Acknowledgment", 125, finalY + 64);
+    doc.text("-----------------------------------------", 125, finalY + 54);
+    doc.text("Employee Signature / Acknowledgment", 125, finalY + 58);
 
     doc.save(`PaySlip_${rec.employeeIdCode}_${rec.employeeName}_${rec.monthYear}_${rec.periodType.replace(/\s+/g, '_')}.pdf`);
   };
