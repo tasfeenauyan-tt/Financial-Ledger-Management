@@ -720,8 +720,8 @@ export default function PaySlipManagement({ employees, userRole }: PaySlipManage
     doc.text(`Designation:  ${empDetails?.currentPosition || 'N/A'}`, 15, 72);
 
     // Earnings and Deductions tables in parallel or serial using autoTable
-    const earningsBody = Object.entries(rec.payments).filter(([_, v]) => v > 0).map(([k, v]) => [k, `BDT ${v.toLocaleString('en-US')}`]);
-    const deductionsBody = Object.entries(rec.deductions).filter(([_, v]) => v > 0).map(([k, v]) => [k, `BDT ${v.toLocaleString('en-US')}`]);
+    const earningsBody = Object.entries(rec.payments).filter(([_, v]) => v > 0).map(([k, v]) => [k, v.toLocaleString('en-US')]);
+    const deductionsBody = Object.entries(rec.deductions).filter(([_, v]) => v > 0).map(([k, v]) => [k, v.toLocaleString('en-US')]);
 
     // Construct unified table of earnings and deductions
     const maxLen = Math.max(earningsBody.length, deductionsBody.length);
@@ -737,7 +737,7 @@ export default function PaySlipManagement({ employees, userRole }: PaySlipManage
 
     autoTable(doc, {
       startY: 82,
-      head: [['Earnings / Payments', 'Amount', 'Deductions', 'Amount']],
+      head: [['Payment', 'Amount', 'Deduction', 'Amount']],
       body: tableData,
       theme: 'striped',
       headStyles: { fillColor: [30, 41, 59], fontStyle: 'bold', fontSize: 10 },
