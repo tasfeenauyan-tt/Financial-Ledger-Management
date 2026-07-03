@@ -51,6 +51,7 @@ interface PaySlipItem {
   name: string;
   type: 'payment' | 'deduction';
   order?: number;
+  isActive?: boolean;
   createdAt?: any;
 }
 
@@ -179,6 +180,14 @@ export default function PaySlipManagement({ employees, userRole }: PaySlipManage
       });
   }, [poolItems]);
 
+  const activePaymentFields = useMemo(() => {
+    return paymentFields.filter(f => f.isActive !== false);
+  }, [paymentFields]);
+
+  const activeDeductionFields = useMemo(() => {
+    return deductionFields.filter(f => f.isActive !== false);
+  }, [deductionFields]);
+
   // --- Set Auto Basic Salary or Profile based on Selected Employee ---
   useEffect(() => {
     if (selectedEmployeeId) {
@@ -187,7 +196,7 @@ export default function PaySlipManagement({ employees, userRole }: PaySlipManage
         const profile = salaryProfiles.find(p => p.employeeId === selectedEmployeeId);
         
         const initialPayments: { [key: string]: string } = {};
-        paymentFields.forEach(field => {
+        activePaymentFields.forEach(field => {
           if (profile && profile.payments && profile.payments[field.name] !== undefined) {
             initialPayments[field.name] = profile.payments[field.name];
           } else if (field.name.toLowerCase() === 'basic salary') {
@@ -199,7 +208,7 @@ export default function PaySlipManagement({ employees, userRole }: PaySlipManage
         setFormPayments(initialPayments);
 
         const initialDeductions: { [key: string]: string } = {};
-        deductionFields.forEach(field => {
+        activeDeductionFields.forEach(field => {
           if (profile && profile.deductions && profile.deductions[field.name] !== undefined) {
             initialDeductions[field.name] = profile.deductions[field.name];
           } else {
@@ -212,7 +221,7 @@ export default function PaySlipManagement({ employees, userRole }: PaySlipManage
       setFormPayments({});
       setFormDeductions({});
     }
-  }, [selectedEmployeeId, paymentFields, deductionFields, employees, salaryProfiles]);
+  }, [selectedEmployeeId, activePaymentFields, activeDeductionFields, employees, salaryProfiles]);
 
   // --- Set Profile Form Fields when Selected Profile Employee changes ---
   useEffect(() => {
@@ -222,7 +231,7 @@ export default function PaySlipManagement({ employees, userRole }: PaySlipManage
         const profile = salaryProfiles.find(p => p.employeeId === selectedProfileEmployeeId);
         
         const initialPayments: { [key: string]: string } = {};
-        paymentFields.forEach(field => {
+        activePaymentFields.forEach(field => {
           if (profile && profile.payments && profile.payments[field.name] !== undefined) {
             initialPayments[field.name] = profile.payments[field.name];
           } else if (field.name.toLowerCase() === 'basic salary') {
@@ -234,7 +243,7 @@ export default function PaySlipManagement({ employees, userRole }: PaySlipManage
         setProfilePayments(initialPayments);
 
         const initialDeductions: { [key: string]: string } = {};
-        deductionFields.forEach(field => {
+        activeDeductionFields.forEach(field => {
           if (profile && profile.deductions && profile.deductions[field.name] !== undefined) {
             initialDeductions[field.name] = profile.deductions[field.name];
           } else {
@@ -247,7 +256,7 @@ export default function PaySlipManagement({ employees, userRole }: PaySlipManage
       setProfilePayments({});
       setProfileDeductions({});
     }
-  }, [selectedProfileEmployeeId, paymentFields, deductionFields, employees, salaryProfiles]);
+  }, [selectedProfileEmployeeId, activePaymentFields, activeDeductionFields, employees, salaryProfiles]);
 
   // --- Live Calculations ---
   const totals = useMemo(() => {
@@ -355,6 +364,17 @@ export default function PaySlipManagement({ employees, userRole }: PaySlipManage
       await deleteDoc(doc(db, 'payslip_items', id));
     } catch (err) {
       handleFirestoreError(err, OperationType.DELETE, `payslip_items/${id}`);
+    }
+  };
+
+  const handleTogglePoolItemStatus = async (itemId: string, currentStatus?: boolean) => {
+    if (!isAdmin) return;
+    try {
+      await updateDoc(doc(db, 'payslip_items', itemId), {
+        isActive: currentStatus === false ? true : false
+      });
+    } catch (err) {
+      handleFirestoreError(err, OperationType.WRITE, `payslip_items/${itemId}`);
     }
   };
 
@@ -581,15 +601,25 @@ export default function PaySlipManagement({ employees, userRole }: PaySlipManage
     
     // Fill payments
     const p: { [key: string]: string } = {};
-    paymentFields.forEach(f => {
+    activePaymentFields.forEach(f => {
       p[f.name] = rec.payments[f.name] !== undefined ? String(rec.payments[f.name]) : '';
+    });
+    Object.keys(rec.payments || {}).forEach(name => {
+      if (p[name] === undefined && rec.payments[name] !== undefined) {
+        p[name] = String(rec.payments[name]);
+      }
     });
     setEditRecordPayments(p);
 
     // Fill deductions
     const d: { [key: string]: string } = {};
-    deductionFields.forEach(f => {
+    activeDeductionFields.forEach(f => {
       d[f.name] = rec.deductions[f.name] !== undefined ? String(rec.deductions[f.name]) : '';
+    });
+    Object.keys(rec.deductions || {}).forEach(name => {
+      if (d[name] === undefined && rec.deductions[name] !== undefined) {
+        d[name] = String(rec.deductions[name]);
+      }
     });
     setEditRecordDeductions(d);
 
@@ -992,11 +1022,11 @@ export default function PaySlipManagement({ employees, userRole }: PaySlipManage
                       <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
                       Payments & Earnings
                     </h4>
-                    {paymentFields.length === 0 ? (
-                      <p className="text-xs text-slate-400 italic font-medium">No fields defined in payment items pool.</p>
+                    {activePaymentFields.length === 0 ? (
+                      <p className="text-xs text-slate-400 italic font-medium">No active fields defined in payment items pool.</p>
                     ) : (
                       <div className="space-y-3.5 max-h-[350px] overflow-y-auto pr-1">
-                        {paymentFields.map(field => (
+                        {activePaymentFields.map(field => (
                           <div key={field.id} className="grid grid-cols-12 items-center gap-3">
                             <label className="col-span-7 text-xs font-bold text-slate-600 truncate" title={field.name}>{field.name}</label>
                             <div className="col-span-5 relative">
@@ -1025,11 +1055,11 @@ export default function PaySlipManagement({ employees, userRole }: PaySlipManage
                       <span className="w-2.5 h-2.5 rounded-full bg-rose-500" />
                       Deductions
                     </h4>
-                    {deductionFields.length === 0 ? (
-                      <p className="text-xs text-slate-400 italic font-medium">No fields defined in deduction items pool.</p>
+                    {activeDeductionFields.length === 0 ? (
+                      <p className="text-xs text-slate-400 italic font-medium">No active fields defined in deduction items pool.</p>
                     ) : (
                       <div className="space-y-3.5 max-h-[350px] overflow-y-auto pr-1">
-                        {deductionFields.map(field => (
+                        {activeDeductionFields.map(field => (
                           <div key={field.id} className="grid grid-cols-12 items-center gap-3">
                             <label className="col-span-7 text-xs font-bold text-slate-600 truncate" title={field.name}>{field.name}</label>
                             <div className="col-span-5 relative">
@@ -1292,10 +1322,10 @@ export default function PaySlipManagement({ employees, userRole }: PaySlipManage
                               <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider">Payments & Earnings</h4>
                             </div>
                             <div className="space-y-3">
-                              {paymentFields.length === 0 ? (
-                                <p className="text-xs text-slate-400 italic">No fields in the payments pool. Go to "Pay Slip Items Pools" to add fields.</p>
+                              {activePaymentFields.length === 0 ? (
+                                <p className="text-xs text-slate-400 italic">No active fields in the payments pool. Go to "Pay Slip Items Pools" to add/enable fields.</p>
                               ) : (
-                                paymentFields.map(field => (
+                                activePaymentFields.map(field => (
                                   <div key={field.id} className="space-y-1">
                                     <label className="text-[11px] font-bold text-slate-600 flex justify-between items-center">
                                       <span>{field.name}</span>
@@ -1329,10 +1359,10 @@ export default function PaySlipManagement({ employees, userRole }: PaySlipManage
                               <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider">Deductions</h4>
                             </div>
                             <div className="space-y-3">
-                              {deductionFields.length === 0 ? (
-                                <p className="text-xs text-slate-400 italic">No fields in the deductions pool. Go to "Pay Slip Items Pools" to add fields.</p>
+                              {activeDeductionFields.length === 0 ? (
+                                <p className="text-xs text-slate-400 italic">No active fields in the deductions pool. Go to "Pay Slip Items Pools" to add/enable fields.</p>
                               ) : (
-                                deductionFields.map(field => (
+                                activeDeductionFields.map(field => (
                                   <div key={field.id} className="space-y-1">
                                     <label className="text-[11px] font-bold text-slate-600">{field.name}</label>
                                     <div className="relative rounded-xl shadow-sm">
@@ -1490,7 +1520,25 @@ export default function PaySlipManagement({ employees, userRole }: PaySlipManage
                   ) : (
                     paymentFields.map(item => (
                       <div key={item.id} className="flex items-center justify-between py-3 border-b border-slate-50 last:border-0 group">
-                        <span className="text-xs font-bold text-slate-700">{item.name}</span>
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => handleTogglePoolItemStatus(item.id, item.isActive)}
+                            disabled={!isAdmin}
+                            className={cn(
+                              "px-2 py-0.5 rounded text-[9px] font-extrabold transition-all border shrink-0",
+                              item.isActive !== false
+                                ? "bg-emerald-50 border-emerald-200 text-emerald-700 hover:bg-emerald-100"
+                                : "bg-slate-100 border-slate-200 text-slate-500 hover:bg-slate-200"
+                            )}
+                            title="Toggle visibility on forms"
+                          >
+                            {item.isActive !== false ? 'Active' : 'Inactive'}
+                          </button>
+                          <span className={cn("text-xs font-bold transition-all", item.isActive !== false ? "text-slate-700" : "text-slate-400 line-through")}>
+                            {item.name}
+                          </span>
+                        </div>
                         {isAdmin && (
                           <div className="flex items-center gap-1">
                             {deletingPoolItemId === item.id ? (
@@ -1577,7 +1625,25 @@ export default function PaySlipManagement({ employees, userRole }: PaySlipManage
                   ) : (
                     deductionFields.map(item => (
                       <div key={item.id} className="flex items-center justify-between py-3 border-b border-slate-50 last:border-0 group">
-                        <span className="text-xs font-bold text-slate-700">{item.name}</span>
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => handleTogglePoolItemStatus(item.id, item.isActive)}
+                            disabled={!isAdmin}
+                            className={cn(
+                              "px-2 py-0.5 rounded text-[9px] font-extrabold transition-all border shrink-0",
+                              item.isActive !== false
+                                ? "bg-emerald-50 border-emerald-200 text-emerald-700 hover:bg-emerald-100"
+                                : "bg-slate-100 border-slate-200 text-slate-500 hover:bg-slate-200"
+                            )}
+                            title="Toggle visibility on forms"
+                          >
+                            {item.isActive !== false ? 'Active' : 'Inactive'}
+                          </button>
+                          <span className={cn("text-xs font-bold transition-all", item.isActive !== false ? "text-slate-700" : "text-slate-400 line-through")}>
+                            {item.name}
+                          </span>
+                        </div>
                         {isAdmin && (
                           <div className="flex items-center gap-1">
                             {deletingPoolItemId === item.id ? (
@@ -1917,18 +1983,18 @@ export default function PaySlipManagement({ employees, userRole }: PaySlipManage
                     Payments & Earnings
                   </h4>
                   <div className="space-y-3.5 pr-1">
-                    {paymentFields.map(field => (
-                      <div key={field.id} className="grid grid-cols-12 items-center gap-3">
-                        <label className="col-span-7 text-xs font-bold text-slate-600 truncate" title={field.name}>{field.name}</label>
+                    {Object.keys(editRecordPayments).map(fieldName => (
+                      <div key={fieldName} className="grid grid-cols-12 items-center gap-3">
+                        <label className="col-span-7 text-xs font-bold text-slate-600 truncate" title={fieldName}>{fieldName}</label>
                         <div className="col-span-5 relative">
                           <span className="absolute left-3 top-2.5 text-xs text-slate-400 font-bold">৳</span>
                           <input
                             type="number"
                             placeholder="0"
-                            value={editRecordPayments[field.name] || ''}
+                            value={editRecordPayments[fieldName] || ''}
                             onChange={(e) => setEditRecordPayments({
                               ...editRecordPayments,
-                              [field.name]: e.target.value
+                              [fieldName]: e.target.value
                             })}
                             className="w-full pl-7 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:bg-white outline-none font-semibold text-sm transition-all"
                           />
@@ -1945,18 +2011,18 @@ export default function PaySlipManagement({ employees, userRole }: PaySlipManage
                     Deductions
                   </h4>
                   <div className="space-y-3.5 pr-1">
-                    {deductionFields.map(field => (
-                      <div key={field.id} className="grid grid-cols-12 items-center gap-3">
-                        <label className="col-span-7 text-xs font-bold text-slate-600 truncate" title={field.name}>{field.name}</label>
+                    {Object.keys(editRecordDeductions).map(fieldName => (
+                      <div key={fieldName} className="grid grid-cols-12 items-center gap-3">
+                        <label className="col-span-7 text-xs font-bold text-slate-600 truncate" title={fieldName}>{fieldName}</label>
                         <div className="col-span-5 relative">
                           <span className="absolute left-3 top-2.5 text-xs text-slate-400 font-bold">৳</span>
                           <input
                             type="number"
                             placeholder="0"
-                            value={editRecordDeductions[field.name] || ''}
+                            value={editRecordDeductions[fieldName] || ''}
                             onChange={(e) => setEditRecordDeductions({
                               ...editRecordDeductions,
-                              [field.name]: e.target.value
+                              [fieldName]: e.target.value
                             })}
                             className="w-full pl-7 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:bg-white outline-none font-semibold text-sm transition-all"
                           />
