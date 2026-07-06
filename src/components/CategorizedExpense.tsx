@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { LedgerEntry } from '../types';
 import { formatCurrency } from '../lib/utils';
-import { Receipt, TrendingDown, Users } from 'lucide-react';
+import { Receipt, TrendingDown, Users, Laptop } from 'lucide-react';
 
 interface CategorizedExpenseProps {
   entries: LedgerEntry[];
@@ -113,14 +113,45 @@ export default function CategorizedExpense({ entries }: CategorizedExpenseProps)
     })).sort((a, b) => a.name.localeCompare(b.name));
   }, [entries]);
 
-  if (mediaBuyData.length === 0 && Object.keys(foodBillData).length === 0 && referralCommissionData.length === 0) {
+  // Software & Tools Data (from Remarks)
+  const softwareToolsData = useMemo(() => {
+    const tools: Record<string, Record<string, number>> = {};
+    
+    entries.forEach(e => {
+      if (e.details.trim() === 'Opex: Software & Tools' || e.details.toLowerCase().includes('opex: software & tools')) {
+        const tool = e.remarks || 'Unknown Tool';
+        const monthInfo = getMonthInfo(e.date);
+        
+        if (!tools[tool]) {
+          tools[tool] = {};
+        }
+        
+        let amount = 0;
+        e.customEntries.forEach(ce => {
+          if (ce.accountName.toLowerCase().includes('expense') || ce.accountName.toLowerCase().includes('cost')) {
+            amount += ce.type === 'Dr' ? ce.amount : -ce.amount;
+          }
+        });
+        
+        tools[tool][monthInfo.key] = (tools[tool][monthInfo.key] || 0) + amount;
+      }
+    });
+
+    return Object.entries(tools).map(([name, months]) => ({
+      name,
+      months,
+      total: Object.values(months).reduce((sum: number, val: number) => sum + val, 0)
+    })).sort((a, b) => a.name.localeCompare(b.name));
+  }, [entries]);
+
+  if (mediaBuyData.length === 0 && Object.keys(foodBillData).length === 0 && referralCommissionData.length === 0 && softwareToolsData.length === 0) {
     return (
       <div className="bg-white rounded-2xl border border-slate-200 p-12 text-center">
         <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-4 text-slate-400">
           <Receipt size={32} />
         </div>
         <h3 className="text-lg font-bold text-slate-900 mb-2">No Categorized Expenses</h3>
-        <p className="text-slate-500">No transactions found for Media Buy, Food Bill, or Referral Commission.</p>
+        <p className="text-slate-500">No transactions found for Media Buy, Food Bill, Referral Commission, or Software & Tools.</p>
       </div>
     );
   }
@@ -301,6 +332,72 @@ export default function CategorizedExpense({ entries }: CategorizedExpenseProps)
           </div>
         </div>
       </section>
+
+      {/* Software & Tools Section */}
+      {softwareToolsData.length > 0 && (
+        <section className="space-y-4">
+          <div className="flex items-center gap-3 mb-2">
+            <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center text-blue-600">
+              <Laptop size={20} />
+            </div>
+            <div>
+              <h3 className="text-lg font-bold text-slate-900">Monthly Expense of Software & Tools</h3>
+              <p className="text-sm text-slate-500">Breakdown by software/tool and month (from Remarks)</p>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="bg-slate-50 border-b border-slate-200">
+                    <th className="p-4 text-xs font-bold text-slate-500 uppercase tracking-wider text-center w-16">Sl</th>
+                    <th className="p-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Software / Tool</th>
+                    {allMonths.map(m => (
+                      <th key={m.key} className="p-4 text-xs font-bold text-slate-500 uppercase tracking-wider text-right min-w-[100px]">
+                        {m.label}
+                      </th>
+                    ))}
+                    <th className="p-4 text-xs font-bold text-slate-500 uppercase tracking-wider text-right font-bold bg-slate-100/50">Total</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {softwareToolsData.map((item, index) => (
+                    <tr key={item.name} className="hover:bg-slate-50/50 transition-colors">
+                      <td className="p-4 text-sm text-slate-500 text-center font-medium">{index + 1}</td>
+                      <td className="p-4 text-sm text-slate-900 font-bold">{item.name}</td>
+                      {allMonths.map(m => (
+                        <td key={m.key} className="p-4 text-sm text-right font-medium text-slate-600">
+                          {item.months[m.key] ? formatCurrency(item.months[m.key]) : '-'}
+                        </td>
+                      ))}
+                      <td className="p-4 text-sm text-right font-bold text-blue-600 bg-blue-50/30">
+                        {formatCurrency(item.total)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot>
+                  <tr className="bg-slate-50 font-bold border-t-2 border-slate-200">
+                    <td colSpan={2} className="p-4 text-sm text-slate-900 text-right">Total</td>
+                    {allMonths.map(m => {
+                      const monthTotal = softwareToolsData.reduce((sum: number, s) => sum + (s.months[m.key] || 0), 0);
+                      return (
+                        <td key={m.key} className="p-4 text-sm text-right text-rose-600">
+                          {formatCurrency(monthTotal)}
+                        </td>
+                      );
+                    })}
+                    <td className="p-4 text-sm text-right text-rose-700 bg-rose-50">
+                      {formatCurrency(softwareToolsData.reduce((sum: number, s) => sum + s.total, 0))}
+                    </td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          </div>
+        </section>
+      )}
     </div>
   );
 }
