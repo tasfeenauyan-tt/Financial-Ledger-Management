@@ -48,7 +48,8 @@ export default function EmployeeDatabase({ employees, userRole }: EmployeeDataba
         (emp.employeeId || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
         (emp.mobileNo || '').includes(searchTerm) ||
         (emp.email || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (emp.location || '').toLowerCase().includes(searchTerm.toLowerCase())
+        (emp.location || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (emp.fullAddress || '').toLowerCase().includes(searchTerm.toLowerCase())
       )
       .sort((a, b) => (a.employeeId || '').localeCompare(b.employeeId || '', undefined, { numeric: true }));
   }, [employees, searchTerm]);
@@ -84,6 +85,7 @@ export default function EmployeeDatabase({ employees, userRole }: EmployeeDataba
       gender: formData.get('gender') as string,
       bloodGroup: formData.get('bloodGroup') as string,
       location: formData.get('location') as string,
+      fullAddress: formData.get('fullAddress') as string,
       emergencyPocName: formData.get('emergencyPocName') as string,
       emergencyPocMobile: formData.get('emergencyPocMobile') as string,
       relationshipWithPoc: formData.get('relationshipWithPoc') as string,
@@ -160,6 +162,7 @@ export default function EmployeeDatabase({ employees, userRole }: EmployeeDataba
             gender: String(row['Gender'] || row['gender'] || ''),
             bloodGroup: String(row['Blood Group'] || row['bloodGroup'] || ''),
             location: String(row['Location (Current Stationed District Name)'] || row['Location'] || row['location'] || ''),
+            fullAddress: String(row['Full Address'] || row['FULL ADDRESS'] || row['fullAddress'] || row['Address'] || ''),
             emergencyPocName: String(row['Emergency POC Name'] || row['POC Name'] || row['emergencyPocName'] || ''),
             emergencyPocMobile: String(row['Emergency POC Mobile No'] || row['POC Mobile'] || row['emergencyPocMobile'] || ''),
             relationshipWithPoc: String(row['Relationship With POC'] || row['Relationship'] || row['relationshipWithPoc'] || ''),
@@ -199,6 +202,7 @@ export default function EmployeeDatabase({ employees, userRole }: EmployeeDataba
       'Gender': emp.gender,
       'Blood Group': emp.bloodGroup,
       'Location': emp.location,
+      'Full Address': emp.fullAddress || '',
       'Emergency POC Name': emp.emergencyPocName,
       'Emergency POC Mobile No': emp.emergencyPocMobile,
       'Relationship With POC': emp.relationshipWithPoc,
@@ -292,6 +296,7 @@ export default function EmployeeDatabase({ employees, userRole }: EmployeeDataba
                 <th className="px-4 py-4 text-xs font-bold text-slate-400 uppercase tracking-wider">Gender</th>
                 <th className="px-4 py-4 text-xs font-bold text-slate-400 uppercase tracking-wider">Blood Group</th>
                 <th className="px-4 py-4 text-xs font-bold text-slate-400 uppercase tracking-wider">Location</th>
+                <th className="px-4 py-4 text-xs font-bold text-slate-400 uppercase tracking-wider">Full Address</th>
                 <th className="px-4 py-4 text-xs font-bold text-slate-400 uppercase tracking-wider">POC Name</th>
                 <th className="px-4 py-4 text-xs font-bold text-slate-400 uppercase tracking-wider">POC Mobile</th>
                 <th className="px-4 py-4 text-xs font-bold text-slate-400 uppercase tracking-wider">Relationship</th>
@@ -357,6 +362,9 @@ export default function EmployeeDatabase({ employees, userRole }: EmployeeDataba
                       <MapPin size={12} className="text-indigo-400" />
                       {emp.location}
                     </div>
+                  </td>
+                  <td className="px-4 py-4 whitespace-nowrap">
+                    <span className="text-sm text-slate-600">{emp.fullAddress || 'N/A'}</span>
                   </td>
                   <td className="px-4 py-4 whitespace-nowrap">
                     <span className="text-sm text-slate-700 font-medium">{emp.emergencyPocName}</span>
@@ -574,6 +582,15 @@ export default function EmployeeDatabase({ employees, userRole }: EmployeeDataba
                           name="location"
                           defaultValue={editingEmployee?.location}
                           placeholder="District Name"
+                          className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 uppercase mb-1.5 ml-1">FULL ADDRESS</label>
+                        <input
+                          name="fullAddress"
+                          defaultValue={editingEmployee?.fullAddress}
+                          placeholder="House, Road, Area, Thana, District"
                           className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none"
                         />
                       </div>

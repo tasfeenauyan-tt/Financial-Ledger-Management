@@ -142,6 +142,7 @@ export interface Employee {
   gender: string;
   bloodGroup: string;
   location: string;
+  fullAddress?: string;
   emergencyPocName: string;
   emergencyPocMobile: string;
   relationshipWithPoc: string;
