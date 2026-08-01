@@ -33,6 +33,46 @@ import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
+export function getInstallmentBreakdown(invoice: Invoice) {
+  const isThree = invoice.installmentPlan === '3';
+  let installments = invoice.installments;
+
+  if (isThree && (!installments || installments.length === 0)) {
+    const third = Math.floor(invoice.totalAmount / 3);
+    const rem = invoice.totalAmount - (third * 2);
+    installments = [
+      { number: 1, label: '1st Installment', amount: third },
+      { number: 2, label: '2nd Installment', amount: third },
+      { number: 3, label: '3rd Installment', amount: rem },
+    ];
+  } else if (!installments || installments.length === 0) {
+    installments = [
+      { number: 1, label: '1st Installment', amount: invoice.totalAmount }
+    ];
+  }
+
+  let remPaid = invoice.paidAmount || 0;
+  return installments.map((inst) => {
+    const paid = Math.min(remPaid, inst.amount);
+    remPaid = Math.max(0, remPaid - paid);
+    const balance = Math.max(0, inst.amount - paid);
+    let status: 'Paid' | 'Partial' | 'Unpaid' = 'Unpaid';
+    if (paid >= inst.amount && inst.amount > 0) {
+      status = 'Paid';
+    } else if (paid > 0) {
+      status = 'Partial';
+    }
+    return {
+      number: inst.number,
+      label: inst.label,
+      amount: inst.amount,
+      paidAmount: paid,
+      balanceDue: balance,
+      status
+    };
+  });
+}
+
 interface PaymentManagementProps {
   userRole: string;
 }
@@ -354,6 +394,7 @@ export default function PaymentManagement({ userRole }: PaymentManagementProps) 
       'Service Date': inv.serviceDate || '-',
       'Date': inv.date,
       'Due Date': inv.dueDate,
+      'Installment Plan': inv.installmentPlan === '3' ? '3 Installments' : '1 Installment',
       'Total Amount': inv.totalAmount,
       'Paid Amount': inv.paidAmount,
       'Outstanding': inv.totalAmount - inv.paidAmount,
@@ -592,6 +633,7 @@ export default function PaymentManagement({ userRole }: PaymentManagementProps) 
         doc.text(`Account Number: ${paymentAccount.accountNumber}`, 14, notesY + 11);
         doc.text(`Bank Name: ${paymentAccount.bankName}`, 14, notesY + 15);
         doc.text(`Branch Name: ${paymentAccount.branchName}`, 14, notesY + 19);
+        notesY += 25;
       }
     }
 
@@ -617,6 +659,60 @@ export default function PaymentManagement({ userRole }: PaymentManagementProps) 
     doc.setFont("helvetica", "bold");
     doc.setFontSize(11);
     doc.text(`BDT ${(invoice.totalAmount - invoice.paidAmount).toLocaleString('en-US', { minimumFractionDigits: 2 })}`, 195, finalY + 15, { align: 'right' });
+
+    // Installment Breakdown Table in PDF
+    const installmentBreakdown = getInstallmentBreakdown(invoice);
+    if (invoice.installmentPlan === '3' || installmentBreakdown.length > 1) {
+      const startInstY = Math.max(notesY + 8, finalY + 24);
+      doc.setTextColor(15, 23, 42); // Slate 900
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(12);
+      doc.text("Installment Payment Schedule", 15, startInstY);
+
+      doc.setDrawColor(226, 232, 240); // Slate 200 divider line
+      doc.line(15, startInstY + 2, 195, startInstY + 2);
+
+      autoTable(doc, {
+        startY: startInstY + 7,
+        head: [['Installment', 'Amount Payable', 'Amount Paid', 'Balance Due', 'Status']],
+        body: installmentBreakdown.map(inst => [
+          inst.label,
+          `BDT ${inst.amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+          `BDT ${inst.paidAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+          `BDT ${inst.balanceDue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+          inst.status
+        ]),
+        theme: 'striped',
+        headStyles: { fillColor: [30, 41, 59], fontStyle: 'bold', fontSize: 10 },
+        styles: { fontSize: 9 },
+        columnStyles: {
+          0: { halign: 'left' },
+          1: { halign: 'right' },
+          2: { halign: 'right' },
+          3: { halign: 'right' },
+          4: { halign: 'center' }
+        },
+        didParseCell: (data) => {
+          if (data.column.index === 0) {
+            data.cell.styles.halign = 'left';
+          } else if (data.column.index >= 1 && data.column.index <= 3) {
+            data.cell.styles.halign = 'right';
+          } else if (data.column.index === 4) {
+            data.cell.styles.halign = 'center';
+            if (data.section === 'body') {
+              data.cell.styles.fontStyle = 'bold';
+              if (data.cell.raw === 'Paid') {
+                data.cell.styles.textColor = [16, 185, 129]; // Emerald 600
+              } else if (data.cell.raw === 'Partial') {
+                data.cell.styles.textColor = [217, 119, 6]; // Amber 600
+              } else {
+                data.cell.styles.textColor = [100, 116, 139]; // Slate 500
+              }
+            }
+          }
+        }
+      });
+    }
 
     doc.save(`Invoice_${invoice.invoiceNumber}_${invoice.clientName}.pdf`);
   };
@@ -867,6 +963,7 @@ export default function PaymentManagement({ userRole }: PaymentManagementProps) 
                       <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Invoice #</th>
                       <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Client</th>
                       <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Date</th>
+                      <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">Plan</th>
                       <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Total</th>
                       <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Paid</th>
                       <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Due</th>
@@ -881,6 +978,16 @@ export default function PaymentManagement({ userRole }: PaymentManagementProps) 
                         <td className="p-4 text-sm font-bold text-slate-900">{inv.invoiceNumber}</td>
                         <td className="p-4 text-sm font-bold text-slate-700">{inv.clientName}</td>
                         <td className="p-4 text-sm text-slate-500 font-medium">{inv.date}</td>
+                        <td className="p-4 text-center">
+                          <span className={cn(
+                            "text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md border",
+                            inv.installmentPlan === '3' 
+                              ? "bg-indigo-50 text-indigo-700 border-indigo-200" 
+                              : "bg-slate-50 text-slate-600 border-slate-200"
+                          )}>
+                            {inv.installmentPlan === '3' ? '3 Installments' : '1 Installment'}
+                          </span>
+                        </td>
                         <td className="p-4 text-sm font-black text-slate-900 text-right">{formatCurrency(inv.totalAmount)}</td>
                         <td className="p-4 text-sm font-black text-emerald-600 text-right">{formatCurrency(inv.paidAmount)}</td>
                         <td className="p-4 text-sm font-black text-rose-600 text-right">{formatCurrency(inv.totalAmount - inv.paidAmount - (inv.badDebtAmount || 0))}</td>
@@ -1375,6 +1482,8 @@ function InvoicePreviewModal({ invoice, clients, bankAccounts, onClose }: {
   onClose: () => void 
 }) {
   const client = clients.find(c => c.id === invoice.clientId);
+  const installmentBreakdown = getInstallmentBreakdown(invoice);
+  const isMultiInstallment = invoice.installmentPlan === '3' || installmentBreakdown.length > 1;
   
   return (
     <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[1000] flex items-center justify-center p-4">
@@ -1485,6 +1594,45 @@ function InvoicePreviewModal({ invoice, clients, bankAccounts, onClose }: {
               </div>
             )}
 
+            {isMultiInstallment && (
+              <div className="pt-6 space-y-3">
+                <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Installment Payment Schedule ({invoice.installmentPlan === '3' ? '3 Installments' : '1 Installment'})</p>
+                <div className="overflow-hidden rounded-2xl border border-slate-100">
+                  <table className="w-full text-left border-collapse">
+                    <thead>
+                      <tr className="bg-slate-50 border-b border-slate-100">
+                        <th className="p-3 text-[10px] font-black text-slate-400 uppercase tracking-widest">Installment</th>
+                        <th className="p-3 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Amount Payable</th>
+                        <th className="p-3 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Amount Paid</th>
+                        <th className="p-3 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Balance Due</th>
+                        <th className="p-3 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-50">
+                      {installmentBreakdown.map((inst, idx) => (
+                        <tr key={idx} className="hover:bg-slate-50/50">
+                          <td className="p-3 text-xs font-bold text-slate-800">{inst.label}</td>
+                          <td className="p-3 text-xs font-bold text-slate-700 text-right">{formatCurrency(inst.amount)}</td>
+                          <td className="p-3 text-xs font-bold text-emerald-600 text-right">{formatCurrency(inst.paidAmount)}</td>
+                          <td className="p-3 text-xs font-bold text-slate-900 text-right">{formatCurrency(inst.balanceDue)}</td>
+                          <td className="p-3 text-center">
+                            <span className={cn(
+                              "text-[10px] font-black uppercase tracking-widest px-2.5 py-0.5 rounded-full",
+                              inst.status === 'Paid' ? "bg-emerald-100 text-emerald-700" :
+                              inst.status === 'Partial' ? "bg-amber-100 text-amber-700" :
+                              "bg-slate-100 text-slate-600"
+                            )}>
+                              {inst.status}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
             {/* Totals & Payment Instruction */}
             <div className="flex flex-col md:flex-row justify-between gap-8 pt-8 border-t border-slate-100">
               <div className="flex-1">
@@ -1578,6 +1726,17 @@ function InvoiceModal({ clients, invoices, bankAccounts, onClose, onSave, editin
   const [notes, setNotes] = useState(editingInvoice?.notes || '');
   const [error, setError] = useState<string | null>(null);
 
+  const [installmentPlan, setInstallmentPlan] = useState<'1' | '3'>(editingInvoice?.installmentPlan || '1');
+  const [inst1Amount, setInst1Amount] = useState<string | number>(
+    editingInvoice?.installments?.[0]?.amount ?? ''
+  );
+  const [inst2Amount, setInst2Amount] = useState<string | number>(
+    editingInvoice?.installments?.[1]?.amount ?? ''
+  );
+  const [inst3Amount, setInst3Amount] = useState<string | number>(
+    editingInvoice?.installments?.[2]?.amount ?? ''
+  );
+
   // Auto-generate invoice number when service date changes (only for new invoices)
   useEffect(() => {
     if (!editingInvoice && serviceDate) {
@@ -1628,6 +1787,19 @@ function InvoiceModal({ clients, invoices, bankAccounts, onClose, onSave, editin
     return addPreviousDues ? currentItemsTotal + previousDuesAmount : currentItemsTotal;
   }, [items, addPreviousDues, previousDuesAmount]);
 
+  // Auto-fill default 3 installment amounts if empty when switching or creating
+  useEffect(() => {
+    if (installmentPlan === '3' && totalAmount > 0) {
+      if (inst1Amount === '' && inst2Amount === '' && inst3Amount === '') {
+        const third = Math.floor(totalAmount / 3);
+        const rem = totalAmount - (third * 2);
+        setInst1Amount(third);
+        setInst2Amount(third);
+        setInst3Amount(rem);
+      }
+    }
+  }, [installmentPlan, totalAmount]);
+
   const addItem = () => setItems([...items, { description: '', quantity: 1, unitPrice: '', total: 0 }]);
   const removeItem = (idx: number) => setItems(items.filter((_, i) => i !== idx));
   
@@ -1656,6 +1828,19 @@ function InvoiceModal({ clients, invoices, bankAccounts, onClose, onSave, editin
     if (isDuplicate) {
       setError(`Invoice number "${invoiceNumber}" already exists. Please use a unique number.`);
       return;
+    }
+
+    const numPaid = Number(paidAmount) || 0;
+    const num1 = Number(inst1Amount) || 0;
+    const num2 = Number(inst2Amount) || 0;
+    const num3 = Number(inst3Amount) || 0;
+
+    if (installmentPlan === '3') {
+      const sumInst = num1 + num2 + num3;
+      if (Math.abs(sumInst - totalAmount) > 0.01) {
+        setError(`The sum of the 3 installments (${formatCurrency(sumInst)}) must equal the Total Invoice Amount (${formatCurrency(totalAmount)}). Please adjust installment amounts or click "Auto-Split Equal".`);
+        return;
+      }
     }
 
     const client = clients.find(c => c.id === clientId);
@@ -1687,9 +1872,17 @@ function InvoiceModal({ clients, invoices, bankAccounts, onClose, onSave, editin
         }
       ] : storageItems,
       totalAmount,
-      paidAmount,
+      paidAmount: numPaid,
       notes,
-      status: paidAmount >= totalAmount ? 'Paid' : paidAmount > 0 ? 'Partial' : 'Unpaid',
+      status: numPaid >= totalAmount ? 'Paid' : numPaid > 0 ? 'Partial' : 'Unpaid',
+      installmentPlan,
+      installments: installmentPlan === '3' ? [
+        { number: 1, label: '1st Installment', amount: num1 },
+        { number: 2, label: '2nd Installment', amount: num2 },
+        { number: 3, label: '3rd Installment', amount: num3 }
+      ] : [
+        { number: 1, label: '1st Installment', amount: totalAmount }
+      ],
       createdAt: editingInvoice?.createdAt || new Date().toISOString(),
     };
 
@@ -1814,6 +2007,133 @@ function InvoiceModal({ clients, invoices, bankAccounts, onClose, onSave, editin
                 <label htmlFor="add-dues" className="text-sm font-bold text-amber-800 cursor-pointer">
                   Add Previous Dues of this Client ({formatCurrency(previousDuesAmount)})
                 </label>
+              </div>
+            )}
+          </div>
+
+          {/* Installment Plan Selection & Breakdown */}
+          <div className="p-5 bg-indigo-50/50 rounded-2xl border border-indigo-100 space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <label className="text-xs font-bold text-indigo-900 uppercase tracking-wider block">Payment Installment Plan</label>
+                <p className="text-xs text-slate-500 font-medium">Select whether to bill client in 1 single payment or 3 installments</p>
+              </div>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setInstallmentPlan('1')}
+                  className={cn(
+                    "px-4 py-2 rounded-xl text-xs font-bold transition-all",
+                    installmentPlan === '1' ? "bg-indigo-600 text-white shadow-sm" : "bg-white text-slate-600 border border-slate-200 hover:bg-slate-50"
+                  )}
+                >
+                  1 Installment
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setInstallmentPlan('3');
+                    if (totalAmount > 0) {
+                      const third = Math.floor(totalAmount / 3);
+                      const rem = totalAmount - (third * 2);
+                      setInst1Amount(third);
+                      setInst2Amount(third);
+                      setInst3Amount(rem);
+                    }
+                  }}
+                  className={cn(
+                    "px-4 py-2 rounded-xl text-xs font-bold transition-all",
+                    installmentPlan === '3' ? "bg-indigo-600 text-white shadow-sm" : "bg-white text-slate-600 border border-slate-200 hover:bg-slate-50"
+                  )}
+                >
+                  3 Installments
+                </button>
+              </div>
+            </div>
+
+            {installmentPlan === '3' && (
+              <div className="space-y-3 pt-3 border-t border-indigo-100">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-slate-700">Installment Amounts Schedule</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const third = Math.floor(totalAmount / 3);
+                      const rem = totalAmount - (third * 2);
+                      setInst1Amount(third);
+                      setInst2Amount(third);
+                      setInst3Amount(rem);
+                    }}
+                    className="text-xs text-indigo-600 font-bold hover:underline"
+                  >
+                    Auto-Split Equal (1/3 each)
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-slate-500 uppercase">1st Installment (BDT)</label>
+                    <input
+                      type="text"
+                      value={inst1Amount}
+                      onFocus={(e) => e.target.select()}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        if (val === '' || /^\d*\.?\d*$/.test(val)) setInst1Amount(val);
+                      }}
+                      className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white text-sm font-bold focus:ring-2 focus:ring-indigo-500 outline-none"
+                      placeholder="0.00"
+                      inputMode="decimal"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-slate-500 uppercase">2nd Installment (BDT)</label>
+                    <input
+                      type="text"
+                      value={inst2Amount}
+                      onFocus={(e) => e.target.select()}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        if (val === '' || /^\d*\.?\d*$/.test(val)) setInst2Amount(val);
+                      }}
+                      className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white text-sm font-bold focus:ring-2 focus:ring-indigo-500 outline-none"
+                      placeholder="0.00"
+                      inputMode="decimal"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-slate-500 uppercase">3rd Installment (BDT)</label>
+                    <input
+                      type="text"
+                      value={inst3Amount}
+                      onFocus={(e) => e.target.select()}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        if (val === '' || /^\d*\.?\d*$/.test(val)) setInst3Amount(val);
+                      }}
+                      className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white text-sm font-bold focus:ring-2 focus:ring-indigo-500 outline-none"
+                      placeholder="0.00"
+                      inputMode="decimal"
+                    />
+                  </div>
+                </div>
+
+                {(() => {
+                  const sum = (Number(inst1Amount) || 0) + (Number(inst2Amount) || 0) + (Number(inst3Amount) || 0);
+                  const diff = totalAmount - sum;
+                  if (Math.abs(diff) > 0.01) {
+                    return (
+                      <p className="text-xs font-bold text-rose-600">
+                        ⚠️ Sum of 3 installments ({formatCurrency(sum)}) does not match Total Amount ({formatCurrency(totalAmount)}). Difference: {formatCurrency(diff)}.
+                      </p>
+                    );
+                  }
+                  return (
+                    <p className="text-xs font-bold text-emerald-600 flex items-center gap-1">
+                      ✓ Sum of 3 installments equals Total Invoice Amount ({formatCurrency(sum)}).
+                    </p>
+                  );
+                })()}
               </div>
             )}
           </div>

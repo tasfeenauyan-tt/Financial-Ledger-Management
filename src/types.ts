@@ -102,6 +102,13 @@ export interface Invoice {
   notes?: string;
   status: 'Unpaid' | 'Partial' | 'Paid' | 'Carry Forward' | 'Bad Debt';
   carriedToInvoiceNumber?: string;
+  installmentPlan?: '1' | '3';
+  installments?: {
+    number: number;
+    label: string;
+    amount: number;
+    dueDate?: string;
+  }[];
   createdAt: string;
 }
 
