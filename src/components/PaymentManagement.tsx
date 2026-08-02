@@ -505,8 +505,17 @@ export default function PaymentManagement({ userRole }: PaymentManagementProps) 
     
     doc.setTextColor(15, 23, 42); // Slate 900
     doc.setFont("helvetica", "bold");
-    doc.setFontSize(24);
-    doc.text("TriloyTech", 15, 24);
+    doc.setFontSize(22);
+    doc.text("TriloyTech", 15, 22);
+
+    // Company Contact Info below TriloyTech
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(8.5);
+    doc.setTextColor(71, 85, 105); // Slate 600
+    doc.text("Mobile: +(880) 1339870528", 15, 28);
+    doc.text("Email: contact@triloytech.com", 15, 33);
+    const addressLines = doc.splitTextToSize("Address: Saleh Tower, Level: 5; House: 1, Road: 13, Garib-E-Newaz Avenue, Dhaka 1230", 95);
+    doc.text(addressLines, 15, 38);
 
     // Invoice Badge (Top Right)
     doc.setFillColor(248, 250, 252); // Slate 50
@@ -522,39 +531,46 @@ export default function PaymentManagement({ userRole }: PaymentManagementProps) 
     doc.setFontSize(9);
     doc.text(`Invoice #: ${invoice.invoiceNumber}`, 125, 28);
 
+    // Dynamic starting Y after address
+    const infoBlockY = 38 + (addressLines.length * 4.5) + 6;
+
     // Invoice Information block
     doc.setTextColor(15, 23, 42);
     doc.setFont("helvetica", "bold");
     doc.setFontSize(12);
-    doc.text("Invoice Information", 15, 48);
+    doc.text("Invoice Information", 15, infoBlockY);
     
     doc.setDrawColor(226, 232, 240); // Slate 200 divider line
-    doc.line(15, 50, 195, 50);
+    doc.line(15, infoBlockY + 2, 195, infoBlockY + 2);
 
     doc.setFont("helvetica", "normal");
     doc.setFontSize(9);
     doc.setTextColor(71, 85, 105); // Slate 600
-    doc.text(`Invoice Number: ${invoice.invoiceNumber}`, 15, 58);
-    doc.text(`Date Issued:    ${invoice.date}`, 15, 65);
+    doc.text(`Invoice Number: ${invoice.invoiceNumber}`, 15, infoBlockY + 10);
+    doc.text(`Date Issued:    ${invoice.date}`, 15, infoBlockY + 17);
+    let invInfoEndY = infoBlockY + 17;
     if (invoice.serviceDate) {
-      doc.text(`Service Period: ${invoice.serviceDate}`, 15, 72);
+      doc.text(`Service Period: ${invoice.serviceDate}`, 15, infoBlockY + 24);
+      invInfoEndY = infoBlockY + 24;
     }
-    doc.text(`Due Date:       ${invoice.dueDate}`, 120, 58);
+    doc.text(`Due Date:       ${invoice.dueDate}`, 120, infoBlockY + 10);
+
+    const billToY = invInfoEndY + 10;
 
     // Bill To block
     doc.setTextColor(15, 23, 42);
     doc.setFont("helvetica", "bold");
     doc.setFontSize(12);
-    doc.text("Bill To:", 15, 82);
+    doc.text("Bill To:", 15, billToY);
     
     doc.setDrawColor(226, 232, 240); // Slate 200 divider line
-    doc.line(15, 84, 195, 84);
+    doc.line(15, billToY + 2, 195, billToY + 2);
 
     doc.setFont("helvetica", "normal");
     doc.setFontSize(9);
     doc.setTextColor(71, 85, 105); // Slate 600
-    doc.text(`Client Name:   ${invoice.clientName}`, 15, 92);
-    let nextY = 99;
+    doc.text(`Client Name:   ${invoice.clientName}`, 15, billToY + 10);
+    let nextY = billToY + 17;
     const client = clients.find(c => c.id === invoice.clientId);
     if (client) {
       if (client.company) {
