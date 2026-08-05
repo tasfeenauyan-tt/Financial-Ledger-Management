@@ -499,91 +499,105 @@ export default function PaymentManagement({ userRole }: PaymentManagementProps) 
   const generateInvoicePDF = (invoice: Invoice) => {
     const doc = new jsPDF();
     
-    // Document header / Company Branding - Clean Modern Letterhead format
-    doc.setFillColor(30, 41, 59); // Slate 800 top border band
-    doc.rect(0, 0, 210, 4, 'F');
+    // Document header / Company Branding - Navy & Sky Blue Theme
+    doc.setFillColor(10, 37, 64); // Navy Blue top band
+    doc.rect(0, 0, 210, 5, 'F');
+    doc.setFillColor(14, 165, 233); // Sky Blue accent stripe
+    doc.rect(0, 5, 210, 2, 'F');
     
-    doc.setTextColor(15, 23, 42); // Slate 900
+    // Company Logo / Name
+    doc.setTextColor(10, 37, 64); // Navy Blue
     doc.setFont("helvetica", "bold");
     doc.setFontSize(22);
-    doc.text("TriloyTech", 15, 22);
+    doc.text("TriloyTech", 15, 24);
 
     // Company Contact Info below TriloyTech
     doc.setFont("helvetica", "normal");
     doc.setFontSize(8.5);
     doc.setTextColor(71, 85, 105); // Slate 600
-    doc.text("Mobile: +(880) 1339870528", 15, 28);
-    doc.text("Email: contact@triloytech.com", 15, 33);
+    doc.text("Mobile: +(880) 1339870528", 15, 30);
+    doc.text("Email: contact@triloytech.com", 15, 35);
     const addressLines = doc.splitTextToSize("Address: Saleh Tower, Level: 5; House: 1, Road: 13, Garib-E-Newaz Avenue, Dhaka 1230", 95);
-    doc.text(addressLines, 15, 38);
+    doc.text(addressLines, 15, 40);
+
+    const balanceDue = invoice.totalAmount - invoice.paidAmount - (invoice.badDebtAmount || 0);
 
     // Invoice Badge (Top Right)
-    doc.setFillColor(248, 250, 252); // Slate 50
-    doc.rect(120, 14, 75, 18, 'F');
-    doc.setDrawColor(226, 232, 240); // Slate 200 border
-    doc.rect(120, 14, 75, 18, 'D');
+    doc.setFillColor(240, 249, 255); // Sky Blue 50 background
+    doc.roundedRect(120, 15, 75, 20, 3, 3, 'F');
+    doc.setDrawColor(186, 230, 253); // Sky Blue 200 border
+    doc.roundedRect(120, 15, 75, 20, 3, 3, 'D');
 
-    doc.setTextColor(15, 23, 42); // Slate 900
+    doc.setTextColor(2, 132, 199); // Sky Blue header text
     doc.setFont("helvetica", "bold");
     doc.setFontSize(11);
-    doc.text("INVOICE", 125, 20);
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(9);
-    doc.text(`Invoice #: ${invoice.invoiceNumber}`, 125, 28);
-
-    // Dynamic starting Y after address
-    const infoBlockY = 38 + (addressLines.length * 4.5) + 6;
-
-    // Invoice Information block
-    doc.setTextColor(15, 23, 42);
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(12);
-    doc.text("Invoice Information", 15, infoBlockY);
+    doc.text("INVOICE", 126, 23);
     
-    doc.setDrawColor(226, 232, 240); // Slate 200 divider line
-    doc.line(15, infoBlockY + 2, 195, infoBlockY + 2);
-
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(9);
-    doc.setTextColor(71, 85, 105); // Slate 600
-    doc.text(`Invoice Number: ${invoice.invoiceNumber}`, 15, infoBlockY + 10);
-    doc.text(`Date Issued:    ${invoice.date}`, 15, infoBlockY + 17);
-    let invInfoEndY = infoBlockY + 17;
-    if (invoice.serviceDate) {
-      doc.text(`Service Period: ${invoice.serviceDate}`, 15, infoBlockY + 24);
-      invInfoEndY = infoBlockY + 24;
-    }
-    doc.text(`Due Date:       ${invoice.dueDate}`, 120, infoBlockY + 10);
-
-    const billToY = invInfoEndY + 10;
-
-    // Bill To block
-    doc.setTextColor(15, 23, 42);
+    doc.setTextColor(10, 37, 64); // Navy Blue invoice number
     doc.setFont("helvetica", "bold");
-    doc.setFontSize(12);
-    doc.text("Bill To:", 15, billToY);
-    
-    doc.setDrawColor(226, 232, 240); // Slate 200 divider line
-    doc.line(15, billToY + 2, 195, billToY + 2);
-
-    doc.setFont("helvetica", "normal");
     doc.setFontSize(9);
-    doc.setTextColor(71, 85, 105); // Slate 600
-    doc.text(`Client Name:   ${invoice.clientName}`, 15, billToY + 10);
-    let nextY = billToY + 17;
+    doc.text(`Invoice #: ${invoice.invoiceNumber}`, 126, 30);
+
+    // Dynamic Y spacing after company header
+    const startBlocksY = Math.max(52, 40 + (addressLines.length * 4.5) + 6);
+
+    // Two-Column Meta Cards (Bill To & Invoice Details) - Styled with matching Sky Blue & Navy theme
+    // Left Box: Bill To
+    doc.setFillColor(240, 249, 255); // Soft Sky Blue tint
+    doc.roundedRect(15, startBlocksY, 87, 36, 3, 3, 'F');
+    doc.setDrawColor(186, 230, 253); // Sky Blue 200 border
+    doc.roundedRect(15, startBlocksY, 87, 36, 3, 3, 'D');
+
+    doc.setTextColor(10, 37, 64); // Navy Blue
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(10);
+    doc.text("Bill To:", 20, startBlocksY + 8);
+    doc.setDrawColor(14, 165, 233); // Sky Blue line
+    doc.line(20, startBlocksY + 10, 45, startBlocksY + 10);
+
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(9);
+    doc.setTextColor(10, 37, 64); // Navy Blue
+    doc.text(invoice.clientName, 20, startBlocksY + 17);
+
     const client = clients.find(c => c.id === invoice.clientId);
-    if (client) {
-      if (client.company) {
-        doc.text(`Company:       ${client.company}`, 15, nextY);
-        nextY += 7;
-      }
-      if (client.mobile) {
-        doc.text(`Mobile:        ${client.mobile}`, 15, nextY);
-        nextY += 7;
-      }
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(8.5);
+    doc.setTextColor(71, 85, 105);
+    let clientMetaY = startBlocksY + 23;
+    if (client?.company) {
+      doc.text(`Company: ${client.company}`, 20, clientMetaY);
+      clientMetaY += 5;
+    }
+    if (client?.mobile) {
+      doc.text(`Mobile: ${client.mobile}`, 20, clientMetaY);
     }
 
-    // Items Table (raw amounts formatted without currency prefix in the columns)
+    // Right Box: Invoice Details
+    doc.setFillColor(240, 249, 255); // Soft Sky Blue tint
+    doc.roundedRect(108, startBlocksY, 87, 36, 3, 3, 'F');
+    doc.setDrawColor(186, 230, 253); // Sky Blue 200 border
+    doc.roundedRect(108, startBlocksY, 87, 36, 3, 3, 'D');
+
+    doc.setTextColor(10, 37, 64); // Navy Blue
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(10);
+    doc.text("Invoice Details:", 113, startBlocksY + 8);
+    doc.setDrawColor(14, 165, 233); // Sky Blue line
+    doc.line(113, startBlocksY + 10, 148, startBlocksY + 10);
+
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(8.5);
+    doc.setTextColor(71, 85, 105);
+    doc.text(`Date Issued: ${invoice.date}`, 113, startBlocksY + 17);
+    doc.text(`Due Date: ${invoice.dueDate}`, 113, startBlocksY + 23);
+    if (invoice.serviceDate) {
+      doc.text(`Service Period: ${invoice.serviceDate}`, 113, startBlocksY + 29);
+    }
+
+    const tableStartY = startBlocksY + 41;
+
+    // Items Table
     const tableData = invoice.items.map(item => [
       item.description,
       item.quantity.toString(),
@@ -592,16 +606,18 @@ export default function PaymentManagement({ userRole }: PaymentManagementProps) 
     ]);
 
     autoTable(doc, {
-      startY: nextY + 5,
+      startY: tableStartY,
       head: [['Description', 'Qty', 'Unit Price', 'Total']],
       body: tableData,
       theme: 'striped',
-      headStyles: { fillColor: [30, 41, 59], fontStyle: 'bold', fontSize: 10 },
-      styles: { fontSize: 9 },
+      headStyles: { fillColor: [10, 37, 64], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 9.5 },
+      alternateRowStyles: { fillColor: [240, 249, 255] },
+      styles: { fontSize: 8.5, textColor: [15, 23, 42] },
       columnStyles: {
-        1: { halign: 'center' }, // Qty
-        2: { halign: 'right' },  // Unit Price
-        3: { halign: 'right' }   // Total (Amount)
+        0: { cellWidth: 95 },
+        1: { halign: 'center', cellWidth: 20 },
+        2: { halign: 'right', cellWidth: 32 },
+        3: { halign: 'right', cellWidth: 33 }
       },
       didParseCell: (data) => {
         if (data.column.index === 1) {
@@ -612,84 +628,94 @@ export default function PaymentManagement({ userRole }: PaymentManagementProps) 
       }
     });
 
-    // Summary & Payment Instruction
-    let finalY = ((doc as any).lastAutoTable?.finalY || 100) + 12;
+    // Summary & Notes Section
+    let finalY = ((doc as any).lastAutoTable?.finalY || 120) + 8;
     
-    // Notes & instruction layout helper
     let notesY = finalY;
     
-    // Notes section (left-aligned)
+    // Notes section (left side)
     if (invoice.notes) {
       doc.setFont("helvetica", "bold");
-      doc.setFontSize(10);
-      doc.setTextColor(71, 85, 105);
-      doc.text('Notes:', 14, notesY);
+      doc.setFontSize(9.5);
+      doc.setTextColor(2, 132, 199); // Sky Blue header
+      doc.text('Notes:', 15, notesY);
       doc.setFont("helvetica", "normal");
       doc.setFontSize(8);
-      doc.setTextColor(100);
-      const splitNotes = doc.splitTextToSize(invoice.notes, 100);
-      doc.text(splitNotes, 14, notesY + 6);
-      notesY += (splitNotes.length * 4) + 10;
+      doc.setTextColor(71, 85, 105);
+      const splitNotes = doc.splitTextToSize(invoice.notes, 85);
+      doc.text(splitNotes, 15, notesY + 5);
+      notesY += (splitNotes.length * 4) + 8;
     }
     
-    // Payment Instruction on the left
+    // Payment Instruction (left side)
     if (invoice.paymentAccountId) {
       const paymentAccount = bankAccounts.find(acc => acc.id === invoice.paymentAccountId);
       if (paymentAccount) {
+        doc.setFillColor(240, 249, 255); // Soft Sky Blue tint
+        doc.roundedRect(15, notesY, 87, 28, 3, 3, 'F');
+        doc.setDrawColor(186, 230, 253); // Sky Blue 200 border
+        doc.roundedRect(15, notesY, 87, 28, 3, 3, 'D');
+
         doc.setFont("helvetica", "bold");
-        doc.setFontSize(10);
-        doc.setTextColor(71, 85, 105);
-        doc.text('Payment Instruction:', 14, notesY);
-        doc.setFont("helvetica", "normal");
         doc.setFontSize(9);
-        doc.setTextColor(15, 23, 42);
-        doc.text(`Account Name: ${paymentAccount.accountName}`, 14, notesY + 6);
+        doc.setTextColor(2, 132, 199); // Sky Blue
+        doc.text('Payment Instruction', 19, notesY + 6);
+        doc.setFont("helvetica", "normal");
         doc.setFontSize(8);
-        doc.setTextColor(100);
-        doc.text(`Account Number: ${paymentAccount.accountNumber}`, 14, notesY + 11);
-        doc.text(`Bank Name: ${paymentAccount.bankName}`, 14, notesY + 15);
-        doc.text(`Branch Name: ${paymentAccount.branchName}`, 14, notesY + 19);
-        notesY += 25;
+        doc.setTextColor(10, 37, 64);
+        doc.text(`Account: ${paymentAccount.accountName}`, 19, notesY + 12);
+        doc.setTextColor(71, 85, 105);
+        doc.text(`A/C No: ${paymentAccount.accountNumber}`, 19, notesY + 17);
+        doc.text(`Bank: ${paymentAccount.bankName} (${paymentAccount.branchName})`, 19, notesY + 22);
+        notesY += 32;
       }
     }
 
-    // Totals on the right
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(10);
-    doc.setTextColor(71, 85, 105); // Slate 600
-    doc.text(`Total Amount:`, 130, finalY);
-    doc.text(`Paid Amount:`, 130, finalY + 7);
-    
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(11);
-    doc.setTextColor(15, 23, 42); // Slate 900
-    doc.text(`Balance Due:`, 130, finalY + 15);
+    // Totals Box (right side card)
+    const totalsBoxY = finalY;
+    doc.setFillColor(240, 249, 255); // Soft Sky Blue tint
+    doc.roundedRect(115, totalsBoxY, 80, 28, 3, 3, 'F');
+    doc.setDrawColor(186, 230, 253);
+    doc.roundedRect(115, totalsBoxY, 80, 28, 3, 3, 'D');
 
-    // Right-align values
     doc.setFont("helvetica", "normal");
+    doc.setFontSize(9);
+    doc.setTextColor(71, 85, 105);
+    doc.text(`Total Amount:`, 120, totalsBoxY + 7);
+    doc.text(`Paid Amount:`, 120, totalsBoxY + 14);
+
+    doc.setFont("helvetica", "bold");
     doc.setFontSize(10);
-    doc.setTextColor(15, 23, 42);
-    doc.text(`BDT ${invoice.totalAmount.toLocaleString('en-US', { minimumFractionDigits: 2 })}`, 195, finalY, { align: 'right' });
-    doc.text(`BDT ${invoice.paidAmount.toLocaleString('en-US', { minimumFractionDigits: 2 })}`, 195, finalY + 7, { align: 'right' });
+    doc.setTextColor(10, 37, 64); // Navy Blue highlight
+    doc.text(`Balance Due:`, 120, totalsBoxY + 22);
+
+    // Right-aligned values in Totals Box
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(9);
+    doc.setTextColor(10, 37, 64);
+    doc.text(`BDT ${invoice.totalAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, 190, totalsBoxY + 7, { align: 'right' });
+    doc.setTextColor(22, 101, 52); // Emerald for paid
+    doc.text(`BDT ${invoice.paidAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, 190, totalsBoxY + 14, { align: 'right' });
     
     doc.setFont("helvetica", "bold");
-    doc.setFontSize(11);
-    doc.text(`BDT ${(invoice.totalAmount - invoice.paidAmount).toLocaleString('en-US', { minimumFractionDigits: 2 })}`, 195, finalY + 15, { align: 'right' });
+    doc.setFontSize(10);
+    doc.setTextColor(2, 132, 199); // Sky Blue for balance due
+    doc.text(`BDT ${balanceDue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, 190, totalsBoxY + 22, { align: 'right' });
 
     // Installment Breakdown Table in PDF
     const installmentBreakdown = getInstallmentBreakdown(invoice);
     if (invoice.installmentPlan === '3' || installmentBreakdown.length > 1) {
-      const startInstY = Math.max(notesY + 8, finalY + 24);
-      doc.setTextColor(15, 23, 42); // Slate 900
+      const startInstY = Math.max(notesY + 4, totalsBoxY + 34);
+      doc.setTextColor(10, 37, 64); // Navy Blue
       doc.setFont("helvetica", "bold");
-      doc.setFontSize(12);
+      doc.setFontSize(11);
       doc.text("Installment Payment Schedule", 15, startInstY);
 
-      doc.setDrawColor(226, 232, 240); // Slate 200 divider line
+      doc.setDrawColor(14, 165, 233); // Sky Blue divider line
       doc.line(15, startInstY + 2, 195, startInstY + 2);
 
       autoTable(doc, {
-        startY: startInstY + 7,
+        startY: startInstY + 6,
         head: [['Installment', 'Amount Payable', 'Amount Paid', 'Balance Due', 'Status']],
         body: installmentBreakdown.map(inst => [
           inst.label,
@@ -699,8 +725,9 @@ export default function PaymentManagement({ userRole }: PaymentManagementProps) 
           inst.status
         ]),
         theme: 'striped',
-        headStyles: { fillColor: [30, 41, 59], fontStyle: 'bold', fontSize: 10 },
-        styles: { fontSize: 9 },
+        headStyles: { fillColor: [10, 37, 64], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 9 },
+        alternateRowStyles: { fillColor: [240, 249, 255] },
+        styles: { fontSize: 8.5 },
         columnStyles: {
           0: { halign: 'left' },
           1: { halign: 'right' },
@@ -718,17 +745,27 @@ export default function PaymentManagement({ userRole }: PaymentManagementProps) 
             if (data.section === 'body') {
               data.cell.styles.fontStyle = 'bold';
               if (data.cell.raw === 'Paid') {
-                data.cell.styles.textColor = [16, 185, 129]; // Emerald 600
+                data.cell.styles.textColor = [22, 101, 52]; // Emerald
               } else if (data.cell.raw === 'Partial') {
-                data.cell.styles.textColor = [217, 119, 6]; // Amber 600
+                data.cell.styles.textColor = [146, 64, 14]; // Amber
               } else {
-                data.cell.styles.textColor = [100, 116, 139]; // Slate 500
+                data.cell.styles.textColor = [100, 116, 139]; // Slate
               }
             }
           }
         }
       });
     }
+
+    // Aesthetic Footer at bottom of document
+    const pageHeight = doc.internal.pageSize.height || 297;
+    doc.setDrawColor(186, 230, 253); // Sky Blue divider
+    doc.line(15, pageHeight - 15, 195, pageHeight - 15);
+    
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(8);
+    doc.setTextColor(100, 116, 139);
+    doc.text("Thank you for doing business with TriloyTech!", 105, pageHeight - 9, { align: 'center' });
 
     doc.save(`Invoice_${invoice.invoiceNumber}_${invoice.clientName}.pdf`);
   };
