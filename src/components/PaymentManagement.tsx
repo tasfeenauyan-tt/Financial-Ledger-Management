@@ -33,39 +33,50 @@ import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
+export function getOrdinalLabel(n: number): string {
+  const s = ["th", "st", "nd", "rd"];
+  const v = n % 100;
+  return n + (s[(v - 20) % 10] || s[v] || s[0]) + " Installment";
+}
+
 export function getInstallmentBreakdown(invoice: Invoice) {
-  const isThree = invoice.installmentPlan === '3';
   let installments = invoice.installments;
 
-  if (isThree && (!installments || installments.length === 0)) {
-    const third = Math.floor(invoice.totalAmount / 3);
-    const rem = invoice.totalAmount - (third * 2);
-    installments = [
-      { number: 1, label: '1st Installment', amount: third },
-      { number: 2, label: '2nd Installment', amount: third },
-      { number: 3, label: '3rd Installment', amount: rem },
-    ];
-  } else if (!installments || installments.length === 0) {
-    installments = [
-      { number: 1, label: '1st Installment', amount: invoice.totalAmount }
-    ];
+  if (!installments || installments.length === 0) {
+    const planCount = parseInt(invoice.installmentPlan || '1') || 1;
+    if (planCount > 1) {
+      const base = Math.floor(invoice.totalAmount / planCount);
+      const rem = invoice.totalAmount - (base * planCount);
+      installments = Array.from({ length: planCount }, (_, i) => ({
+        number: i + 1,
+        label: getOrdinalLabel(i + 1),
+        amount: i === planCount - 1 ? base + rem : base,
+        dueDate: invoice.dueDate
+      }));
+    } else {
+      installments = [
+        { number: 1, label: '1st Installment', amount: invoice.totalAmount, dueDate: invoice.dueDate }
+      ];
+    }
   }
 
   let remPaid = invoice.paidAmount || 0;
-  return installments.map((inst) => {
-    const paid = Math.min(remPaid, inst.amount);
+  return installments.map((inst, idx) => {
+    const instAmount = Number(inst.amount) || 0;
+    const paid = Math.min(remPaid, instAmount);
     remPaid = Math.max(0, remPaid - paid);
-    const balance = Math.max(0, inst.amount - paid);
+    const balance = Math.max(0, instAmount - paid);
     let status: 'Paid' | 'Partial' | 'Unpaid' = 'Unpaid';
-    if (paid >= inst.amount && inst.amount > 0) {
+    if (paid >= instAmount && instAmount > 0) {
       status = 'Paid';
     } else if (paid > 0) {
       status = 'Partial';
     }
     return {
-      number: inst.number,
-      label: inst.label,
-      amount: inst.amount,
+      number: inst.number || idx + 1,
+      label: inst.label || getOrdinalLabel(idx + 1),
+      amount: instAmount,
+      dueDate: inst.dueDate || invoice.dueDate,
       paidAmount: paid,
       balanceDue: balance,
       status
@@ -394,7 +405,7 @@ export default function PaymentManagement({ userRole }: PaymentManagementProps) 
       'Service Date': inv.serviceDate || '-',
       'Date': inv.date,
       'Due Date': inv.dueDate,
-      'Installment Plan': inv.installmentPlan === '3' ? '3 Installments' : '1 Installment',
+      'Installment Plan': inv.installments?.length ? `${inv.installments.length} Installment(s)` : (inv.installmentPlan ? `${inv.installmentPlan} Installment(s)` : '1 Installment'),
       'Total Amount': inv.totalAmount,
       'Paid Amount': inv.paidAmount,
       'Outstanding': inv.totalAmount - inv.paidAmount,
@@ -704,7 +715,7 @@ export default function PaymentManagement({ userRole }: PaymentManagementProps) 
 
     // Installment Breakdown Table in PDF
     const installmentBreakdown = getInstallmentBreakdown(invoice);
-    if (invoice.installmentPlan === '3' || installmentBreakdown.length > 1) {
+    if (installmentBreakdown.length > 0) {
       const startInstY = Math.max(notesY + 4, totalsBoxY + 34);
       doc.setTextColor(10, 37, 64); // Navy Blue
       doc.setFont("helvetica", "bold");
@@ -1032,14 +1043,19 @@ export default function PaymentManagement({ userRole }: PaymentManagementProps) 
                         <td className="p-4 text-sm font-bold text-slate-700">{inv.clientName}</td>
                         <td className="p-4 text-sm text-slate-500 font-medium">{inv.date}</td>
                         <td className="p-4 text-center">
-                          <span className={cn(
-                            "text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md border",
-                            inv.installmentPlan === '3' 
-                              ? "bg-indigo-50 text-indigo-700 border-indigo-200" 
-                              : "bg-slate-50 text-slate-600 border-slate-200"
-                          )}>
-                            {inv.installmentPlan === '3' ? '3 Installments' : '1 Installment'}
-                          </span>
+                          {(() => {
+                            const instCount = inv.installments?.length || (parseInt(inv.installmentPlan || '1') || 1);
+                            return (
+                              <span className={cn(
+                                "text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md border",
+                                instCount > 1 
+                                  ? "bg-indigo-50 text-indigo-700 border-indigo-200" 
+                                  : "bg-slate-50 text-slate-600 border-slate-200"
+                              )}>
+                                {instCount} Installment{instCount > 1 ? 's' : ''}
+                              </span>
+                            );
+                          })()}
                         </td>
                         <td className="p-4 text-sm font-black text-slate-900 text-right">{formatCurrency(inv.totalAmount)}</td>
                         <td className="p-4 text-sm font-black text-emerald-600 text-right">{formatCurrency(inv.paidAmount)}</td>
@@ -1536,7 +1552,7 @@ function InvoicePreviewModal({ invoice, clients, bankAccounts, onClose }: {
 }) {
   const client = clients.find(c => c.id === invoice.clientId);
   const installmentBreakdown = getInstallmentBreakdown(invoice);
-  const isMultiInstallment = invoice.installmentPlan === '3' || installmentBreakdown.length > 1;
+  const isMultiInstallment = installmentBreakdown.length > 0;
   
   return (
     <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[1000] flex items-center justify-center p-4">
@@ -1649,12 +1665,13 @@ function InvoicePreviewModal({ invoice, clients, bankAccounts, onClose }: {
 
             {isMultiInstallment && (
               <div className="pt-6 space-y-3">
-                <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Installment Payment Schedule ({invoice.installmentPlan === '3' ? '3 Installments' : '1 Installment'})</p>
+                <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Installment Payment Schedule ({installmentBreakdown.length} Installment{installmentBreakdown.length > 1 ? 's' : ''})</p>
                 <div className="overflow-hidden rounded-2xl border border-slate-100">
                   <table className="w-full text-left border-collapse">
                     <thead>
                       <tr className="bg-slate-50 border-b border-slate-100">
                         <th className="p-3 text-[10px] font-black text-slate-400 uppercase tracking-widest">Installment</th>
+                        <th className="p-3 text-[10px] font-black text-slate-400 uppercase tracking-widest">Due Date</th>
                         <th className="p-3 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Amount Payable</th>
                         <th className="p-3 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Amount Paid</th>
                         <th className="p-3 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Balance Due</th>
@@ -1665,6 +1682,7 @@ function InvoicePreviewModal({ invoice, clients, bankAccounts, onClose }: {
                       {installmentBreakdown.map((inst, idx) => (
                         <tr key={idx} className="hover:bg-slate-50/50">
                           <td className="p-3 text-xs font-bold text-slate-800">{inst.label}</td>
+                          <td className="p-3 text-xs text-slate-500 font-medium">{inst.dueDate || '-'}</td>
                           <td className="p-3 text-xs font-bold text-slate-700 text-right">{formatCurrency(inst.amount)}</td>
                           <td className="p-3 text-xs font-bold text-emerald-600 text-right">{formatCurrency(inst.paidAmount)}</td>
                           <td className="p-3 text-xs font-bold text-slate-900 text-right">{formatCurrency(inst.balanceDue)}</td>
@@ -1779,16 +1797,37 @@ function InvoiceModal({ clients, invoices, bankAccounts, onClose, onSave, editin
   const [notes, setNotes] = useState(editingInvoice?.notes || '');
   const [error, setError] = useState<string | null>(null);
 
-  const [installmentPlan, setInstallmentPlan] = useState<'1' | '3'>(editingInvoice?.installmentPlan || '1');
-  const [inst1Amount, setInst1Amount] = useState<string | number>(
-    editingInvoice?.installments?.[0]?.amount ?? ''
-  );
-  const [inst2Amount, setInst2Amount] = useState<string | number>(
-    editingInvoice?.installments?.[1]?.amount ?? ''
-  );
-  const [inst3Amount, setInst3Amount] = useState<string | number>(
-    editingInvoice?.installments?.[2]?.amount ?? ''
-  );
+  interface FormInstallment {
+    number: number;
+    label: string;
+    amount: string | number;
+    dueDate?: string;
+  }
+
+  const [formInstallments, setFormInstallments] = useState<FormInstallment[]>(() => {
+    if (editingInvoice?.installments && editingInvoice.installments.length > 0) {
+      return editingInvoice.installments.map((inst, idx) => ({
+        number: inst.number || idx + 1,
+        label: inst.label || getOrdinalLabel(idx + 1),
+        amount: inst.amount,
+        dueDate: inst.dueDate
+      }));
+    }
+    const count = parseInt(editingInvoice?.installmentPlan || '1') || 1;
+    const tot = editingInvoice?.totalAmount || 0;
+    if (count > 1 && tot > 0) {
+      const base = Math.floor(tot / count);
+      const rem = tot - (base * count);
+      return Array.from({ length: count }, (_, i) => ({
+        number: i + 1,
+        label: getOrdinalLabel(i + 1),
+        amount: i === count - 1 ? base + rem : base
+      }));
+    }
+    return [
+      { number: 1, label: '1st Installment', amount: editingInvoice?.totalAmount ?? '' }
+    ];
+  });
 
   // Auto-generate invoice number when service date changes (only for new invoices)
   useEffect(() => {
@@ -1840,18 +1879,63 @@ function InvoiceModal({ clients, invoices, bankAccounts, onClose, onSave, editin
     return addPreviousDues ? currentItemsTotal + previousDuesAmount : currentItemsTotal;
   }, [items, addPreviousDues, previousDuesAmount]);
 
-  // Auto-fill default 3 installment amounts if empty when switching or creating
-  useEffect(() => {
-    if (installmentPlan === '3' && totalAmount > 0) {
-      if (inst1Amount === '' && inst2Amount === '' && inst3Amount === '') {
-        const third = Math.floor(totalAmount / 3);
-        const rem = totalAmount - (third * 2);
-        setInst1Amount(third);
-        setInst2Amount(third);
-        setInst3Amount(rem);
+  const handleSetInstallmentCount = (targetCount: number) => {
+    const count = Math.max(1, Math.min(24, targetCount));
+    const base = Math.floor(totalAmount / count);
+    const rem = totalAmount - (base * count);
+
+    const newInsts: FormInstallment[] = Array.from({ length: count }, (_, i) => {
+      const existing = formInstallments[i];
+      return {
+        number: i + 1,
+        label: existing?.label || getOrdinalLabel(i + 1),
+        amount: i === count - 1 ? base + rem : base,
+        dueDate: existing?.dueDate
+      };
+    });
+    setFormInstallments(newInsts);
+  };
+
+  const autoSplitEqual = () => {
+    if (formInstallments.length === 0) return;
+    const count = formInstallments.length;
+    const base = Math.floor(totalAmount / count);
+    const rem = totalAmount - (base * count);
+    const updated = formInstallments.map((inst, idx) => ({
+      ...inst,
+      amount: idx === count - 1 ? base + rem : base
+    }));
+    setFormInstallments(updated);
+  };
+
+  const handleAddInstallment = () => {
+    const nextNum = formInstallments.length + 1;
+    setFormInstallments([
+      ...formInstallments,
+      {
+        number: nextNum,
+        label: getOrdinalLabel(nextNum),
+        amount: 0
       }
-    }
-  }, [installmentPlan, totalAmount]);
+    ]);
+  };
+
+  const handleRemoveInstallment = (idxToRemove: number) => {
+    if (formInstallments.length <= 1) return;
+    const filtered = formInstallments.filter((_, idx) => idx !== idxToRemove);
+    const reindexed = filtered.map((inst, idx) => ({
+      ...inst,
+      number: idx + 1,
+      label: inst.label === getOrdinalLabel(idx + 2) ? getOrdinalLabel(idx + 1) : inst.label
+    }));
+    setFormInstallments(reindexed);
+  };
+
+  const updateInstallment = (idx: number, key: keyof FormInstallment, value: any) => {
+    const updated = [...formInstallments];
+    updated[idx] = { ...updated[idx], [key]: value };
+    setFormInstallments(updated);
+  };
 
   const addItem = () => setItems([...items, { description: '', quantity: 1, unitPrice: '', total: 0 }]);
   const removeItem = (idx: number) => setItems(items.filter((_, i) => i !== idx));
@@ -1884,16 +1968,11 @@ function InvoiceModal({ clients, invoices, bankAccounts, onClose, onSave, editin
     }
 
     const numPaid = Number(paidAmount) || 0;
-    const num1 = Number(inst1Amount) || 0;
-    const num2 = Number(inst2Amount) || 0;
-    const num3 = Number(inst3Amount) || 0;
 
-    if (installmentPlan === '3') {
-      const sumInst = num1 + num2 + num3;
-      if (Math.abs(sumInst - totalAmount) > 0.01) {
-        setError(`The sum of the 3 installments (${formatCurrency(sumInst)}) must equal the Total Invoice Amount (${formatCurrency(totalAmount)}). Please adjust installment amounts or click "Auto-Split Equal".`);
-        return;
-      }
+    const sumInst = formInstallments.reduce((sum, inst) => sum + (Number(inst.amount) || 0), 0);
+    if (Math.abs(sumInst - totalAmount) > 0.01) {
+      setError(`The sum of the ${formInstallments.length} installment(s) (${formatCurrency(sumInst)}) must equal the Total Invoice Amount (${formatCurrency(totalAmount)}). Please adjust installment amounts or click "Auto-Split Equal Amount".`);
+      return;
     }
 
     const client = clients.find(c => c.id === clientId);
@@ -1928,14 +2007,13 @@ function InvoiceModal({ clients, invoices, bankAccounts, onClose, onSave, editin
       paidAmount: numPaid,
       notes,
       status: numPaid >= totalAmount ? 'Paid' : numPaid > 0 ? 'Partial' : 'Unpaid',
-      installmentPlan,
-      installments: installmentPlan === '3' ? [
-        { number: 1, label: '1st Installment', amount: num1 },
-        { number: 2, label: '2nd Installment', amount: num2 },
-        { number: 3, label: '3rd Installment', amount: num3 }
-      ] : [
-        { number: 1, label: '1st Installment', amount: totalAmount }
-      ],
+      installmentPlan: String(formInstallments.length),
+      installments: formInstallments.map((inst, idx) => ({
+        number: idx + 1,
+        label: inst.label || getOrdinalLabel(idx + 1),
+        amount: Number(inst.amount) || 0,
+        dueDate: inst.dueDate || dueDate
+      })),
       createdAt: editingInvoice?.createdAt || new Date().toISOString(),
     };
 
@@ -2069,126 +2147,134 @@ function InvoiceModal({ clients, invoices, bankAccounts, onClose, onSave, editin
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div>
                 <label className="text-xs font-bold text-indigo-900 uppercase tracking-wider block">Payment Installment Plan</label>
-                <p className="text-xs text-slate-500 font-medium">Select whether to bill client in 1 single payment or 3 installments</p>
+                <p className="text-xs text-slate-500 font-medium">Specify the number of installment payments to bill the client</p>
               </div>
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  onClick={() => setInstallmentPlan('1')}
-                  className={cn(
-                    "px-4 py-2 rounded-xl text-xs font-bold transition-all",
-                    installmentPlan === '1' ? "bg-indigo-600 text-white shadow-sm" : "bg-white text-slate-600 border border-slate-200 hover:bg-slate-50"
-                  )}
-                >
-                  1 Installment
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setInstallmentPlan('3');
-                    if (totalAmount > 0) {
-                      const third = Math.floor(totalAmount / 3);
-                      const rem = totalAmount - (third * 2);
-                      setInst1Amount(third);
-                      setInst2Amount(third);
-                      setInst3Amount(rem);
-                    }
-                  }}
-                  className={cn(
-                    "px-4 py-2 rounded-xl text-xs font-bold transition-all",
-                    installmentPlan === '3' ? "bg-indigo-600 text-white shadow-sm" : "bg-white text-slate-600 border border-slate-200 hover:bg-slate-50"
-                  )}
-                >
-                  3 Installments
-                </button>
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-xs font-bold text-slate-500 mr-1">Presets:</span>
+                {[1, 2, 3, 4, 6, 12].map(num => (
+                  <button
+                    key={num}
+                    type="button"
+                    onClick={() => handleSetInstallmentCount(num)}
+                    className={cn(
+                      "px-3 py-1.5 rounded-xl text-xs font-bold transition-all",
+                      formInstallments.length === num 
+                        ? "bg-indigo-600 text-white shadow-sm" 
+                        : "bg-white text-slate-600 border border-slate-200 hover:bg-slate-50"
+                    )}
+                  >
+                    {num} {num === 1 ? 'Payment' : 'Installments'}
+                  </button>
+                ))}
               </div>
             </div>
 
-            {installmentPlan === '3' && (
-              <div className="space-y-3 pt-3 border-t border-indigo-100">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-slate-700">Installment Amounts Schedule</span>
+            <div className="space-y-3 pt-3 border-t border-indigo-100">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-bold text-slate-700">Installments ({formInstallments.length}):</span>
+                  <div className="flex items-center gap-1 bg-white border border-slate-200 rounded-lg px-2 py-0.5">
+                    <span className="text-xs text-slate-500 font-medium">Custom Count:</span>
+                    <input
+                      type="number"
+                      min={1}
+                      max={24}
+                      value={formInstallments.length}
+                      onChange={(e) => handleSetInstallmentCount(parseInt(e.target.value) || 1)}
+                      className="w-12 text-center text-xs font-bold text-slate-800 outline-none"
+                    />
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
                   <button
                     type="button"
-                    onClick={() => {
-                      const third = Math.floor(totalAmount / 3);
-                      const rem = totalAmount - (third * 2);
-                      setInst1Amount(third);
-                      setInst2Amount(third);
-                      setInst3Amount(rem);
-                    }}
-                    className="text-xs text-indigo-600 font-bold hover:underline"
+                    onClick={autoSplitEqual}
+                    className="px-3 py-1 bg-indigo-100 text-indigo-700 text-xs font-bold rounded-lg hover:bg-indigo-200 transition-colors"
                   >
-                    Auto-Split Equal (1/3 each)
+                    Auto-Split Equal Amount
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleAddInstallment}
+                    className="px-3 py-1 bg-emerald-600 text-white text-xs font-bold rounded-lg hover:bg-emerald-700 transition-colors flex items-center gap-1"
+                  >
+                    <Plus size={14} /> Add Installment
                   </button>
                 </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-bold text-slate-500 uppercase">1st Installment (BDT)</label>
-                    <input
-                      type="text"
-                      value={inst1Amount}
-                      onFocus={(e) => e.target.select()}
-                      onChange={(e) => {
-                        const val = e.target.value;
-                        if (val === '' || /^\d*\.?\d*$/.test(val)) setInst1Amount(val);
-                      }}
-                      className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white text-sm font-bold focus:ring-2 focus:ring-indigo-500 outline-none"
-                      placeholder="0.00"
-                      inputMode="decimal"
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-bold text-slate-500 uppercase">2nd Installment (BDT)</label>
-                    <input
-                      type="text"
-                      value={inst2Amount}
-                      onFocus={(e) => e.target.select()}
-                      onChange={(e) => {
-                        const val = e.target.value;
-                        if (val === '' || /^\d*\.?\d*$/.test(val)) setInst2Amount(val);
-                      }}
-                      className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white text-sm font-bold focus:ring-2 focus:ring-indigo-500 outline-none"
-                      placeholder="0.00"
-                      inputMode="decimal"
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-bold text-slate-500 uppercase">3rd Installment (BDT)</label>
-                    <input
-                      type="text"
-                      value={inst3Amount}
-                      onFocus={(e) => e.target.select()}
-                      onChange={(e) => {
-                        const val = e.target.value;
-                        if (val === '' || /^\d*\.?\d*$/.test(val)) setInst3Amount(val);
-                      }}
-                      className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white text-sm font-bold focus:ring-2 focus:ring-indigo-500 outline-none"
-                      placeholder="0.00"
-                      inputMode="decimal"
-                    />
-                  </div>
-                </div>
-
-                {(() => {
-                  const sum = (Number(inst1Amount) || 0) + (Number(inst2Amount) || 0) + (Number(inst3Amount) || 0);
-                  const diff = totalAmount - sum;
-                  if (Math.abs(diff) > 0.01) {
-                    return (
-                      <p className="text-xs font-bold text-rose-600">
-                        ⚠️ Sum of 3 installments ({formatCurrency(sum)}) does not match Total Amount ({formatCurrency(totalAmount)}). Difference: {formatCurrency(diff)}.
-                      </p>
-                    );
-                  }
-                  return (
-                    <p className="text-xs font-bold text-emerald-600 flex items-center gap-1">
-                      ✓ Sum of 3 installments equals Total Invoice Amount ({formatCurrency(sum)}).
-                    </p>
-                  );
-                })()}
               </div>
-            )}
+
+              <div className="space-y-2.5 max-h-64 overflow-y-auto pr-1">
+                {formInstallments.map((inst, idx) => (
+                  <div key={idx} className="grid grid-cols-1 sm:grid-cols-12 gap-2 p-3 bg-white rounded-xl border border-slate-200 items-center">
+                    <div className="sm:col-span-6 space-y-0.5">
+                      <label className="text-[10px] font-bold text-slate-400 uppercase">Label</label>
+                      <input
+                        type="text"
+                        value={inst.label}
+                        onChange={(e) => updateInstallment(idx, 'label', e.target.value)}
+                        className="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 text-xs font-bold text-slate-800 focus:ring-1 focus:ring-indigo-500 outline-none"
+                        placeholder={`Installment ${idx + 1}`}
+                      />
+                    </div>
+                    <div className="sm:col-span-5 space-y-0.5">
+                      <label className="text-[10px] font-bold text-slate-400 uppercase">Amount (BDT)</label>
+                      <input
+                        type="text"
+                        value={inst.amount}
+                        onFocus={(e) => e.target.select()}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          if (val === '' || /^\d*\.?\d*$/.test(val)) {
+                            updateInstallment(idx, 'amount', val);
+                          }
+                        }}
+                        className="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 text-xs font-bold text-slate-900 focus:ring-1 focus:ring-indigo-500 outline-none"
+                        placeholder="0.00"
+                        inputMode="decimal"
+                      />
+                    </div>
+                    <div className="sm:col-span-1 flex items-center justify-center pt-3 sm:pt-0">
+                      {formInstallments.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveInstallment(idx)}
+                          className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
+                          title="Remove Installment"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {(() => {
+                const sum = formInstallments.reduce((acc, inst) => acc + (Number(inst.amount) || 0), 0);
+                const diff = totalAmount - sum;
+                if (Math.abs(diff) > 0.01) {
+                  return (
+                    <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl flex items-center justify-between gap-2 text-amber-800">
+                      <span className="text-xs font-bold">
+                        ⚠️ Sum of {formInstallments.length} installment(s) ({formatCurrency(sum)}) does not match Total Amount ({formatCurrency(totalAmount)}). Difference: {formatCurrency(diff)}.
+                      </span>
+                      <button
+                        type="button"
+                        onClick={autoSplitEqual}
+                        className="px-2.5 py-1 bg-amber-200 hover:bg-amber-300 text-amber-900 text-xs font-bold rounded-lg whitespace-nowrap transition-colors"
+                      >
+                        Auto-Balance
+                      </button>
+                    </div>
+                  );
+                }
+                return (
+                  <p className="text-xs font-bold text-emerald-600 flex items-center gap-1">
+                    ✓ Sum of {formInstallments.length} installment(s) equals Total Invoice Amount ({formatCurrency(sum)}).
+                  </p>
+                );
+              })()}
+            </div>
           </div>
 
           <div className="space-y-1.5">
