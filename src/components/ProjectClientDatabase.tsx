@@ -12,7 +12,7 @@ import {
   writeBatch,
   getDocs
 } from 'firebase/firestore';
-import { Client, TransactionSubCategory } from '../types';
+import { Client, TransactionSubCategory, ServiceItem } from '../types';
 import { handleFirestoreError, OperationType } from '../lib/firestore-errors';
 import { 
   Users, 
@@ -49,12 +49,14 @@ import * as XLSX from 'xlsx';
 interface ProjectClientDatabaseProps {
   userRole: string;
   transactionSubCategories: TransactionSubCategory[];
+  services?: ServiceItem[];
   onAddTransactionSubCategory: (sub: TransactionSubCategory) => Promise<void>;
 }
 
 export default function ProjectClientDatabase({ 
   userRole, 
   transactionSubCategories, 
+  services = [],
   onAddTransactionSubCategory 
 }: ProjectClientDatabaseProps) {
   const isAdmin = userRole === 'admin';
@@ -63,6 +65,23 @@ export default function ProjectClientDatabase({
   const [searchTerm, setSearchTerm] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingClient, setEditingClient] = useState<Client | null>(null);
+
+  const availableServiceNames = useMemo(() => {
+    const setOfNames = new Set<string>(['WEB', 'DM', 'SEO-AEO-GEO', 'SAAS']);
+    services.forEach(s => {
+      if (s.name && s.name.trim()) {
+        setOfNames.add(s.name.trim());
+      }
+    });
+    if (editingClient?.services) {
+      editingClient.services.forEach(s => {
+        if (s && s !== 'Others') setOfNames.add(s.trim());
+      });
+    }
+    const list = Array.from(setOfNames).sort((a, b) => a.localeCompare(b));
+    list.push('Others');
+    return list;
+  }, [services, editingClient]);
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
   const [itemToDelete, setItemToDelete] = useState<string | null>(null);
   const [isClearAllOpen, setIsClearAllOpen] = useState(false);
@@ -495,7 +514,7 @@ export default function ProjectClientDatabase({
                 "flex items-center gap-2 px-4 py-2.5 bg-indigo-50 text-indigo-600 rounded-xl font-bold hover:bg-indigo-100 transition-all border border-indigo-100",
                 isSyncing && "opacity-50 cursor-not-allowed"
               )}
-              title="Sync all current project names to Transaction Item Pool"
+              title="Sync all current project names to Pool Management System"
             >
               <RefreshCw size={18} className={cn(isSyncing && "animate-spin")} />
               {isSyncing ? 'Syncing...' : 'Sync to Pool'}
@@ -988,7 +1007,7 @@ export default function ProjectClientDatabase({
                 <div className="space-y-4 p-5 bg-slate-50/50 rounded-2xl border border-slate-100">
                   <label className="text-xs font-black text-slate-500 uppercase tracking-widest px-1 block mb-2">Services</label>
                   <div className="flex flex-wrap gap-4">
-                    {['WEB', 'DM', 'SEO-AEO-GEO', 'SAAS', 'Others'].map((service) => (
+                    {availableServiceNames.map((service) => (
                       <label key={service} className="flex items-center gap-2 cursor-pointer group">
                         <div 
                           onClick={() => {

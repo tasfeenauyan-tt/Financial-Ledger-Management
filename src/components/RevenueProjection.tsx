@@ -264,13 +264,13 @@ export default function RevenueProjection({ entries, clients, userRole }: Revenu
       </div>
 
       {/* Main Chart */}
-      <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+      <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm" title="Analysis Revenue Projection">
         <div className="flex items-center justify-between mb-8">
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-slate-100 rounded-lg flex items-center justify-center text-slate-500">
+            <div className="w-8 h-8 bg-slate-100 rounded-lg flex items-center justify-center text-slate-500" title="Analysis Revenue Projection">
               <BarChart3 size={18} />
             </div>
-            <h3 className="font-black text-slate-800">Revenue Projection (10-Month View)</h3>
+            <h3 className="font-black text-slate-800">Revenue Projection Analysis (10-Month View)</h3>
           </div>
           <div className="flex items-center gap-4 text-[10px] font-black uppercase">
             <div className="flex items-center gap-1.5">

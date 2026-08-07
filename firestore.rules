@@ -43,6 +43,11 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
+    match /services/{serviceId} {
+      allow read: if isViewer();
+      allow write: if isAdmin();
+    }
+
     match /entries/{entryId} {
       allow read: if isViewer();
       allow write: if isAdmin();

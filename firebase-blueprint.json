@@ -249,6 +249,16 @@
       },
       "required": ["id", "employeeId", "employeeIdCode", "employeeName", "monthYear", "periodType", "totalPayments", "totalDeductions", "netPayment", "disbursementStatus", "createdAt"]
     },
+    "ServiceItem": {
+      "title": "Service Item",
+      "description": "Pool of service items for clients",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" }
+      },
+      "required": ["id", "name"]
+    },
     "EmployeeSalaryProfile": {
       "title": "Employee Salary Profile",
       "description": "Pre-configured recurring payments and deductions structure for an employee",
@@ -326,6 +336,10 @@
     "/employee_salaries/{employeeId}": {
       "schema": "EmployeeSalaryProfile",
       "description": "Pre-configured recurring salary structures for employees"
+    },
+    "/services/{serviceId}": {
+      "schema": "ServiceItem",
+      "description": "Pool of services"
     }
   }
 }

@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { createPortal } from 'react-dom';
-import { Account, TransactionItem, TransactionSubCategory, Partner, Client } from '../types';
-import { Plus, Trash2, Wallet, Landmark, Scale, X, ListTodo, Tags, Users } from 'lucide-react';
+import { Account, TransactionItem, TransactionSubCategory, ServiceItem, Partner, Client } from '../types';
+import { Plus, Trash2, Wallet, Landmark, Scale, X, ListTodo, Tags, Users, Briefcase } from 'lucide-react';
 import { cn } from '../lib/utils';
 
 interface AccountsPoolProps {
@@ -14,6 +14,9 @@ interface AccountsPoolProps {
   transactionSubCategories: TransactionSubCategory[];
   onAddTransactionSubCategory: (sub: TransactionSubCategory) => void;
   onDeleteTransactionSubCategory: (id: string) => void;
+  services?: ServiceItem[];
+  onAddService?: (service: ServiceItem) => void;
+  onDeleteService?: (id: string) => void;
   userRole: string;
   clients?: Client[];
 }
@@ -28,6 +31,9 @@ export default function AccountsPool({
   transactionSubCategories,
   onAddTransactionSubCategory,
   onDeleteTransactionSubCategory,
+  services = [],
+  onAddService,
+  onDeleteService,
   userRole,
   clients = []
 }: AccountsPoolProps) {
@@ -35,6 +41,7 @@ export default function AccountsPool({
   const [isAdding, setIsAdding] = useState(false);
   const [isAddingItem, setIsAddingItem] = useState(false);
   const [isAddingSubCategory, setIsAddingSubCategory] = useState(false);
+  const [isAddingService, setIsAddingService] = useState(false);
   const [error, setError] = useState<string | null>(null);
   
   const [newAccount, setNewAccount] = useState<Omit<Account, 'id'>>({
@@ -44,6 +51,7 @@ export default function AccountsPool({
 
   const [newItem, setNewItem] = useState('');
   const [newSubCategory, setNewSubCategory] = useState('');
+  const [newService, setNewService] = useState('');
   
   const sortedAccounts = useMemo(() => [...accounts].sort((a, b) => a.name.localeCompare(b.name)), [accounts]);
   const sortedTransactionItems = useMemo(() => {
@@ -56,6 +64,7 @@ export default function AccountsPool({
     });
     return Array.from(uniqueMap.values()).sort((a, b) => a.name.localeCompare(b.name));
   }, [transactionItems]);
+
   const sortedTransactionSubCategories = useMemo(() => {
     const uniqueMap = new Map<string, TransactionSubCategory & { isProject?: boolean }>();
     
@@ -85,6 +94,27 @@ export default function AccountsPool({
 
     return Array.from(uniqueMap.values()).sort((a, b) => a.name.localeCompare(b.name));
   }, [transactionSubCategories, clients]);
+
+  const sortedServices = useMemo(() => {
+    const uniqueMap = new Map<string, { id: string; name: string; isDefault?: boolean }>();
+    
+    // Default built-in services
+    const defaultList = ['WEB', 'DM', 'SEO-AEO-GEO', 'SAAS'];
+    defaultList.forEach(name => {
+      const key = name.toLowerCase().trim();
+      uniqueMap.set(key, { id: `default-${key}`, name, isDefault: true });
+    });
+
+    // Custom services from Firestore
+    services.forEach(serv => {
+      const key = serv.name.toLowerCase().trim();
+      if (!uniqueMap.has(key)) {
+        uniqueMap.set(key, { id: serv.id, name: serv.name, isDefault: false });
+      }
+    });
+
+    return Array.from(uniqueMap.values()).sort((a, b) => a.name.localeCompare(b.name));
+  }, [services]);
 
   const handleSubmitAccount = (e: React.FormEvent) => {
     e.preventDefault();
@@ -144,6 +174,28 @@ export default function AccountsPool({
     });
     setNewSubCategory('');
     setIsAddingSubCategory(false);
+    setError(null);
+  };
+
+  const handleSubmitService = (e: React.FormEvent) => {
+    e.preventDefault();
+    const name = newService.trim();
+    if (!name) return;
+
+    const isDuplicate = sortedServices.some(s => s.name.toLowerCase() === name.toLowerCase());
+    if (isDuplicate) {
+      setError('This service name already exists.');
+      return;
+    }
+
+    if (onAddService) {
+      onAddService({
+        id: crypto.randomUUID(),
+        name,
+      });
+    }
+    setNewService('');
+    setIsAddingService(false);
     setError(null);
   };
 
@@ -287,6 +339,56 @@ export default function AccountsPool({
                   {isAdmin && !sub.isProject && (
                     <button
                       onClick={() => onDeleteTransactionSubCategory(sub.id)}
+                      className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-all opacity-0 group-hover:opacity-100"
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                  )}
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Services Section */}
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <h3 className="text-lg font-bold text-slate-800">Services</h3>
+            <p className="text-sm text-slate-500">Manage services available for client profiles and forms</p>
+          </div>
+          {isAdmin && (
+            <button
+              onClick={() => { setIsAddingService(true); setError(null); }}
+              className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl transition-all shadow-md font-semibold"
+            >
+              <Plus size={18} />
+              Add Service
+            </button>
+          )}
+        </div>
+
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+          <div className="px-6 py-4 border-b border-slate-100 flex items-center gap-3 bg-blue-50">
+            <Briefcase className="text-blue-600" size={20} />
+            <h4 className="font-bold text-blue-600">Services List</h4>
+          </div>
+          <div className="p-6 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 max-h-[500px] overflow-y-auto custom-scrollbar">
+            {sortedServices.length === 0 ? (
+              <p className="col-span-full text-sm text-slate-400 italic text-center py-8">No services added yet</p>
+            ) : (
+              sortedServices.map(service => (
+                <div key={service.id} className="flex items-center justify-between p-3 bg-slate-50 rounded-xl group hover:bg-slate-100 transition-colors">
+                  <div className="flex flex-col">
+                    <span className="text-sm font-semibold text-slate-700">{service.name}</span>
+                    {service.isDefault && (
+                      <span className="text-[9px] font-black text-blue-500 uppercase tracking-widest mt-0.5">Default Service</span>
+                    )}
+                  </div>
+                  {isAdmin && !service.isDefault && (
+                    <button
+                      onClick={() => onDeleteService && onDeleteService(service.id)}
                       className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-all opacity-0 group-hover:opacity-100"
                     >
                       <Trash2 size={16} />
@@ -446,6 +548,54 @@ export default function AccountsPool({
                 <button
                   type="submit"
                   className="flex-1 px-8 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl shadow-lg shadow-indigo-200 transition-all"
+                >
+                  Save
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {isAddingService && createPortal(
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[1000] overflow-y-auto flex justify-center p-4 py-8 md:py-12">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md my-auto relative">
+            <div className="p-6 border-b border-slate-100 flex items-center justify-between">
+              <h2 className="text-xl font-bold text-slate-900">Add Service</h2>
+              <button onClick={() => { setIsAddingService(false); setError(null); setNewService(''); }} className="p-2 hover:bg-slate-100 rounded-full transition-colors">
+                <X size={20} />
+              </button>
+            </div>
+            <form onSubmit={handleSubmitService} className="p-8 space-y-6">
+              {error && (
+                <div className="p-3 bg-rose-50 border border-rose-100 rounded-xl flex items-center gap-2 text-rose-600 text-sm font-semibold animate-in fade-in slide-in-from-top-2">
+                  <X size={16} className="shrink-0" />
+                  {error}
+                </div>
+              )}
+              <div className="space-y-2">
+                <label className="text-sm font-semibold text-slate-700">Service Name</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g., App Development, UI/UX Design, etc."
+                  value={newService}
+                  onChange={(e) => setNewService(e.target.value)}
+                  className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+                />
+              </div>
+              <div className="flex gap-3 pt-4">
+                <button
+                  type="button"
+                  onClick={() => { setIsAddingService(false); setError(null); setNewService(''); }}
+                  className="flex-1 px-6 py-2.5 text-slate-600 font-semibold hover:bg-slate-50 rounded-xl transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="flex-1 px-8 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl shadow-lg shadow-blue-200 transition-all"
                 >
                   Save
                 </button>

@@ -1,6 +1,6 @@
 import * as React from 'react';
 import { useState, useMemo, useEffect, Component, ErrorInfo, ReactNode } from 'react';
-import { LedgerEntry, LedgerTotals, Account, TransactionItem, TransactionSubCategory, Partner, ZakatSettings, UserRole, AppUser, Employee, Client } from './types';
+import { LedgerEntry, LedgerTotals, Account, TransactionItem, TransactionSubCategory, ServiceItem, Partner, ZakatSettings, UserRole, AppUser, Employee, Client } from './types';
 import SummaryCards from './components/SummaryCards';
 import LedgerTable from './components/LedgerTable';
 import EntryForm from './components/EntryForm';
@@ -65,6 +65,7 @@ export default function App() {
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [transactionItems, setTransactionItems] = useState<TransactionItem[]>([]);
   const [transactionSubCategories, setTransactionSubCategories] = useState<TransactionSubCategory[]>([]);
+  const [services, setServices] = useState<ServiceItem[]>([]);
   const [partners, setPartners] = useState<Partner[]>([]);
   const [zakatSettings, setZakatSettings] = useState<ZakatSettings | null>(null);
   const [employees, setEmployees] = useState<Employee[]>([]);
@@ -167,6 +168,11 @@ export default function App() {
       setTransactionSubCategories(data);
     }, (error) => handleFirestoreError(error, OperationType.GET, 'transactionSubCategories'));
 
+    const unsubServices = onSnapshot(collection(db, 'services'), (snapshot) => {
+      const data = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as ServiceItem));
+      setServices(data);
+    }, (error) => handleFirestoreError(error, OperationType.GET, 'services'));
+
     const unsubPartners = onSnapshot(collection(db, 'partners'), (snapshot) => {
       const data = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Partner));
       setPartners(data);
@@ -193,6 +199,7 @@ export default function App() {
       unsubAccounts();
       unsubItems();
       unsubSubs();
+      unsubServices();
       unsubPartners();
       unsubZakat();
       unsubEmployees();
@@ -664,9 +671,10 @@ export default function App() {
           className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-semibold transition-all ${
             activeTab === 'revenue-projection' ? 'bg-indigo-50 text-indigo-700' : 'text-slate-500 hover:bg-slate-50'
           }`}
+          title="Analysis Revenue Projection"
         >
           <BarChart3 size={20} />
-          Revenue Projection
+          Revenue Projection Analysis
         </button>
         <button 
           onClick={() => { setActiveTab('payments-mgmt'); setIsMobileMenuOpen(false); }}
@@ -693,7 +701,7 @@ export default function App() {
           }`}
         >
           <Database size={20} />
-          Transaction Item Pool
+          Pool Management System
         </button>
         <button 
           onClick={() => { setActiveTab('backup'); setIsMobileMenuOpen(false); }}
@@ -984,6 +992,8 @@ export default function App() {
                  activeTab === 'admin' ? 'Admin Panel' :
                  activeTab === 'employees' ? 'Employee Management System' :
                  activeTab === 'financial-report' ? 'Financial Report' :
+                 activeTab === 'accounts' ? 'Pool Management System' :
+                 activeTab === 'revenue-projection' ? 'Revenue Projection Analysis' :
                  'Project/Client Management System'}
               </h2>
               <p className="text-slate-500">
@@ -1006,6 +1016,8 @@ export default function App() {
                  activeTab === 'admin' ? 'Manage team members and system access.' :
                  activeTab === 'employees' ? 'Manage employee information.' :
                  activeTab === 'financial-report' ? 'Generate comprehensive financial performance reports.' :
+                 activeTab === 'accounts' ? 'Manage accounts, transaction items, sub-categories, and services pool.' :
+                 activeTab === 'revenue-projection' ? 'Analysis Revenue Projection' :
                  'Manage project/client information.'}
               </p>
             </div>
@@ -1365,6 +1377,7 @@ export default function App() {
                 <ProjectClientDatabase 
                   userRole={userRole || 'viewer'} 
                   transactionSubCategories={transactionSubCategories}
+                  services={services}
                   onAddTransactionSubCategory={async (sub) => {
                     try {
                       await setDoc(doc(db, 'transactionSubCategories', sub.id), sub);
@@ -1457,6 +1470,21 @@ export default function App() {
                       await deleteDoc(doc(db, 'transactionSubCategories', id));
                     } catch (error) {
                       handleFirestoreError(error, OperationType.DELETE, `transactionSubCategories/${id}`);
+                    }
+                  }}
+                  services={services}
+                  onAddService={async (service) => {
+                    try {
+                      await setDoc(doc(db, 'services', service.id), service);
+                    } catch (error) {
+                      handleFirestoreError(error, OperationType.WRITE, `services/${service.id}`);
+                    }
+                  }}
+                  onDeleteService={async (id) => {
+                    try {
+                      await deleteDoc(doc(db, 'services', id));
+                    } catch (error) {
+                      handleFirestoreError(error, OperationType.DELETE, `services/${id}`);
                     }
                   }}
                   clients={clients}
