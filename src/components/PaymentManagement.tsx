@@ -247,6 +247,12 @@ export default function PaymentManagement({ userRole }: PaymentManagementProps) 
             });
           });
           
+          // Delete all payment records associated with this invoice
+          const relatedPayments = payments.filter(p => p.invoiceId === invoiceToDelete.id || (p.invoiceNumber && p.invoiceNumber === invoiceToDelete.invoiceNumber));
+          relatedPayments.forEach(p => {
+            batch.delete(doc(db, 'payments', p.id));
+          });
+
           batch.delete(doc(db, 'invoices', itemToDelete));
           await batch.commit();
         }
@@ -292,9 +298,19 @@ export default function PaymentManagement({ userRole }: PaymentManagementProps) 
     try {
       const batch = writeBatch(db);
       
-      // Check for existing payments if this is a new invoice or recreated one
-      const existingPayments = payments.filter(p => p.invoiceNumber === invoice.invoiceNumber);
+      // Filter existing payments that belong specifically to this invoice ID
+      const existingPayments = payments.filter(p => p.invoiceId === invoice.id);
       const totalPaid = existingPayments.reduce((sum, p) => sum + p.amount, 0);
+
+      // Clean up any orphaned payments in Firestore matching this invoice number that belonged to a deleted invoice
+      const orphanedPayments = payments.filter(
+        p => p.invoiceNumber === invoice.invoiceNumber && 
+             p.invoiceId !== invoice.id && 
+             !invoices.some(inv => inv.id === p.invoiceId)
+      );
+      orphanedPayments.forEach(p => {
+        batch.delete(doc(db, 'payments', p.id));
+      });
       
       const updatedInvoice: Invoice = {
         ...invoice,
@@ -304,10 +320,13 @@ export default function PaymentManagement({ userRole }: PaymentManagementProps) 
 
       batch.set(doc(db, 'invoices', updatedInvoice.id), updatedInvoice);
       
-      // Update existing payments to point to the new invoice ID if it changed
+      // Update existing payments to point to the new invoice ID/number if needed
       existingPayments.forEach(p => {
-        if (p.invoiceId !== updatedInvoice.id) {
-          batch.update(doc(db, 'payments', p.id), { invoiceId: updatedInvoice.id });
+        if (p.invoiceId !== updatedInvoice.id || p.invoiceNumber !== updatedInvoice.invoiceNumber) {
+          batch.update(doc(db, 'payments', p.id), { 
+            invoiceId: updatedInvoice.id,
+            invoiceNumber: updatedInvoice.invoiceNumber
+          });
         }
       });
       
@@ -419,7 +438,7 @@ export default function PaymentManagement({ userRole }: PaymentManagementProps) 
 
   const downloadPaymentsXLS = () => {
     const data = payments.map(pay => {
-      const pmInvoice = invoices.find(i => i.id === pay.invoiceId || (pay.invoiceNumber && i.invoiceNumber === pay.invoiceNumber));
+      const pmInvoice = invoices.find(i => i.id === pay.invoiceId) || invoices.find(i => pay.invoiceNumber && i.invoiceNumber === pay.invoiceNumber);
       const clientName = clients.find(c => c.id === pay.clientId)?.projectName || pmInvoice?.clientName || 'Unknown Client';
       return {
         'Date': pay.date,
@@ -887,7 +906,7 @@ export default function PaymentManagement({ userRole }: PaymentManagementProps) 
                 <h3 className="text-lg font-bold text-slate-800">Recent Payments</h3>
                 <div className="space-y-4">
                   {payments.slice(0, 5).map(pay => {
-                    const pmInvoice = invoices.find(i => i.id === pay.invoiceId || (pay.invoiceNumber && i.invoiceNumber === pay.invoiceNumber));
+                    const pmInvoice = invoices.find(i => i.id === pay.invoiceId) || invoices.find(i => pay.invoiceNumber && i.invoiceNumber === pay.invoiceNumber);
                     const clientName = clients.find(c => c.id === pay.clientId)?.projectName || pmInvoice?.clientName || 'Unknown Client';
                     return (
                       <div key={pay.id} className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl">
@@ -1180,7 +1199,7 @@ export default function PaymentManagement({ userRole }: PaymentManagementProps) 
                   </thead>
                   <tbody className="divide-y divide-slate-50">
                     {payments.map(pay => {
-                      const pmInvoice = invoices.find(i => i.id === pay.invoiceId || (pay.invoiceNumber && i.invoiceNumber === pay.invoiceNumber));
+                      const pmInvoice = invoices.find(i => i.id === pay.invoiceId) || invoices.find(i => pay.invoiceNumber && i.invoiceNumber === pay.invoiceNumber);
                       const clientName = clients.find(c => c.id === pay.clientId)?.projectName || pmInvoice?.clientName || 'Unknown Client';
                       return (
                         <tr key={pay.id} className="hover:bg-slate-50/50 transition-colors group">
