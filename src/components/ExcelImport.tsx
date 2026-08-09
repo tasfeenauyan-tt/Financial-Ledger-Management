@@ -48,53 +48,118 @@ export default function ExcelImport({
       const ws = wb.Sheets[wsname];
       const data = XLSX.utils.sheet_to_json(ws, { header: 1 }) as any[][];
 
-      // Assuming first row is header
-      // Expected columns: Date, Transaction Item, Cash, Accounts Receivable, Supplies, Equipment, Accounts Payable, Owner's Capital, Revenue, Owner's Drawings, Expense, Remarks, Notes
-      const entries: LedgerEntry[] = data.slice(1).map((row, index) => {
+      // Dynamically parse headers to identify columns
+      if (!data || data.length === 0) return;
+
+      const headers = (data[0] || []).map(h => String(h || '').trim());
+
+      let dateIdx = headers.findIndex(h => h.toLowerCase() === 'date');
+      let itemIdx = headers.findIndex(h => {
+        const l = h.toLowerCase();
+        return l.includes('transaction item') || l === 'item' || l === 'details';
+      });
+      let remarksIdx = headers.findIndex(h => {
+        const l = h.toLowerCase();
+        return l === 'remarks' || l.includes('sub-category') || l.includes('subcategory');
+      });
+      let notesIdx = headers.findIndex(h => {
+        const l = h.toLowerCase();
+        return l === 'notes' || l === 'note' || l === 'description';
+      });
+
+      // Fallbacks if header names aren't matched
+      if (dateIdx === -1) dateIdx = 0;
+      if (itemIdx === -1) itemIdx = 1;
+      if (remarksIdx === -1) remarksIdx = headers.length > 11 ? headers.length - 2 : 11;
+      if (notesIdx === -1) notesIdx = headers.length > 12 ? headers.length - 1 : 12;
+
+      // Collect all account column indices
+      const accountCols: { idx: number; name: string }[] = [];
+      headers.forEach((h, idx) => {
+        if (idx !== dateIdx && idx !== itemIdx && idx !== remarksIdx && idx !== notesIdx && h && h.trim() !== '') {
+          accountCols.push({ idx, name: h.trim() });
+        }
+      });
+
+      const entries: LedgerEntry[] = data.slice(1).filter(row => row && row.length > 0).map((row) => {
         const customEntries: CustomAccountEntry[] = [];
-        const addEntry = (name: string, amount: number, category: 'Asset' | 'Liability' | 'Equity', type: 'Dr' | 'Cr') => {
-          if (amount !== 0) {
-            // Find account in pool
-            const foundAccount = accounts.find(a => a.name.toLowerCase() === name.toLowerCase());
-            const isExpense = name.toLowerCase() === 'expense';
+
+        accountCols.forEach(({ idx, name }) => {
+          const rawVal = row[idx];
+          const amount = Number(rawVal || 0);
+          if (!isNaN(amount) && amount !== 0) {
+            const lowerName = name.toLowerCase();
+            const foundAccount = accounts.find(a => a.name.trim().toLowerCase() === lowerName);
             
+            let category: 'Asset' | 'Liability' | 'Equity' = 'Asset';
+            let defaultType: 'Dr' | 'Cr' = 'Dr';
+
+            if (foundAccount) {
+              category = foundAccount.category;
+              if (category === 'Asset') defaultType = 'Dr';
+              else if (category === 'Liability') defaultType = 'Cr';
+              else {
+                if (lowerName.includes('drawing') || lowerName.includes('expense')) {
+                  defaultType = 'Dr';
+                } else {
+                  defaultType = 'Cr';
+                }
+              }
+            } else {
+              if (['cash', 'accounts receivable', 'supplies', 'equipment'].includes(lowerName) || lowerName.includes('asset') || lowerName.includes('bank') || lowerName.includes('receivable')) {
+                category = 'Asset';
+                defaultType = 'Dr';
+              } else if (['accounts payable'].includes(lowerName) || lowerName.includes('payable') || lowerName.includes('liability') || lowerName.includes('loan')) {
+                category = 'Liability';
+                defaultType = 'Cr';
+              } else if (["owner's capital", 'revenue'].includes(lowerName) || lowerName.includes('capital') || lowerName.includes('revenue') || lowerName.includes('income')) {
+                category = 'Equity';
+                defaultType = 'Cr';
+              } else if (["owner's drawings", 'expense'].includes(lowerName) || lowerName.includes('drawing') || lowerName.includes('expense')) {
+                category = 'Equity';
+                defaultType = 'Dr';
+              }
+            }
+
+            const isExpense = lowerName === 'expense' || lowerName.includes('expense');
+            const absAmount = Math.abs(amount);
+            
+            let type: 'Dr' | 'Cr' = defaultType;
+            if (isExpense) {
+              type = 'Dr';
+            } else {
+              if (amount < 0) {
+                type = defaultType === 'Dr' ? 'Cr' : 'Dr';
+              }
+            }
+
             customEntries.push({
               id: crypto.randomUUID(),
               accountId: foundAccount ? foundAccount.id : 'others',
               accountName: name,
-              accountCategory: foundAccount ? foundAccount.category : category,
-              amount: Math.abs(amount),
-              type: isExpense ? type : (amount > 0 ? type : (type === 'Dr' ? 'Cr' : 'Dr')),
+              accountCategory: category,
+              amount: absAmount,
+              type,
             });
           }
-        };
+        });
 
-        addEntry('Cash', Number(row[2] || 0), 'Asset', 'Dr');
-        addEntry('Accounts Receivable', Number(row[3] || 0), 'Asset', 'Dr');
-        addEntry('Supplies', Number(row[4] || 0), 'Asset', 'Dr');
-        addEntry('Equipment', Number(row[5] || 0), 'Asset', 'Dr');
-        addEntry('Accounts Payable', Number(row[6] || 0), 'Liability', 'Cr');
-        addEntry("Owner's Capital", Number(row[7] || 0), 'Equity', 'Cr');
-        addEntry('Revenue', Number(row[8] || 0), 'Equity', 'Cr');
-        addEntry("Owner's Drawings", Number(row[9] || 0), 'Equity', 'Dr');
-        addEntry('Expense', Number(row[10] || 0), 'Equity', 'Dr');
-
-        const itemName = String(row[1] || '');
+        const itemName = String(row[itemIdx] || '');
         const foundItem = transactionItems.find(i => i.name.toLowerCase() === itemName.toLowerCase());
         
-        const remarksText = String(row[11] || '');
+        const remarksText = String(row[remarksIdx] || '');
         const foundSub = allSubCategories.find(s => s.name.toLowerCase() === remarksText.toLowerCase());
 
         return {
           id: crypto.randomUUID(),
-          date: formatDate(row[0]),
+          date: formatDate(row[dateIdx]),
           transactionItemId: foundItem ? foundItem.id : (itemName ? 'others' : ''),
           transactionItemName: itemName,
           details: itemName,
           customEntries,
           remarksId: foundSub ? foundSub.id : (remarksText ? 'others' : ''),
           remarks: remarksText,
-          notes: String(row[12] || ''),
+          notes: String(row[notesIdx] || ''),
           createdAt: new Date().toISOString(),
         };
       });

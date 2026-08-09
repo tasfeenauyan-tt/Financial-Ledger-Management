@@ -1188,6 +1188,9 @@ export default function App() {
                   onDelete={handleDelete} 
                   onEdit={(entry) => setEditingEntry(entry)}
                   userRole={userRole || 'viewer'}
+                  accounts={accounts}
+                  transactionItems={transactionItems}
+                  transactionSubCategories={transactionSubCategories}
                 />
               </motion.div>
             ) : activeTab === 'balance-sheet' ? (

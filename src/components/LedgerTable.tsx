@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { LedgerEntry } from '../types';
+import { LedgerEntry, Account, TransactionItem, TransactionSubCategory } from '../types';
 import { formatCurrency, cn, formatDate } from '../lib/utils';
 import { Trash2, StickyNote, Table as TableIcon, List, Pencil, Download, FileText } from 'lucide-react';
 import * as XLSX from 'xlsx';
@@ -11,9 +11,20 @@ interface LedgerTableProps {
   onDelete: (id: string) => void;
   onEdit: (entry: LedgerEntry) => void;
   userRole: string;
+  accounts?: Account[];
+  transactionItems?: TransactionItem[];
+  transactionSubCategories?: TransactionSubCategory[];
 }
 
-export default function LedgerTable({ entries, onDelete, onEdit, userRole }: LedgerTableProps) {
+export default function LedgerTable({ 
+  entries, 
+  onDelete, 
+  onEdit, 
+  userRole,
+  accounts = [],
+  transactionItems = [],
+  transactionSubCategories = []
+}: LedgerTableProps) {
   const isAdmin = userRole === 'admin';
   const getJournalLines = (entry: LedgerEntry) => {
     const lines: { account: string; dr: number; cr: number }[] = [];
@@ -98,32 +109,85 @@ export default function LedgerTable({ entries, onDelete, onEdit, userRole }: Led
   };
 
   const downloadImportableExcel = () => {
+    // Standard default accounts
+    const defaultAccounts: { name: string; category: 'Asset' | 'Liability' | 'Equity'; targetType: 'Dr' | 'Cr' }[] = [
+      { name: 'Cash', category: 'Asset', targetType: 'Dr' },
+      { name: 'Accounts Receivable', category: 'Asset', targetType: 'Dr' },
+      { name: 'Supplies', category: 'Asset', targetType: 'Dr' },
+      { name: 'Equipment', category: 'Asset', targetType: 'Dr' },
+      { name: 'Accounts Payable', category: 'Liability', targetType: 'Cr' },
+      { name: "Owner's Capital", category: 'Equity', targetType: 'Cr' },
+      { name: 'Revenue', category: 'Equity', targetType: 'Cr' },
+      { name: "Owner's Drawings", category: 'Equity', targetType: 'Dr' },
+      { name: 'Expense', category: 'Equity', targetType: 'Dr' }
+    ];
+
+    const accountList: { name: string; category: 'Asset' | 'Liability' | 'Equity'; targetType: 'Dr' | 'Cr' }[] = [...defaultAccounts];
+    const existingNames = new Set(defaultAccounts.map(a => a.name.toLowerCase()));
+
+    // 1. Add custom accounts from Pool Management System (accounts prop)
+    (accounts || []).forEach(acc => {
+      if (acc.name && acc.name.trim()) {
+        const lowerName = acc.name.trim().toLowerCase();
+        if (!existingNames.has(lowerName)) {
+          existingNames.add(lowerName);
+          let targetType: 'Dr' | 'Cr' = acc.category === 'Asset' ? 'Dr' : acc.category === 'Liability' ? 'Cr' : 'Cr';
+          if (acc.category === 'Equity' && (lowerName.includes('drawing') || lowerName.includes('expense'))) {
+            targetType = 'Dr';
+          }
+          accountList.push({
+            name: acc.name.trim(),
+            category: acc.category,
+            targetType
+          });
+        }
+      }
+    });
+
+    // 2. Add custom accounts from existing transaction entries
+    entries.forEach(e => {
+      (e.customEntries || []).forEach(ce => {
+        if (ce.accountName && ce.accountName.trim()) {
+          const lowerName = ce.accountName.trim().toLowerCase();
+          if (!existingNames.has(lowerName)) {
+            existingNames.add(lowerName);
+            accountList.push({
+              name: ce.accountName.trim(),
+              category: ce.accountCategory || 'Asset',
+              targetType: ce.type || 'Dr'
+            });
+          }
+        }
+      });
+    });
+
     const sortedEntries = [...entries].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
     const data = sortedEntries.map(e => {
-      const getNet = (name: string, targetType: 'Dr' | 'Cr') => {
-        return (e.customEntries || [])
-          .filter(ce => ce.accountName.toLowerCase() === name.toLowerCase())
-          .reduce((sum, ce) => {
-            if (ce.type === targetType) return sum + ce.amount;
-            return sum - ce.amount;
-          }, 0);
+      const rowData: Record<string, any> = {
+        'Date': e.date,
+        'Transaction Item': e.transactionItemName || e.details || ''
       };
 
-      return {
-        'Date': e.date,
-        'Transaction Item': e.details,
-        'Cash': getNet('Cash', 'Dr'),
-        'Accounts Receivable': getNet('Accounts Receivable', 'Dr'),
-        'Supplies': getNet('Supplies', 'Dr'),
-        'Equipment': getNet('Equipment', 'Dr'),
-        'Accounts Payable': getNet('Accounts Payable', 'Cr'),
-        "Owner's Capital": getNet("Owner's Capital", 'Cr'),
-        'Revenue': getNet('Revenue', 'Cr'),
-        "Owner's Drawings": getNet("Owner's Drawings", 'Dr'),
-        'Expense': -Math.abs(getNet('Expense', 'Dr')),
-        'Remarks': e.remarks,
-        'Notes': e.notes
-      };
+      accountList.forEach(acc => {
+        const netAmount = (e.customEntries || [])
+          .filter(ce => ce.accountName && ce.accountName.trim().toLowerCase() === acc.name.toLowerCase())
+          .reduce((sum, ce) => {
+            if (ce.type === acc.targetType) return sum + ce.amount;
+            return sum - ce.amount;
+          }, 0);
+
+        if (acc.name.toLowerCase() === 'expense') {
+          rowData[acc.name] = netAmount !== 0 ? -Math.abs(netAmount) : '';
+        } else {
+          rowData[acc.name] = netAmount !== 0 ? netAmount : '';
+        }
+      });
+
+      rowData['Remarks'] = e.remarks || '';
+      rowData['Notes'] = e.notes || '';
+
+      return rowData;
     });
 
     const ws = XLSX.utils.json_to_sheet(data);
