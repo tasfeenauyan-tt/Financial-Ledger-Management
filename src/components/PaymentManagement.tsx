@@ -734,7 +734,7 @@ export default function PaymentManagement({ userRole }: PaymentManagementProps) 
 
     // Installment Breakdown Table in PDF
     const installmentBreakdown = getInstallmentBreakdown(invoice);
-    if (installmentBreakdown.length > 0) {
+    if (installmentBreakdown.length > 0 && invoice.showInstallmentSchedule !== false) {
       const startInstY = Math.max(notesY + 4, totalsBoxY + 34);
       doc.setTextColor(10, 37, 64); // Navy Blue
       doc.setFont("helvetica", "bold");
@@ -1571,7 +1571,7 @@ function InvoicePreviewModal({ invoice, clients, bankAccounts, onClose }: {
 }) {
   const client = clients.find(c => c.id === invoice.clientId);
   const installmentBreakdown = getInstallmentBreakdown(invoice);
-  const isMultiInstallment = installmentBreakdown.length > 0;
+  const isMultiInstallment = installmentBreakdown.length > 0 && invoice.showInstallmentSchedule !== false;
   
   return (
     <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[1000] flex items-center justify-center p-4">
@@ -1814,6 +1814,9 @@ function InvoiceModal({ clients, invoices, bankAccounts, onClose, onSave, editin
   const [dueDate, setDueDate] = useState(editingInvoice?.dueDate || format(new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), 'yyyy-MM-dd'));
   const [invoiceNumber, setInvoiceNumber] = useState(editingInvoice?.invoiceNumber || '');
   const [notes, setNotes] = useState(editingInvoice?.notes || '');
+  const [showInstallmentSchedule, setShowInstallmentSchedule] = useState<boolean>(
+    editingInvoice?.showInstallmentSchedule !== undefined ? editingInvoice.showInstallmentSchedule : true
+  );
   const [error, setError] = useState<string | null>(null);
 
   interface FormInstallment {
@@ -2027,6 +2030,7 @@ function InvoiceModal({ clients, invoices, bankAccounts, onClose, onSave, editin
       notes,
       status: numPaid >= totalAmount ? 'Paid' : numPaid > 0 ? 'Partial' : 'Unpaid',
       installmentPlan: String(formInstallments.length),
+      showInstallmentSchedule,
       installments: formInstallments.map((inst, idx) => ({
         number: idx + 1,
         label: inst.label || getOrdinalLabel(idx + 1),
@@ -2186,6 +2190,19 @@ function InvoiceModal({ clients, invoices, bankAccounts, onClose, onSave, editin
                   </button>
                 ))}
               </div>
+            </div>
+
+            <div className="flex items-center gap-2.5 pt-3 border-t border-indigo-100/80">
+              <input 
+                type="checkbox" 
+                id="show-installment-schedule"
+                checked={showInstallmentSchedule}
+                onChange={(e) => setShowInstallmentSchedule(e.target.checked)}
+                className="w-4 h-4 rounded border-indigo-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+              />
+              <label htmlFor="show-installment-schedule" className="text-xs font-bold text-indigo-950 cursor-pointer select-none">
+                Show "Installment Payment Schedule" section in invoice (PDF & Preview)
+              </label>
             </div>
 
             <div className="space-y-3 pt-3 border-t border-indigo-100">

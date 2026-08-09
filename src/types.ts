@@ -108,6 +108,7 @@ export interface Invoice {
   status: 'Unpaid' | 'Partial' | 'Paid' | 'Carry Forward' | 'Bad Debt';
   carriedToInvoiceNumber?: string;
   installmentPlan?: string;
+  showInstallmentSchedule?: boolean;
   installments?: {
     number: number;
     label: string;
