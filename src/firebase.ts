@@ -26,6 +26,8 @@ import {
   disconnectGoogleDrive,
   subscribeToDriveToken,
   getDriveTokenMetadata,
+  isDriveTokenExpired,
+  getValidDriveAccessToken,
 } from './lib/googleDriveAuth';
 
 export {
@@ -36,6 +38,8 @@ export {
   disconnectGoogleDrive,
   subscribeToDriveToken,
   getDriveTokenMetadata,
+  isDriveTokenExpired,
+  getValidDriveAccessToken,
 };
 
 export const setCachedGoogleAccessToken = (token: string | null) => {

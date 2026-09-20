@@ -27,6 +27,9 @@ export interface GoogleDriveBackupConfig {
   folderName: string;
   frequency: 'hourly' | 'every_6h' | 'every_12h' | 'daily' | 'weekly';
   backupTime?: string; // 24-hour format "HH:mm", e.g. "02:00"
+  isDriveLinked?: boolean;
+  linkedEmail?: string;
+  linkedAt?: string;
   lastBackupTime?: string;
   lastBackupFileName?: string;
   lastBackupStatus?: 'success' | 'failed';
@@ -315,11 +318,11 @@ async function fetchDriveWithRetry(
     headers: buildHeaders(token),
   });
 
-  // If token has expired (401 Unauthorized), invalidate cache and inform user
+  // If token has expired (401 Unauthorized), do NOT disconnect Google Drive!
+  // Preserves target folder, automation schedule, and linked account all the time.
   if (res.status === 401) {
     console.warn('[GoogleDriveAPI] Received 401 Unauthorized. Access token expired.');
-    disconnectGoogleDrive().catch(() => {});
-    throw new Error('Google Drive session expired. Please click "Connect Google Drive" to reconnect.');
+    throw new Error('Google Drive session expired. Please click "Renew Token" or "Back Up Now" to re-validate.');
   }
 
   return res;

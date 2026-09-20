@@ -10,6 +10,7 @@ export interface StoredDriveToken {
   accessToken: string;
   expiresAt: number; // Unix timestamp (ms)
   userEmail?: string;
+  isLinked?: boolean;
   savedAt: number;
 }
 
@@ -47,6 +48,7 @@ export async function savePersistentDriveToken(
         accessToken: token,
         expiresAt: Date.now() + expiresInSeconds * 1000,
         userEmail: userEmail || '',
+        isLinked: true,
         savedAt: Date.now(),
       };
       const putRequest = store.put(data, DRIVE_TOKEN_KEY);
@@ -73,14 +75,9 @@ export async function loadPersistentDriveToken(): Promise<StoredDriveToken | nul
           return;
         }
 
-        // Check if token has expired or is about to expire in < 60 seconds
-        if (result.expiresAt <= Date.now() + 60 * 1000) {
-          // Token is expired; clean it up
-          clearPersistentDriveToken().catch(() => {});
-          resolve(null);
-          return;
-        }
-
+        // Do NOT delete the token on expiration!
+        // Preserving the token and link metadata allows the app to maintain
+        // an uninterrupted "All-Time Connected" integration state.
         resolve(result);
       };
 
