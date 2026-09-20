@@ -30,8 +30,8 @@ import AccountsPayable from './components/AccountsPayable';
 import AccountsReceivable from './components/AccountsReceivable';
 import RevenueProjection from './components/RevenueProjection';
 import PaySlipManagement from './components/PaySlipManagement';
-import { auth, logout, User, db, getCachedGoogleAccessToken } from './firebase';
-import { getBackupConfig, isBackupDue, executeGoogleDriveBackup } from './lib/googleDriveBackup';
+import { auth, logout, User, db, getCachedGoogleAccessToken, initializeDriveConnection } from './firebase';
+import { getBackupConfig, isBackupDue, executeGoogleDriveBackup, getValidDriveAccessToken } from './lib/googleDriveBackup';
 import { onAuthStateChanged } from 'firebase/auth';
 import { handleFirestoreError, OperationType } from './lib/firestore-errors';
 import { 
@@ -277,15 +277,25 @@ export default function App() {
   useEffect(() => {
     if (!user || userRole !== 'admin') return;
 
+    // Automatically rehydrate persistent Google Drive connection on mount/login
+    initializeDriveConnection().catch((err) => {
+      console.warn('Google Drive background initialization note:', err);
+    });
+
     let isRunning = false;
     const checkScheduledAutoBackup = async () => {
       if (isRunning) return;
-      const token = getCachedGoogleAccessToken();
-      if (!token) return;
 
       try {
         const config = await getBackupConfig();
         if (config.enabled && config.folderId && isBackupDue(config)) {
+          // Attempt to retrieve or re-acquire valid drive token
+          let token = getCachedGoogleAccessToken();
+          if (!token) {
+            token = await getValidDriveAccessToken(false).catch(() => '');
+          }
+          if (!token) return;
+
           isRunning = true;
           console.log('Automated scheduled Google Drive backup starting...');
           await executeGoogleDriveBackup(token, config.folderId, user.email || 'auto-scheduler');

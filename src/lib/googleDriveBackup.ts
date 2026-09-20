@@ -1,4 +1,4 @@
-import { db, getCachedGoogleAccessToken, requestGoogleDriveAccess } from '../firebase';
+import { db, getCachedGoogleAccessToken, requestGoogleDriveAccess, initializeDriveConnection, disconnectGoogleDrive } from '../firebase';
 import { collection, getDocs, doc, setDoc, getDoc } from 'firebase/firestore';
 
 export const ALL_BACKUP_COLLECTIONS = [
@@ -274,9 +274,14 @@ export async function generateFullDatabaseJson(): Promise<{
 
 /**
  * Helper to ensure a valid Google Drive Access Token
+ * Checks memory, rehydrates from persistent vault, or silently refreshes if possible
  */
 export async function getValidDriveAccessToken(interactive = false): Promise<string> {
-  const cached = getCachedGoogleAccessToken();
+  let cached = getCachedGoogleAccessToken();
+  if (cached) return cached;
+
+  // Try rehydrating from persistent storage or silent background refresh
+  cached = await initializeDriveConnection();
   if (cached) return cached;
 
   if (interactive) {
@@ -287,15 +292,47 @@ export async function getValidDriveAccessToken(interactive = false): Promise<str
 }
 
 /**
+ * Resilient fetch wrapper for Google Drive APIs with automatic 401 retry & token renewal
+ */
+async function fetchDriveWithRetry(
+  url: string,
+  options: RequestInit = {},
+  initialToken?: string
+): Promise<Response> {
+  let token = initialToken || (await getValidDriveAccessToken(false).catch(() => ''));
+  if (!token) {
+    throw new Error('Google Drive is not authenticated. Please connect Google Drive.');
+  }
+
+  const buildHeaders = (t: string) => {
+    const h = new Headers(options.headers || {});
+    h.set('Authorization', `Bearer ${t}`);
+    return h;
+  };
+
+  let res = await fetch(url, {
+    ...options,
+    headers: buildHeaders(token),
+  });
+
+  // If token has expired (401 Unauthorized), invalidate cache and inform user
+  if (res.status === 401) {
+    console.warn('[GoogleDriveAPI] Received 401 Unauthorized. Access token expired.');
+    disconnectGoogleDrive().catch(() => {});
+    throw new Error('Google Drive session expired. Please click "Connect Google Drive" to reconnect.');
+  }
+
+  return res;
+}
+
+/**
  * List folders in the user's Google Drive
  */
 export async function listGoogleDriveFolders(token: string): Promise<DriveFolderItem[]> {
   const q = encodeURIComponent("mimeType = 'application/vnd.google-apps.folder' and trashed = false");
   const url = `https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id,name,webViewLink)&orderBy=name&pageSize=100`;
 
-  const res = await fetch(url, {
-    headers: { Authorization: `Bearer ${token}` },
-  });
+  const res = await fetchDriveWithRetry(url, {}, token);
 
   if (!res.ok) {
     const err = await res.text();
@@ -323,14 +360,17 @@ export async function createGoogleDriveFolder(
     metadata.parents = [parentFolderId];
   }
 
-  const res = await fetch('https://www.googleapis.com/drive/v3/files?fields=id,name,webViewLink', {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${token}`,
-      'Content-Type': 'application/json',
+  const res = await fetchDriveWithRetry(
+    'https://www.googleapis.com/drive/v3/files?fields=id,name,webViewLink',
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(metadata),
     },
-    body: JSON.stringify(metadata),
-  });
+    token
+  );
 
   if (!res.ok) {
     const err = await res.text();
@@ -345,9 +385,11 @@ export async function createGoogleDriveFolder(
  */
 export async function getGoogleDriveFolder(token: string, folderId: string): Promise<DriveFolderItem | null> {
   try {
-    const res = await fetch(`https://www.googleapis.com/drive/v3/files/${folderId}?fields=id,name,webViewLink,mimeType`, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
+    const res = await fetchDriveWithRetry(
+      `https://www.googleapis.com/drive/v3/files/${folderId}?fields=id,name,webViewLink,mimeType`,
+      {},
+      token
+    );
     if (!res.ok) return null;
     const data = await res.json();
     return data;
@@ -390,13 +432,13 @@ export async function uploadFullBackupToDrive(
   form.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
   form.append('file', new Blob([fileContent], { type: 'application/json' }));
 
-  const res = await fetch(
+  const res = await fetchDriveWithRetry(
     'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,name,webViewLink,size,createdTime',
     {
       method: 'POST',
-      headers: { Authorization: `Bearer ${token}` },
       body: form,
-    }
+    },
+    token
   );
 
   if (!res.ok) {
@@ -416,9 +458,7 @@ export async function listFolderBackups(token: string, folderId: string): Promis
   const q = encodeURIComponent(`'${folderId.trim()}' in parents and trashed = false`);
   const url = `https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id,name,size,createdTime,webViewLink)&orderBy=createdTime desc&pageSize=50`;
 
-  const res = await fetch(url, {
-    headers: { Authorization: `Bearer ${token}` },
-  });
+  const res = await fetchDriveWithRetry(url, {}, token);
 
   if (!res.ok) return [];
 

@@ -17,19 +17,45 @@ export const GOOGLE_DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.file';
 export const googleProvider = new GoogleAuthProvider();
 googleProvider.addScope(GOOGLE_DRIVE_SCOPE);
 
-// In-memory access token cache (required: never persist to localStorage)
-let cachedGoogleAccessToken: string | null = null;
+// Persistent & auto-refreshing Drive token integration
+import {
+  getActiveDriveToken,
+  setDriveAccessToken,
+  authenticateGoogleDrive,
+  initializeDriveConnection,
+  disconnectGoogleDrive,
+  subscribeToDriveToken,
+  getDriveTokenMetadata,
+} from './lib/googleDriveAuth';
 
-export const setCachedGoogleAccessToken = (token: string | null) => {
-  cachedGoogleAccessToken = token;
+export {
+  getActiveDriveToken,
+  setDriveAccessToken,
+  authenticateGoogleDrive,
+  initializeDriveConnection,
+  disconnectGoogleDrive,
+  subscribeToDriveToken,
+  getDriveTokenMetadata,
 };
 
-export const getCachedGoogleAccessToken = () => cachedGoogleAccessToken;
+export const setCachedGoogleAccessToken = (token: string | null) => {
+  setDriveAccessToken(token);
+};
 
-// Clear cached token if user logs out
-onAuthStateChanged(auth, (user) => {
-  if (!user) {
-    cachedGoogleAccessToken = null;
+export const getCachedGoogleAccessToken = () => getActiveDriveToken();
+
+// Auto-rehydrate or clear token based on auth state
+onAuthStateChanged(auth, async (user) => {
+  if (user) {
+    // Automatically rehydrate Google Drive connection upon page reload/session restore
+    try {
+      await initializeDriveConnection();
+    } catch (err) {
+      console.warn('Failed to auto-rehydrate Google Drive connection:', err);
+    }
+  } else {
+    // User logged out: clear memory and persistent storage
+    await disconnectGoogleDrive();
   }
 });
 
@@ -38,25 +64,19 @@ export const loginWithGoogle = async () => {
   const result = await signInWithPopup(auth, googleProvider);
   const credential = GoogleAuthProvider.credentialFromResult(result);
   if (credential?.accessToken) {
-    cachedGoogleAccessToken = credential.accessToken;
+    await setDriveAccessToken(credential.accessToken, 3600, result.user?.email || undefined);
   }
   return result;
 };
 
 export const requestGoogleDriveAccess = async (): Promise<string> => {
-  const result = await signInWithPopup(auth, googleProvider);
-  const credential = GoogleAuthProvider.credentialFromResult(result);
-  if (credential?.accessToken) {
-    cachedGoogleAccessToken = credential.accessToken;
-    return credential.accessToken;
-  }
-  throw new Error('Failed to acquire Google Drive access token.');
+  return await authenticateGoogleDrive(true);
 };
 
 export const loginWithEmail = (email: string, pass: string) => signInWithEmailAndPassword(auth, email, pass);
 
 export const logout = async () => {
-  cachedGoogleAccessToken = null;
+  await disconnectGoogleDrive();
   return signOut(auth);
 };
 
