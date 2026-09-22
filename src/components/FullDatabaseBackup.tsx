@@ -1,17 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import {
-  db,
-  auth,
-  getCachedGoogleAccessToken,
-  setCachedGoogleAccessToken,
-  requestGoogleDriveAccess,
-  subscribeToDriveToken,
-  initializeDriveConnection,
-  disconnectGoogleDrive,
-  getDriveTokenMetadata,
-  getValidDriveAccessToken,
-  isDriveTokenExpired
-} from '../firebase';
+import { db, auth, getCachedGoogleAccessToken, setCachedGoogleAccessToken, requestGoogleDriveAccess } from '../firebase';
 import { collection, getDocs, writeBatch, doc } from 'firebase/firestore';
 import {
   Download,
@@ -69,7 +57,6 @@ export default function FullDatabaseBackup({ userRole }: FullDatabaseBackupProps
 
   // Google Drive state
   const [driveToken, setDriveToken] = useState<string | null>(getCachedGoogleAccessToken());
-  const [driveMeta, setDriveMeta] = useState(() => getDriveTokenMetadata());
   const [isConnectingDrive, setIsConnectingDrive] = useState(false);
   const [config, setConfig] = useState<GoogleDriveBackupConfig | null>(null);
   const [isLoadingConfig, setIsLoadingConfig] = useState(true);
@@ -126,6 +113,19 @@ export default function FullDatabaseBackup({ userRole }: FullDatabaseBackupProps
     return () => clearInterval(clock);
   }, []);
 
+  // Update drive token if cached token changes
+  useEffect(() => {
+    const checkToken = () => {
+      const tok = getCachedGoogleAccessToken();
+      if (tok !== driveToken) {
+        setDriveToken(tok);
+      }
+    };
+    checkToken();
+    const interval = setInterval(checkToken, 3000);
+    return () => clearInterval(interval);
+  }, [driveToken]);
+
   // Load folder backups when token and folderId are available
   const loadBackups = useCallback(async (token: string, folderId: string) => {
     if (!folderId) return;
@@ -139,6 +139,12 @@ export default function FullDatabaseBackup({ userRole }: FullDatabaseBackupProps
       setIsLoadingBackups(false);
     }
   }, []);
+
+  useEffect(() => {
+    if (driveToken && config?.folderId) {
+      loadBackups(driveToken, config.folderId);
+    }
+  }, [driveToken, config?.folderId, loadBackups]);
 
   // Load available Drive folders for dropdown
   const loadDriveFolders = useCallback(async (token: string) => {
@@ -154,60 +160,9 @@ export default function FullDatabaseBackup({ userRole }: FullDatabaseBackupProps
     }
   }, []);
 
-  // Reactive subscription to Drive Token state + auto-rehydrate connection on mount
-  useEffect(() => {
-    let mounted = true;
-
-    const unsubscribe = subscribeToDriveToken((tok, meta) => {
-      if (!mounted) return;
-      setDriveToken(tok);
-      if (meta) {
-        setDriveMeta({
-          token: tok,
-          expiresAt: meta.expiresAt,
-          email: meta.email,
-          isLinked: meta.isConnected,
-          isConnected: meta.isConnected,
-          isExpired: meta.isExpired,
-        });
-      }
-      if (tok) {
-        loadDriveFolders(tok);
-        if (config?.folderId) {
-          loadBackups(tok, config.folderId);
-        }
-      }
-    });
-
-    // Auto-rehydrate connection from persistent IndexedDB vault on mount
-    initializeDriveConnection().then((tok) => {
-      if (mounted) {
-        if (tok) {
-          setDriveToken(tok);
-          loadDriveFolders(tok);
-          if (config?.folderId) {
-            loadBackups(tok, config.folderId);
-          }
-        }
-        setDriveMeta(getDriveTokenMetadata());
-      }
-    }).catch(() => {});
-
-    return () => {
-      mounted = false;
-      unsubscribe();
-    };
-  }, [config?.folderId, loadBackups, loadDriveFolders]);
-
-  useEffect(() => {
-    if (driveToken && config?.folderId) {
-      loadBackups(driveToken, config.folderId);
-    }
-  }, [driveToken, config?.folderId, loadBackups]);
-
   // Automated background backup check
   useEffect(() => {
-    if (!config || !config.enabled || !config.folderId || !isAdmin) return;
+    if (!driveToken || !config || !config.enabled || !config.folderId || !isAdmin) return;
 
     const checkAndRunAutoBackup = async () => {
       if (autoBackupRunningRef.current) return;
@@ -215,14 +170,9 @@ export default function FullDatabaseBackup({ userRole }: FullDatabaseBackupProps
       if (isBackupDue(config)) {
         autoBackupRunningRef.current = true;
         try {
-          let token = driveToken || (await getValidDriveAccessToken(false).catch(() => ''));
-          if (!token) {
-            console.log('Automated Google Drive backup due, but token not available.');
-            return;
-          }
           console.log('Automated Google Drive backup due. Executing now...');
           const result = await executeGoogleDriveBackup(
-            token,
+            driveToken,
             config.folderId,
             auth.currentUser?.email || 'automated-system'
           );
@@ -230,7 +180,7 @@ export default function FullDatabaseBackup({ userRole }: FullDatabaseBackupProps
           // Refresh config and backups
           const updatedConf = await getBackupConfig();
           setConfig(updatedConf);
-          loadBackups(token, config.folderId);
+          loadBackups(driveToken, config.folderId);
 
           setStatus({
             type: 'success',
@@ -264,22 +214,9 @@ export default function FullDatabaseBackup({ userRole }: FullDatabaseBackupProps
       const token = await requestGoogleDriveAccess();
       setCachedGoogleAccessToken(token);
       setDriveToken(token);
-      const userEmail = auth.currentUser?.email || driveMeta?.email || 'admin';
-      await saveBackupConfig({
-        isDriveLinked: true,
-        linkedEmail: userEmail,
-        linkedAt: new Date().toISOString(),
-      }, userEmail);
-
-      const updatedConfig = await getBackupConfig();
-      setConfig(updatedConfig);
-      setDriveMeta(getDriveTokenMetadata());
-      setStatus({ type: 'success', message: 'Successfully connected to Google Drive! All-time persistent link is active.' });
+      setStatus({ type: 'success', message: 'Successfully connected to Google Drive!' });
       // Preload folders
       loadDriveFolders(token);
-      if (updatedConfig.folderId) {
-        loadBackups(token, updatedConfig.folderId);
-      }
     } catch (err: any) {
       console.error('Failed to connect to Google Drive:', err);
       setStatus({ type: 'error', message: err.message || 'Google Drive authentication failed or was cancelled.' });
@@ -288,46 +225,13 @@ export default function FullDatabaseBackup({ userRole }: FullDatabaseBackupProps
     }
   };
 
-  // Disconnect Google Drive explicitly
-  const handleDisconnectDrive = async () => {
-    try {
-      await disconnectGoogleDrive();
-      await saveBackupConfig({
-        isDriveLinked: false,
-        linkedEmail: '',
-      }, auth.currentUser?.email || undefined);
-      const updated = await getBackupConfig();
-      setConfig(updated);
-      setDriveToken(null);
-      setDriveMeta(getDriveTokenMetadata());
-      setAvailableFolders([]);
-      setFolderBackups([]);
-      setStatus({ type: 'info', message: 'Google Drive connection has been disconnected.' });
-    } catch (err: any) {
-      console.error('Failed to disconnect Google Drive:', err);
-    }
-  };
-
-  // Helper to ensure fresh token during any interactive user operation
-  const ensureInteractiveToken = async (): Promise<string> => {
-    let token = driveToken;
-    if (!token || driveMeta?.isExpired) {
-      token = await requestGoogleDriveAccess();
-      setCachedGoogleAccessToken(token);
-      setDriveToken(token);
-      setDriveMeta(getDriveTokenMetadata());
-    }
-    return token;
-  };
-
   // Create a new folder
   const handleCreateFolder = async () => {
-    if (!newFolderName.trim()) return;
+    if (!driveToken || !newFolderName.trim()) return;
     setIsCreatingFolder(true);
     setStatus(null);
     try {
-      const token = await ensureInteractiveToken();
-      const folder = await createGoogleDriveFolder(token, newFolderName.trim());
+      const folder = await createGoogleDriveFolder(driveToken, newFolderName.trim());
       await saveBackupConfig({
         folderId: folder.id,
         folderName: folder.name,
@@ -336,8 +240,8 @@ export default function FullDatabaseBackup({ userRole }: FullDatabaseBackupProps
       const updated = await getBackupConfig();
       setConfig(updated);
       setFolderMode('select');
-      loadDriveFolders(token);
-      loadBackups(token, folder.id);
+      loadDriveFolders(driveToken);
+      loadBackups(driveToken, folder.id);
 
       setStatus({ type: 'success', message: `Created and selected folder "${folder.name}" for backups.` });
     } catch (err: any) {
@@ -350,7 +254,7 @@ export default function FullDatabaseBackup({ userRole }: FullDatabaseBackupProps
 
   // Validate and select custom folder ID or URL
   const handleSaveCustomFolder = async () => {
-    if (!customFolderInput.trim()) return;
+    if (!driveToken || !customFolderInput.trim()) return;
     setIsValidatingFolder(true);
     setStatus(null);
 
@@ -362,8 +266,7 @@ export default function FullDatabaseBackup({ userRole }: FullDatabaseBackupProps
     }
 
     try {
-      const token = await ensureInteractiveToken();
-      const folderMeta = await getGoogleDriveFolder(token, folderId);
+      const folderMeta = await getGoogleDriveFolder(driveToken, folderId);
       const name = folderMeta?.name || `Folder (${folderId})`;
 
       await saveBackupConfig({
@@ -373,7 +276,7 @@ export default function FullDatabaseBackup({ userRole }: FullDatabaseBackupProps
 
       const updated = await getBackupConfig();
       setConfig(updated);
-      loadBackups(token, folderId);
+      loadBackups(driveToken, folderId);
       setStatus({ type: 'success', message: `Target folder set to "${name}".` });
     } catch (err: any) {
       console.error('Failed to validate folder:', err);
@@ -465,24 +368,27 @@ export default function FullDatabaseBackup({ userRole }: FullDatabaseBackupProps
 
   // Trigger immediate manual backup to Drive
   const handleManualDriveBackup = async () => {
+    if (!driveToken) {
+      await handleConnectDrive();
+      return;
+    }
+    if (!config?.folderId) {
+      setStatus({ type: 'error', message: 'Please select or create a target folder first.' });
+      return;
+    }
+
     setIsBackingUpToDrive(true);
     setStatus(null);
     try {
-      const token = await ensureInteractiveToken();
-      if (!config?.folderId) {
-        setStatus({ type: 'error', message: 'Please select or create a target folder first.' });
-        return;
-      }
-
       const result = await executeGoogleDriveBackup(
-        token,
+        driveToken,
         config.folderId,
-        auth.currentUser?.email || driveMeta?.email || 'admin'
+        auth.currentUser?.email || 'admin'
       );
 
       const updated = await getBackupConfig();
       setConfig(updated);
-      await loadBackups(token, config.folderId);
+      await loadBackups(driveToken, config.folderId);
 
       setStatus({
         type: 'success',
@@ -498,13 +404,12 @@ export default function FullDatabaseBackup({ userRole }: FullDatabaseBackupProps
 
   // Restore directly from a Google Drive file
   const handleRestoreFromDriveFile = async (file: DriveBackupFileItem) => {
-    if (!isAdmin) return;
+    if (!driveToken || !isAdmin) return;
     setIsRestoringFromDrive(file.id);
     setStatus(null);
     try {
-      const token = await ensureInteractiveToken();
       const res = await fetch(`https://www.googleapis.com/drive/v3/files/${file.id}?alt=media`, {
-        headers: { Authorization: `Bearer ${token}` },
+        headers: { Authorization: `Bearer ${driveToken}` },
       });
       if (!res.ok) {
         throw new Error(`Failed to download backup file from Drive: ${res.statusText}`);
@@ -656,15 +561,6 @@ export default function FullDatabaseBackup({ userRole }: FullDatabaseBackupProps
 
   const nextBackupInfo = config ? getNextScheduledBackup(config, currentTime) : null;
 
-  const isDriveConnected = Boolean(
-    driveMeta?.isConnected ||
-    driveToken ||
-    config?.isDriveLinked ||
-    (config?.folderId && (config?.linkedEmail || driveMeta?.email))
-  );
-  const isTokenExpired = Boolean(isDriveConnected && (driveMeta?.isExpired || !driveToken));
-  const displayEmail = driveMeta?.email || config?.linkedEmail || auth.currentUser?.email;
-
   return (
     <div className="space-y-6">
       {/* Header Banner */}
@@ -688,7 +584,7 @@ export default function FullDatabaseBackup({ userRole }: FullDatabaseBackupProps
           </div>
 
           <div className="flex items-center gap-3">
-            {!isDriveConnected ? (
+            {!driveToken ? (
               <button
                 onClick={handleConnectDrive}
                 disabled={isConnectingDrive}
@@ -708,42 +604,16 @@ export default function FullDatabaseBackup({ userRole }: FullDatabaseBackupProps
               </button>
             ) : (
               <div className="flex items-center gap-2">
-                <div className="flex flex-col sm:flex-row sm:items-center gap-1.5 px-3 py-1.5 bg-emerald-50 border border-emerald-200/80 rounded-xl text-xs font-bold text-emerald-700 shadow-xs">
-                  <div className="flex items-center gap-2">
-                    <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                    <span>Google Drive Connected</span>
-                  </div>
-                  {displayEmail && (
-                    <span className="text-[11px] font-medium text-emerald-600/90 sm:border-l sm:border-emerald-200 sm:pl-2">
-                      {displayEmail}
-                    </span>
-                  )}
+                <div className="flex items-center gap-2 px-3 py-1.5 bg-emerald-50 border border-emerald-100 rounded-xl text-xs font-bold text-emerald-700">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                  Google Drive Connected
                 </div>
-                {isTokenExpired && (
-                  <button
-                    onClick={handleConnectDrive}
-                    disabled={isConnectingDrive}
-                    title="Renew auth session for active background synchronization"
-                    className="px-2.5 py-1.5 bg-amber-500 hover:bg-amber-600 text-white rounded-lg text-[11px] font-bold transition-all flex items-center gap-1.5 shadow-xs"
-                  >
-                    <RefreshCw size={12} className={cn(isConnectingDrive && "animate-spin")} />
-                    <span>Renew Session</span>
-                  </button>
-                )}
                 <button
                   onClick={handleConnectDrive}
-                  disabled={isConnectingDrive}
-                  title="Refresh authorization or switch Google account"
-                  className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-50 rounded-lg border border-slate-200 transition-all disabled:opacity-50"
+                  title="Refresh authorization"
+                  className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-50 rounded-lg border border-slate-100 transition-all"
                 >
-                  <RefreshCw size={14} className={cn(isConnectingDrive && "animate-spin text-blue-600")} />
-                </button>
-                <button
-                  onClick={handleDisconnectDrive}
-                  title="Disconnect Google Drive link"
-                  className="px-2.5 py-1.5 text-[11px] font-semibold text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg border border-slate-200 transition-all"
-                >
-                  Disconnect
+                  <RefreshCw size={14} />
                 </button>
               </div>
             )}
@@ -794,7 +664,7 @@ export default function FullDatabaseBackup({ userRole }: FullDatabaseBackupProps
             {config?.folderId && (
               <button
                 onClick={handleManualDriveBackup}
-                disabled={isBackingUpToDrive || !isDriveConnected}
+                disabled={isBackingUpToDrive || !driveToken}
                 className="px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl shadow-sm hover:shadow transition-all flex items-center gap-2 disabled:opacity-50"
               >
                 {isBackingUpToDrive ? <Loader2 size={15} className="animate-spin" /> : <HardDrive size={15} />}
@@ -802,78 +672,6 @@ export default function FullDatabaseBackup({ userRole }: FullDatabaseBackupProps
               </button>
             )}
           </div>
-        </div>
-
-        {/* Persistent Connection Status banner */}
-        <div className={cn(
-          "p-4 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs border transition-all",
-          isDriveConnected
-            ? "bg-emerald-50/70 border-emerald-200/80 text-emerald-900"
-            : "bg-slate-50 border-slate-200 text-slate-600"
-        )}>
-          <div className="flex items-center gap-3">
-            <div className={cn(
-              "p-2 rounded-xl border shrink-0",
-              isDriveConnected
-                ? "bg-emerald-100/80 border-emerald-200 text-emerald-700"
-                : "bg-white border-slate-200 text-slate-400"
-            )}>
-              <Cloud size={16} />
-            </div>
-            <div>
-              <div className="font-bold flex items-center gap-2">
-                <span>{isDriveConnected ? "Persistent Google Drive Link Active" : "Google Drive Not Linked"}</span>
-                {isDriveConnected && (
-                  <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[10px] font-bold">
-                    All-Time Connected
-                  </span>
-                )}
-                {isTokenExpired && (
-                  <span className="px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 text-[10px] font-bold flex items-center gap-1">
-                    <Clock size={10} />
-                    <span>Session Refresh Available</span>
-                  </span>
-                )}
-              </div>
-              <p className="text-[11px] opacity-90 mt-0.5">
-                {isDriveConnected
-                  ? "Google Drive stays connected all the time across sessions, browser restarts, and page reloads. Automated backups proceed without manual reconnection."
-                  : "Connect once to enable continuous, hands-off database backup synchronization directly to your Google Drive."}
-              </p>
-            </div>
-          </div>
-          {!isDriveConnected ? (
-            <button
-              onClick={handleConnectDrive}
-              disabled={isConnectingDrive}
-              className="px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl text-xs shadow-xs transition-all shrink-0 self-start sm:self-auto disabled:opacity-50"
-            >
-              {isConnectingDrive ? 'Connecting...' : 'Connect Now'}
-            </button>
-          ) : (
-            <div className="flex items-center gap-2 shrink-0 self-start sm:self-auto">
-              {isTokenExpired && (
-                <button
-                  onClick={handleConnectDrive}
-                  disabled={isConnectingDrive}
-                  className="px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-white font-bold rounded-lg text-[11px] transition-all flex items-center gap-1.5 shadow-xs"
-                  title="Renew token for active background synchronization"
-                >
-                  <RefreshCw size={12} className={cn(isConnectingDrive && "animate-spin")} />
-                  <span>Renew Token</span>
-                </button>
-              )}
-              <button
-                onClick={handleConnectDrive}
-                disabled={isConnectingDrive}
-                className="px-2.5 py-1.5 bg-white hover:bg-emerald-100/60 border border-emerald-200 text-emerald-700 font-bold rounded-lg text-[11px] transition-all flex items-center gap-1.5"
-                title="Switch Google account or refresh token manually"
-              >
-                <RefreshCw size={12} className={cn(isConnectingDrive && "animate-spin")} />
-                <span>Switch Account</span>
-              </button>
-            </div>
-          )}
         </div>
 
         {/* Configuration Panel */}
@@ -960,11 +758,11 @@ export default function FullDatabaseBackup({ userRole }: FullDatabaseBackupProps
                     <select
                       value={config?.folderId || ''}
                       onChange={(e) => handleSelectFolder(e.target.value)}
-                      disabled={!isDriveConnected || isLoadingFolders}
+                      disabled={!driveToken || isLoadingFolders}
                       className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 disabled:bg-slate-100"
                     >
                       <option value="">
-                        {!isDriveConnected
+                        {!driveToken
                           ? '— Connect Google Drive first —'
                           : isLoadingFolders
                           ? 'Loading folders...'
@@ -979,16 +777,9 @@ export default function FullDatabaseBackup({ userRole }: FullDatabaseBackupProps
                       ))}
                     </select>
                   </div>
-                  {isDriveConnected && (
+                  {driveToken && (
                     <button
-                      onClick={async () => {
-                        try {
-                          const tok = await ensureInteractiveToken();
-                          loadDriveFolders(tok);
-                        } catch (e: any) {
-                          console.error(e);
-                        }
-                      }}
+                      onClick={() => loadDriveFolders(driveToken)}
                       disabled={isLoadingFolders}
                       title="Refresh folders list"
                       className="p-2.5 bg-white hover:bg-slate-50 border border-slate-200 rounded-xl text-slate-600 transition-all disabled:opacity-50"
@@ -1008,12 +799,12 @@ export default function FullDatabaseBackup({ userRole }: FullDatabaseBackupProps
                     value={newFolderName}
                     onChange={(e) => setNewFolderName(e.target.value)}
                     placeholder="New folder name (e.g. TriloyTech Backups)"
-                    disabled={!isDriveConnected || isCreatingFolder}
+                    disabled={!driveToken || isCreatingFolder}
                     className="flex-1 px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20"
                   />
                   <button
                     onClick={handleCreateFolder}
-                    disabled={!isDriveConnected || isCreatingFolder || !newFolderName.trim()}
+                    disabled={!driveToken || isCreatingFolder || !newFolderName.trim()}
                     className="px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl shadow-sm transition-all flex items-center gap-1.5 disabled:opacity-50 shrink-0"
                   >
                     {isCreatingFolder ? <Loader2 size={14} className="animate-spin" /> : <FolderPlus size={14} />}
@@ -1034,12 +825,12 @@ export default function FullDatabaseBackup({ userRole }: FullDatabaseBackupProps
                     value={customFolderInput}
                     onChange={(e) => setCustomFolderInput(e.target.value)}
                     placeholder="Paste Folder ID or Google Drive URL (https://drive.google.com/drive/folders/...)"
-                    disabled={!isDriveConnected || isValidatingFolder}
+                    disabled={!driveToken || isValidatingFolder}
                     className="flex-1 px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 font-mono"
                   />
                   <button
                     onClick={handleSaveCustomFolder}
-                    disabled={!isDriveConnected || isValidatingFolder || !customFolderInput.trim()}
+                    disabled={!driveToken || isValidatingFolder || !customFolderInput.trim()}
                     className="px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl shadow-sm transition-all flex items-center gap-1.5 disabled:opacity-50 shrink-0"
                   >
                     {isValidatingFolder ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
@@ -1220,18 +1011,9 @@ export default function FullDatabaseBackup({ userRole }: FullDatabaseBackupProps
                   {folderBackups.length}
                 </span>
               </div>
-              {isDriveConnected && (
+              {driveToken && (
                 <button
-                  onClick={async () => {
-                    try {
-                      const tok = await ensureInteractiveToken();
-                      if (config.folderId) {
-                        loadBackups(tok, config.folderId);
-                      }
-                    } catch (e: any) {
-                      console.error(e);
-                    }
-                  }}
+                  onClick={() => loadBackups(driveToken, config.folderId)}
                   disabled={isLoadingBackups}
                   className="text-xs text-blue-600 hover:text-blue-700 font-bold flex items-center gap-1.5 transition-all"
                 >
