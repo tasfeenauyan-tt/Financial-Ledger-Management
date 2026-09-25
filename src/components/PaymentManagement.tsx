@@ -24,7 +24,11 @@ import {
   X,
   Building2,
   Eye,
-  ShieldAlert
+  ShieldAlert,
+  Filter,
+  Calendar,
+  RotateCcw,
+  Hash
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn, formatCurrency } from '../lib/utils';
@@ -118,6 +122,13 @@ export default function PaymentManagement({ userRole }: PaymentManagementProps) 
   const [isPreviewModalOpen, setIsPreviewModalOpen] = useState(false);
   const [previewInvoice, setPreviewInvoice] = useState<Invoice | null>(null);
 
+  // Invoices Module Filters State
+  const [invoiceStatusFilter, setInvoiceStatusFilter] = useState<string>('ALL');
+  const [invoiceNumberFilter, setInvoiceNumberFilter] = useState<string>('');
+  const [invoiceClientFilter, setInvoiceClientFilter] = useState<string>('ALL');
+  const [invoiceStartDateFilter, setInvoiceStartDateFilter] = useState<string>('');
+  const [invoiceEndDateFilter, setInvoiceEndDateFilter] = useState<string>('');
+
   useEffect(() => {
     const unsubClients = onSnapshot(query(collection(db, 'clients'), orderBy('createdAt', 'desc')), (snapshot) => {
       setClients(snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Client)));
@@ -193,6 +204,138 @@ export default function PaymentManagement({ userRole }: PaymentManagementProps) 
       };
     });
   }, [clients, invoices]);
+
+  // Invoices Module Filter computations & helpers
+  const isInvoiceFiltered = useMemo(() => {
+    return (
+      invoiceStatusFilter !== 'ALL' ||
+      invoiceNumberFilter.trim() !== '' ||
+      invoiceClientFilter !== 'ALL' ||
+      invoiceStartDateFilter !== '' ||
+      invoiceEndDateFilter !== ''
+    );
+  }, [invoiceStatusFilter, invoiceNumberFilter, invoiceClientFilter, invoiceStartDateFilter, invoiceEndDateFilter]);
+
+  const clearInvoiceFilters = () => {
+    setInvoiceStatusFilter('ALL');
+    setInvoiceNumberFilter('');
+    setInvoiceClientFilter('ALL');
+    setInvoiceStartDateFilter('');
+    setInvoiceEndDateFilter('');
+  };
+
+  const handleDatePreset = (preset: 'this-month' | 'last-month' | 'this-year' | 'clear') => {
+    if (preset === 'clear') {
+      setInvoiceStartDateFilter('');
+      setInvoiceEndDateFilter('');
+      return;
+    }
+    const now = new Date();
+    if (preset === 'this-month') {
+      const year = now.getFullYear();
+      const month = String(now.getMonth() + 1).padStart(2, '0');
+      const lastDay = new Date(year, now.getMonth() + 1, 0).getDate();
+      setInvoiceStartDateFilter(`${year}-${month}-01`);
+      setInvoiceEndDateFilter(`${year}-${month}-${String(lastDay).padStart(2, '0')}`);
+    } else if (preset === 'last-month') {
+      const lastMonthDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+      const year = lastMonthDate.getFullYear();
+      const month = String(lastMonthDate.getMonth() + 1).padStart(2, '0');
+      const lastDay = new Date(year, lastMonthDate.getMonth() + 1, 0).getDate();
+      setInvoiceStartDateFilter(`${year}-${month}-01`);
+      setInvoiceEndDateFilter(`${year}-${month}-${String(lastDay).padStart(2, '0')}`);
+    } else if (preset === 'this-year') {
+      const year = now.getFullYear();
+      setInvoiceStartDateFilter(`${year}-01-01`);
+      setInvoiceEndDateFilter(`${year}-12-31`);
+    }
+  };
+
+  const statusCounts = useMemo(() => {
+    const counts: Record<string, number> = {
+      ALL: invoices.length,
+      Unpaid: 0,
+      Partial: 0,
+      Paid: 0,
+      'Carry Forward': 0,
+      'Bad Debt': 0,
+    };
+    invoices.forEach(inv => {
+      if (counts[inv.status] !== undefined) {
+        counts[inv.status]++;
+      }
+    });
+    return counts;
+  }, [invoices]);
+
+  const invoiceClientOptions = useMemo(() => {
+    const map = new Map<string, { id: string; name: string; count: number }>();
+    
+    invoices.forEach(inv => {
+      const key = inv.clientId || inv.clientName || 'unknown';
+      const displayName = inv.clientName || clients.find(c => c.id === inv.clientId)?.projectName || 'Unknown Client';
+      if (!map.has(key)) {
+        map.set(key, { id: key, name: displayName, count: 1 });
+      } else {
+        map.get(key)!.count++;
+      }
+    });
+
+    clients.forEach(c => {
+      if (!map.has(c.id)) {
+        map.set(c.id, { id: c.id, name: c.projectName || c.name, count: 0 });
+      }
+    });
+
+    return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name));
+  }, [clients, invoices]);
+
+  const filteredInvoices = useMemo(() => {
+    return invoices.filter(inv => {
+      // 1. Status Filter
+      if (invoiceStatusFilter !== 'ALL' && inv.status !== invoiceStatusFilter) {
+        return false;
+      }
+      // 2. Invoice Number Filter
+      if (invoiceNumberFilter.trim()) {
+        const query = invoiceNumberFilter.trim().toLowerCase();
+        const matchesInvoice = (inv.invoiceNumber || '').toLowerCase().includes(query);
+        if (!matchesInvoice) return false;
+      }
+      // 3. Client Filter
+      if (invoiceClientFilter !== 'ALL') {
+        const matchesClient = inv.clientId === invoiceClientFilter || 
+                              inv.clientName === invoiceClientFilter ||
+                              (inv.clientName && inv.clientName.toLowerCase() === invoiceClientFilter.toLowerCase());
+        if (!matchesClient) return false;
+      }
+      // 4. Date Filter
+      if (invoiceStartDateFilter && (inv.date || '') < invoiceStartDateFilter) {
+        return false;
+      }
+      if (invoiceEndDateFilter && (inv.date || '') > invoiceEndDateFilter) {
+        return false;
+      }
+      return true;
+    });
+  }, [invoices, invoiceStatusFilter, invoiceNumberFilter, invoiceClientFilter, invoiceStartDateFilter, invoiceEndDateFilter]);
+
+  const filteredTotals = useMemo(() => {
+    const totalAmount = filteredInvoices.reduce((sum, inv) => sum + (inv.totalAmount || 0), 0);
+    const paidAmount = filteredInvoices.reduce((sum, inv) => sum + (inv.paidAmount || 0), 0);
+    const badDebtAmount = filteredInvoices.reduce((sum, inv) => sum + (inv.badDebtAmount || 0), 0);
+    const dueAmount = filteredInvoices.reduce((sum, inv) => {
+      const outstanding = (inv.totalAmount || 0) - (inv.paidAmount || 0) - (inv.badDebtAmount || 0);
+      return sum + Math.max(0, outstanding);
+    }, 0);
+    return { totalAmount, paidAmount, badDebtAmount, dueAmount };
+  }, [filteredInvoices]);
+
+  const selectedClientDisplay = useMemo(() => {
+    if (invoiceClientFilter === 'ALL') return '';
+    const match = invoiceClientOptions.find(o => o.id === invoiceClientFilter);
+    return match ? match.name : invoiceClientFilter;
+  }, [invoiceClientFilter, invoiceClientOptions]);
 
   // Handlers
   const handleSaveClient = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -418,7 +561,7 @@ export default function PaymentManagement({ userRole }: PaymentManagementProps) 
   };
 
   const downloadInvoicesXLS = () => {
-    const data = invoices.map(inv => ({
+    const data = filteredInvoices.map(inv => ({
       'Invoice #': inv.invoiceNumber,
       'Client': inv.clientName,
       'Service Date': inv.serviceDate || '-',
@@ -427,7 +570,7 @@ export default function PaymentManagement({ userRole }: PaymentManagementProps) 
       'Installment Plan': inv.installments?.length ? `${inv.installments.length} Installment(s)` : (inv.installmentPlan ? `${inv.installmentPlan} Installment(s)` : '1 Installment'),
       'Total Amount': inv.totalAmount,
       'Paid Amount': inv.paidAmount,
-      'Outstanding': inv.totalAmount - inv.paidAmount,
+      'Outstanding': inv.totalAmount - inv.paidAmount - (inv.badDebtAmount || 0),
       'Status': inv.status
     }));
     const ws = XLSX.utils.json_to_sheet(data);
@@ -1017,14 +1160,18 @@ export default function PaymentManagement({ userRole }: PaymentManagementProps) 
             className="space-y-6"
           >
             <div className="flex items-center justify-between">
-              <h3 className="text-xl font-bold text-slate-800">Invoices Module</h3>
+              <div>
+                <h3 className="text-xl font-bold text-slate-800">Invoices Module</h3>
+                <p className="text-xs text-slate-500 font-medium">Manage and track client invoices, billing schedules, and collections</p>
+              </div>
               <div className="flex items-center gap-3">
                 <button 
                   onClick={downloadInvoicesXLS}
-                  className="flex items-center gap-2 px-4 py-2.5 bg-emerald-50 text-emerald-600 rounded-xl font-bold hover:bg-emerald-100 transition-all"
+                  className="flex items-center gap-2 px-4 py-2.5 bg-emerald-50 text-emerald-600 rounded-xl font-bold hover:bg-emerald-100 transition-all border border-emerald-100"
+                  title={isInvoiceFiltered ? `Export ${filteredInvoices.length} filtered invoices to Excel` : "Export all invoices to Excel"}
                 >
                   <Download size={18} />
-                  Export XLS
+                  Export XLS {isInvoiceFiltered && `(${filteredInvoices.length})`}
                 </button>
                 {isAdmin && (
                   <button 
@@ -1036,6 +1183,335 @@ export default function PaymentManagement({ userRole }: PaymentManagementProps) 
                   </button>
                 )}
               </div>
+            </div>
+
+            {/* Filter Section */}
+            <div className="bg-white p-5 rounded-3xl border border-slate-200/80 shadow-sm space-y-4">
+              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-3">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-xl bg-indigo-50 flex items-center justify-center text-indigo-600">
+                    <Filter size={18} />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h4 className="text-sm font-bold text-slate-800">Filter Invoices</h4>
+                      {isInvoiceFiltered && (
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-100 text-indigo-700">
+                          Filters Active
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-xs text-slate-500 font-medium">Filter by Status, Invoice #, Client, or Date</p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  {/* Date Quick Presets */}
+                  <div className="hidden sm:flex items-center gap-1 bg-slate-100 p-1 rounded-xl text-xs font-semibold text-slate-600">
+                    <button
+                      type="button"
+                      onClick={() => handleDatePreset('this-month')}
+                      className="px-2.5 py-1 rounded-lg hover:bg-white hover:text-slate-900 transition-all"
+                    >
+                      This Month
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleDatePreset('last-month')}
+                      className="px-2.5 py-1 rounded-lg hover:bg-white hover:text-slate-900 transition-all"
+                    >
+                      Last Month
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleDatePreset('this-year')}
+                      className="px-2.5 py-1 rounded-lg hover:bg-white hover:text-slate-900 transition-all"
+                    >
+                      This Year
+                    </button>
+                  </div>
+
+                  {isInvoiceFiltered && (
+                    <button
+                      type="button"
+                      onClick={clearInvoiceFilters}
+                      className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-rose-600 bg-rose-50 hover:bg-rose-100 rounded-xl transition-all border border-rose-100"
+                      title="Clear all filters"
+                    >
+                      <RotateCcw size={14} />
+                      Reset Filters
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* 4 Filter Controls */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                {/* 1. Status Filter */}
+                <div>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="text-[11px] font-black uppercase tracking-wider text-slate-500">
+                      Status
+                    </label>
+                    {invoiceStatusFilter !== 'ALL' && (
+                      <button 
+                        type="button" 
+                        onClick={() => setInvoiceStatusFilter('ALL')}
+                        className="text-[10px] font-bold text-rose-500 hover:underline"
+                      >
+                        Clear
+                      </button>
+                    )}
+                  </div>
+                  <div className="relative">
+                    <select
+                      value={invoiceStatusFilter}
+                      onChange={(e) => setInvoiceStatusFilter(e.target.value)}
+                      className={cn(
+                        "w-full px-3 py-2 bg-slate-50 border rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500/20 transition-all cursor-pointer appearance-none pr-8",
+                        invoiceStatusFilter !== 'ALL'
+                          ? "border-indigo-400 bg-indigo-50/50 text-indigo-900 font-bold"
+                          : "border-slate-200 text-slate-700"
+                      )}
+                    >
+                      <option value="ALL">All Statuses ({statusCounts.ALL})</option>
+                      <option value="Unpaid">Unpaid ({statusCounts.Unpaid})</option>
+                      <option value="Partial">Partial ({statusCounts.Partial})</option>
+                      <option value="Paid">Paid ({statusCounts.Paid})</option>
+                      <option value="Carry Forward">Carry Forward ({statusCounts['Carry Forward']})</option>
+                      <option value="Bad Debt">Bad Debt ({statusCounts['Bad Debt']})</option>
+                    </select>
+                    {invoiceStatusFilter !== 'ALL' ? (
+                      <button
+                        type="button"
+                        onClick={() => setInvoiceStatusFilter('ALL')}
+                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5"
+                      >
+                        <X size={14} />
+                      </button>
+                    ) : (
+                      <div className="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
+                        <ArrowDownRight size={14} className="rotate-45" />
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* 2. Invoice # Filter */}
+                <div>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="text-[11px] font-black uppercase tracking-wider text-slate-500">
+                      Invoice #
+                    </label>
+                    {invoiceNumberFilter.trim() !== '' && (
+                      <button 
+                        type="button" 
+                        onClick={() => setInvoiceNumberFilter('')}
+                        className="text-[10px] font-bold text-rose-500 hover:underline"
+                      >
+                        Clear
+                      </button>
+                    )}
+                  </div>
+                  <div className="relative">
+                    <div className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">
+                      <Hash size={15} />
+                    </div>
+                    <input
+                      type="text"
+                      placeholder="e.g. INV-001..."
+                      value={invoiceNumberFilter}
+                      onChange={(e) => setInvoiceNumberFilter(e.target.value)}
+                      className={cn(
+                        "w-full pl-8 pr-8 py-2 bg-slate-50 border rounded-xl text-xs font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500/20 transition-all",
+                        invoiceNumberFilter.trim() !== ''
+                          ? "border-indigo-400 bg-indigo-50/50 text-indigo-900 font-bold"
+                          : "border-slate-200 text-slate-700 placeholder:text-slate-400"
+                      )}
+                    />
+                    {invoiceNumberFilter.trim() !== '' && (
+                      <button
+                        type="button"
+                        onClick={() => setInvoiceNumberFilter('')}
+                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5"
+                      >
+                        <X size={14} />
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {/* 3. Client Filter */}
+                <div>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="text-[11px] font-black uppercase tracking-wider text-slate-500">
+                      Client
+                    </label>
+                    {invoiceClientFilter !== 'ALL' && (
+                      <button 
+                        type="button" 
+                        onClick={() => setInvoiceClientFilter('ALL')}
+                        className="text-[10px] font-bold text-rose-500 hover:underline"
+                      >
+                        Clear
+                      </button>
+                    )}
+                  </div>
+                  <div className="relative">
+                    <select
+                      value={invoiceClientFilter}
+                      onChange={(e) => setInvoiceClientFilter(e.target.value)}
+                      className={cn(
+                        "w-full px-3 py-2 bg-slate-50 border rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500/20 transition-all cursor-pointer appearance-none pr-8",
+                        invoiceClientFilter !== 'ALL'
+                          ? "border-indigo-400 bg-indigo-50/50 text-indigo-900 font-bold"
+                          : "border-slate-200 text-slate-700"
+                      )}
+                    >
+                      <option value="ALL">All Clients ({invoices.length})</option>
+                      {invoiceClientOptions.map(clientOpt => (
+                        <option key={clientOpt.id} value={clientOpt.id}>
+                          {clientOpt.name} ({clientOpt.count})
+                        </option>
+                      ))}
+                    </select>
+                    {invoiceClientFilter !== 'ALL' ? (
+                      <button
+                        type="button"
+                        onClick={() => setInvoiceClientFilter('ALL')}
+                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5"
+                      >
+                        <X size={14} />
+                      </button>
+                    ) : (
+                      <div className="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
+                        <ArrowDownRight size={14} className="rotate-45" />
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* 4. Date Filter (From & To) */}
+                <div>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="text-[11px] font-black uppercase tracking-wider text-slate-500 flex items-center gap-1">
+                      <Calendar size={13} className="text-slate-400" />
+                      Date (From / To)
+                    </label>
+                    {(invoiceStartDateFilter || invoiceEndDateFilter) && (
+                      <button
+                        type="button"
+                        onClick={() => { setInvoiceStartDateFilter(''); setInvoiceEndDateFilter(''); }}
+                        className="text-[10px] font-bold text-rose-500 hover:underline"
+                      >
+                        Clear
+                      </button>
+                    )}
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="relative">
+                      <input
+                        type="date"
+                        value={invoiceStartDateFilter}
+                        onChange={(e) => setInvoiceStartDateFilter(e.target.value)}
+                        title="Start Date (From)"
+                        aria-label="From Date"
+                        className={cn(
+                          "w-full px-2 py-1.5 bg-slate-50 border rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500/20 transition-all",
+                          invoiceStartDateFilter
+                            ? "border-indigo-400 bg-indigo-50/50 text-indigo-900 font-bold"
+                            : "border-slate-200 text-slate-700"
+                        )}
+                      />
+                    </div>
+                    <div className="relative">
+                      <input
+                        type="date"
+                        value={invoiceEndDateFilter}
+                        onChange={(e) => setInvoiceEndDateFilter(e.target.value)}
+                        title="End Date (To)"
+                        aria-label="To Date"
+                        className={cn(
+                          "w-full px-2 py-1.5 bg-slate-50 border rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500/20 transition-all",
+                          invoiceEndDateFilter
+                            ? "border-indigo-400 bg-indigo-50/50 text-indigo-900 font-bold"
+                            : "border-slate-200 text-slate-700"
+                        )}
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Active Filter Chips & Summary Bar */}
+              {(isInvoiceFiltered || invoices.length > 0) && (
+                <div className="pt-2 border-t border-slate-100 flex flex-wrap items-center justify-between gap-3 text-xs">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="font-bold text-slate-500">
+                      Showing <span className="text-slate-900 font-black">{filteredInvoices.length}</span> of {invoices.length} invoices
+                    </span>
+
+                    {invoiceStatusFilter !== 'ALL' && (
+                      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-indigo-50 text-indigo-700 font-bold border border-indigo-100">
+                        Status: {invoiceStatusFilter}
+                        <button type="button" onClick={() => setInvoiceStatusFilter('ALL')} className="hover:text-indigo-900" title="Remove Status filter">
+                          <X size={12} />
+                        </button>
+                      </span>
+                    )}
+
+                    {invoiceNumberFilter.trim() !== '' && (
+                      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-indigo-50 text-indigo-700 font-bold border border-indigo-100">
+                        Invoice: "{invoiceNumberFilter.trim()}"
+                        <button type="button" onClick={() => setInvoiceNumberFilter('')} className="hover:text-indigo-900" title="Remove Invoice filter">
+                          <X size={12} />
+                        </button>
+                      </span>
+                    )}
+
+                    {invoiceClientFilter !== 'ALL' && (
+                      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-indigo-50 text-indigo-700 font-bold border border-indigo-100">
+                        Client: {selectedClientDisplay}
+                        <button type="button" onClick={() => setInvoiceClientFilter('ALL')} className="hover:text-indigo-900" title="Remove Client filter">
+                          <X size={12} />
+                        </button>
+                      </span>
+                    )}
+
+                    {(invoiceStartDateFilter || invoiceEndDateFilter) && (
+                      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-indigo-50 text-indigo-700 font-bold border border-indigo-100">
+                        Date: {invoiceStartDateFilter || 'Any'} → {invoiceEndDateFilter || 'Any'}
+                        <button type="button" onClick={() => { setInvoiceStartDateFilter(''); setInvoiceEndDateFilter(''); }} className="hover:text-indigo-900" title="Remove Date filter">
+                          <X size={12} />
+                        </button>
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Filtered Financial Metrics Preview */}
+                  <div className="flex flex-wrap items-center gap-3 font-semibold text-slate-600 bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-100">
+                    <span>
+                      Total: <strong className="text-slate-900 font-black">{formatCurrency(filteredTotals.totalAmount)}</strong>
+                    </span>
+                    <span className="text-slate-300">•</span>
+                    <span>
+                      Paid: <strong className="text-emerald-600 font-black">{formatCurrency(filteredTotals.paidAmount)}</strong>
+                    </span>
+                    <span className="text-slate-300">•</span>
+                    <span>
+                      Due: <strong className="text-rose-600 font-black">{formatCurrency(filteredTotals.dueAmount)}</strong>
+                    </span>
+                    {filteredTotals.badDebtAmount > 0 && (
+                      <>
+                        <span className="text-slate-300">•</span>
+                        <span>
+                          Bad Debt: <strong className="text-slate-500 font-black">{formatCurrency(filteredTotals.badDebtAmount)}</strong>
+                        </span>
+                      </>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
 
             <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
@@ -1056,8 +1532,39 @@ export default function PaymentManagement({ userRole }: PaymentManagementProps) 
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-50">
-                    {invoices.map(inv => (
-                      <tr key={inv.id} className="hover:bg-slate-50/50 transition-colors group">
+                    {filteredInvoices.length === 0 ? (
+                      <tr>
+                        <td colSpan={10} className="p-12 text-center">
+                          <div className="flex flex-col items-center justify-center gap-3 text-slate-400">
+                            <div className="w-12 h-12 rounded-2xl bg-slate-100 flex items-center justify-center text-slate-400">
+                              <Search size={22} />
+                            </div>
+                            <div>
+                              <p className="text-base font-bold text-slate-700">
+                                {isInvoiceFiltered ? 'No invoices match your filter criteria' : 'No invoices found'}
+                              </p>
+                              <p className="text-xs text-slate-400 mt-1 max-w-sm">
+                                {isInvoiceFiltered 
+                                  ? 'Try adjusting your status, invoice number, client, or date filters to find what you are looking for.' 
+                                  : 'No invoice records are currently available. Click "Create Invoice" to add a new invoice.'}
+                              </p>
+                            </div>
+                            {isInvoiceFiltered && (
+                              <button
+                                type="button"
+                                onClick={clearInvoiceFilters}
+                                className="mt-2 px-4 py-2 bg-indigo-50 text-indigo-600 hover:bg-indigo-100 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 border border-indigo-100"
+                              >
+                                <RotateCcw size={14} />
+                                Reset All Filters
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    ) : (
+                      filteredInvoices.map(inv => (
+                        <tr key={inv.id} className="hover:bg-slate-50/50 transition-colors group">
                         <td className="p-4 text-sm font-bold text-slate-900">{inv.invoiceNumber}</td>
                         <td className="p-4 text-sm font-bold text-slate-700">{inv.clientName}</td>
                         <td className="p-4 text-sm text-slate-500 font-medium">{inv.date}</td>
@@ -1140,7 +1647,7 @@ export default function PaymentManagement({ userRole }: PaymentManagementProps) 
                           </div>
                         </td>
                       </tr>
-                    ))}
+                    )))}
                   </tbody>
                 </table>
               </div>

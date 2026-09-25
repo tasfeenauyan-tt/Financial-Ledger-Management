@@ -20,7 +20,6 @@ const COLLECTIONS = [
   'transactionSubCategories',
   'partners',
   'settings',
-  'entry_history',
   'users'
 ];
 
