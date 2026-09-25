@@ -24,7 +24,10 @@ import {
   X,
   Building2,
   Eye,
-  ShieldAlert
+  ShieldAlert,
+  Filter,
+  Calendar,
+  RotateCcw
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn, formatCurrency } from '../lib/utils';
@@ -118,6 +121,14 @@ export default function PaymentManagement({ userRole }: PaymentManagementProps) 
   const [isPreviewModalOpen, setIsPreviewModalOpen] = useState(false);
   const [previewInvoice, setPreviewInvoice] = useState<Invoice | null>(null);
 
+  // Invoices Module Filter States (Status, Invoice, Client, Date)
+  const [invoiceStatusFilter, setInvoiceStatusFilter] = useState<string>('ALL');
+  const [invoiceNumberFilter, setInvoiceNumberFilter] = useState<string>('');
+  const [invoiceClientFilter, setInvoiceClientFilter] = useState<string>('ALL');
+  const [invoiceStartDate, setInvoiceStartDate] = useState<string>('');
+  const [invoiceEndDate, setInvoiceEndDate] = useState<string>('');
+  const [invoiceDatePreset, setInvoiceDatePreset] = useState<string>('all');
+
   useEffect(() => {
     const unsubClients = onSnapshot(query(collection(db, 'clients'), orderBy('createdAt', 'desc')), (snapshot) => {
       setClients(snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Client)));
@@ -193,6 +204,151 @@ export default function PaymentManagement({ userRole }: PaymentManagementProps) 
       };
     });
   }, [clients, invoices]);
+
+  // Unique Clients for Invoices Filter
+  const uniqueInvoiceClients = useMemo(() => {
+    const clientMap = new Map<string, string>();
+    clients.forEach(c => {
+      const name = c.projectName || c.name;
+      if (name && name.trim()) {
+        const trimmed = name.trim();
+        const label = c.company ? `${trimmed} (${c.company})` : trimmed;
+        clientMap.set(trimmed, label);
+      }
+    });
+
+    invoices.forEach(inv => {
+      if (inv.clientName && inv.clientName.trim()) {
+        const trimmed = inv.clientName.trim();
+        if (!clientMap.has(trimmed)) {
+          clientMap.set(trimmed, trimmed);
+        }
+      }
+    });
+
+    return Array.from(clientMap.entries()).sort((a, b) => a[1].localeCompare(b[1]));
+  }, [clients, invoices]);
+
+  // Is any invoice filter active
+  const isAnyInvoiceFilterActive = useMemo(() => {
+    return (
+      invoiceStatusFilter !== 'ALL' ||
+      invoiceNumberFilter.trim() !== '' ||
+      invoiceClientFilter !== 'ALL' ||
+      invoiceStartDate !== '' ||
+      invoiceEndDate !== ''
+    );
+  }, [invoiceStatusFilter, invoiceNumberFilter, invoiceClientFilter, invoiceStartDate, invoiceEndDate]);
+
+  // Reset all invoice filters
+  const handleResetInvoiceFilters = () => {
+    setInvoiceStatusFilter('ALL');
+    setInvoiceNumberFilter('');
+    setInvoiceClientFilter('ALL');
+    setInvoiceStartDate('');
+    setInvoiceEndDate('');
+    setInvoiceDatePreset('all');
+  };
+
+  // Date preset handler
+  const handleDatePresetChange = (preset: string) => {
+    setInvoiceDatePreset(preset);
+    const now = new Date();
+    if (preset === 'all') {
+      setInvoiceStartDate('');
+      setInvoiceEndDate('');
+    } else if (preset === 'today') {
+      const todayStr = format(now, 'yyyy-MM-dd');
+      setInvoiceStartDate(todayStr);
+      setInvoiceEndDate(todayStr);
+    } else if (preset === 'this-month') {
+      const start = new Date(now.getFullYear(), now.getMonth(), 1);
+      const end = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+      setInvoiceStartDate(format(start, 'yyyy-MM-dd'));
+      setInvoiceEndDate(format(end, 'yyyy-MM-dd'));
+    } else if (preset === 'last-month') {
+      const start = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+      const end = new Date(now.getFullYear(), now.getMonth(), 0);
+      setInvoiceStartDate(format(start, 'yyyy-MM-dd'));
+      setInvoiceEndDate(format(end, 'yyyy-MM-dd'));
+    } else if (preset === 'this-year') {
+      const start = new Date(now.getFullYear(), 0, 1);
+      const end = new Date(now.getFullYear(), 11, 31);
+      setInvoiceStartDate(format(start, 'yyyy-MM-dd'));
+      setInvoiceEndDate(format(end, 'yyyy-MM-dd'));
+    }
+  };
+
+  // Filtered Invoices according to Status, Invoice #, Client, and Date
+  const filteredInvoices = useMemo(() => {
+    return invoices.filter(inv => {
+      // 1. Status Filter
+      if (invoiceStatusFilter !== 'ALL' && inv.status !== invoiceStatusFilter) {
+        return false;
+      }
+
+      // 2. Invoice # Filter (case-insensitive substring match)
+      if (invoiceNumberFilter.trim()) {
+        const q = invoiceNumberFilter.trim().toLowerCase();
+        const matchesInvoiceNum = (inv.invoiceNumber || '').toLowerCase().includes(q);
+        const matchesCarried = (inv.carriedToInvoiceNumber || '').toLowerCase().includes(q);
+        if (!matchesInvoiceNum && !matchesCarried) {
+          return false;
+        }
+      }
+
+      // 3. Client Filter
+      if (invoiceClientFilter !== 'ALL') {
+        const selected = invoiceClientFilter.toLowerCase();
+        const invClientName = (inv.clientName || '').toLowerCase();
+        const clientObj = clients.find(c => c.id === inv.clientId);
+        const clientNameObj = (clientObj?.name || '').toLowerCase();
+        const clientProjObj = (clientObj?.projectName || '').toLowerCase();
+
+        const isClientMatch = 
+          invClientName === selected ||
+          inv.clientId === invoiceClientFilter ||
+          clientNameObj === selected ||
+          clientProjObj === selected;
+
+        if (!isClientMatch) {
+          return false;
+        }
+      }
+
+      // 4. Date Filter
+      if (invoiceStartDate || invoiceEndDate) {
+        if (!inv.date) return false;
+        const invTime = new Date(inv.date).getTime();
+        if (!isNaN(invTime)) {
+          if (invoiceStartDate) {
+            const start = new Date(invoiceStartDate);
+            start.setHours(0, 0, 0, 0);
+            if (invTime < start.getTime()) return false;
+          }
+          if (invoiceEndDate) {
+            const end = new Date(invoiceEndDate);
+            end.setHours(23, 59, 59, 999);
+            if (invTime > end.getTime()) return false;
+          }
+        } else {
+          if (invoiceStartDate && inv.date < invoiceStartDate) return false;
+          if (invoiceEndDate && inv.date > invoiceEndDate) return false;
+        }
+      }
+
+      return true;
+    });
+  }, [invoices, clients, invoiceStatusFilter, invoiceNumberFilter, invoiceClientFilter, invoiceStartDate, invoiceEndDate]);
+
+  // Financial summary for filtered invoices
+  const filteredInvoicesStats = useMemo(() => {
+    const active = filteredInvoices.filter(inv => inv.status !== 'Carry Forward');
+    const totalInvoiced = active.reduce((sum, inv) => sum + (inv.totalAmount || 0), 0);
+    const totalPaid = active.reduce((sum, inv) => sum + (inv.paidAmount || 0), 0);
+    const totalDue = active.reduce((sum, inv) => sum + Math.max(0, (inv.totalAmount || 0) - (inv.paidAmount || 0) - (inv.badDebtAmount || 0)), 0);
+    return { totalInvoiced, totalPaid, totalDue };
+  }, [filteredInvoices]);
 
   // Handlers
   const handleSaveClient = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -418,7 +574,7 @@ export default function PaymentManagement({ userRole }: PaymentManagementProps) 
   };
 
   const downloadInvoicesXLS = () => {
-    const data = invoices.map(inv => ({
+    const data = filteredInvoices.map(inv => ({
       'Invoice #': inv.invoiceNumber,
       'Client': inv.clientName,
       'Service Date': inv.serviceDate || '-',
@@ -433,7 +589,8 @@ export default function PaymentManagement({ userRole }: PaymentManagementProps) 
     const ws = XLSX.utils.json_to_sheet(data);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Invoices');
-    XLSX.writeFile(wb, `Invoices_${format(new Date(), 'yyyy-MM-dd')}.xlsx`);
+    const filterSuffix = isAnyInvoiceFilterActive ? '_Filtered' : '';
+    XLSX.writeFile(wb, `Invoices${filterSuffix}_${format(new Date(), 'yyyy-MM-dd')}.xlsx`);
   };
 
   const downloadPaymentsXLS = () => {
@@ -1016,15 +1173,19 @@ export default function PaymentManagement({ userRole }: PaymentManagementProps) 
             exit={{ opacity: 0, x: -20 }}
             className="space-y-6"
           >
-            <div className="flex items-center justify-between">
-              <h3 className="text-xl font-bold text-slate-800">Invoices Module</h3>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div>
+                <h3 className="text-xl font-bold text-slate-800">Invoices Module</h3>
+                <p className="text-xs text-slate-500 font-medium">Manage, track, and filter client billings and payment statuses</p>
+              </div>
               <div className="flex items-center gap-3">
                 <button 
                   onClick={downloadInvoicesXLS}
-                  className="flex items-center gap-2 px-4 py-2.5 bg-emerald-50 text-emerald-600 rounded-xl font-bold hover:bg-emerald-100 transition-all"
+                  className="flex items-center gap-2 px-4 py-2.5 bg-emerald-50 text-emerald-600 rounded-xl font-bold hover:bg-emerald-100 transition-all border border-emerald-100"
+                  title="Export invoices to Excel"
                 >
                   <Download size={18} />
-                  Export XLS
+                  Export XLS {isAnyInvoiceFilterActive ? `(${filteredInvoices.length})` : ''}
                 </button>
                 {isAdmin && (
                   <button 
@@ -1035,6 +1196,311 @@ export default function PaymentManagement({ userRole }: PaymentManagementProps) 
                     Create Invoice
                   </button>
                 )}
+              </div>
+            </div>
+
+            {/* Filter Section: Status, Invoice, Client, Date */}
+            <div className="bg-white p-5 rounded-3xl border border-slate-100 shadow-sm space-y-4">
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 border-b border-slate-100 pb-3">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-lg bg-indigo-50 flex items-center justify-center text-indigo-600">
+                    <Filter size={16} />
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-bold text-slate-800">Filter Invoices</h4>
+                    <p className="text-[11px] text-slate-400">Filter by Status, Invoice #, Client, and Date</p>
+                  </div>
+                  {isAnyInvoiceFilterActive && (
+                    <span className="ml-2 px-2.5 py-0.5 text-[11px] font-black bg-indigo-50 text-indigo-700 rounded-full border border-indigo-100">
+                      {filteredInvoices.length} of {invoices.length} matched
+                    </span>
+                  )}
+                </div>
+
+                {isAnyInvoiceFilterActive && (
+                  <button
+                    onClick={handleResetInvoiceFilters}
+                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-slate-600 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-all self-start md:self-auto border border-slate-200 hover:border-rose-200"
+                    title="Clear all active filters"
+                  >
+                    <RotateCcw size={13} />
+                    Reset Filters
+                  </button>
+                )}
+              </div>
+
+              {/* Quick Status Bar */}
+              <div className="flex items-center gap-2 overflow-x-auto pb-1">
+                <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider shrink-0 mr-1">Status:</span>
+                <div className="flex flex-wrap items-center gap-1.5">
+                  {[
+                    { id: 'ALL', label: 'All', count: invoices.length },
+                    { id: 'Unpaid', label: 'Unpaid', count: invoices.filter(i => i.status === 'Unpaid').length },
+                    { id: 'Partial', label: 'Partial', count: invoices.filter(i => i.status === 'Partial').length },
+                    { id: 'Paid', label: 'Paid', count: invoices.filter(i => i.status === 'Paid').length },
+                    { id: 'Carry Forward', label: 'Carry Forward', count: invoices.filter(i => i.status === 'Carry Forward').length },
+                    { id: 'Bad Debt', label: 'Bad Debt', count: invoices.filter(i => i.status === 'Bad Debt').length },
+                  ].map((st) => (
+                    <button
+                      key={st.id}
+                      type="button"
+                      onClick={() => setInvoiceStatusFilter(st.id)}
+                      className={cn(
+                        "flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all border shrink-0",
+                        invoiceStatusFilter === st.id
+                          ? "bg-indigo-600 text-white border-indigo-600 shadow-sm shadow-indigo-100"
+                          : "bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100 hover:text-slate-800"
+                      )}
+                    >
+                      <span>{st.label}</span>
+                      <span className={cn(
+                        "text-[10px] px-1.5 py-0.2 rounded-md font-extrabold",
+                        invoiceStatusFilter === st.id ? "bg-white/20 text-white" : "bg-white text-slate-500 border border-slate-200"
+                      )}>
+                        {st.count}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* 4-Column Controls: Status, Invoice, Client, Date */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 pt-1">
+                {/* 1. Status Dropdown */}
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center justify-between">
+                    <span>Status</span>
+                    {invoiceStatusFilter !== 'ALL' && (
+                      <span className="text-[10px] text-indigo-600 font-extrabold lowercase">filtered</span>
+                    )}
+                  </label>
+                  <div className="relative">
+                    <select
+                      value={invoiceStatusFilter}
+                      onChange={(e) => setInvoiceStatusFilter(e.target.value)}
+                      className={cn(
+                        "w-full px-3.5 py-2.5 rounded-xl border text-sm font-semibold transition-all appearance-none pr-8 bg-slate-50/70 focus:bg-white focus:ring-2 focus:ring-indigo-500/20 focus:outline-none",
+                        invoiceStatusFilter !== 'ALL' 
+                          ? "border-indigo-300 text-indigo-900 bg-indigo-50/30" 
+                          : "border-slate-200 text-slate-700"
+                      )}
+                    >
+                      <option value="ALL">All Statuses ({invoices.length})</option>
+                      <option value="Unpaid">Unpaid ({invoices.filter(i => i.status === 'Unpaid').length})</option>
+                      <option value="Partial">Partial ({invoices.filter(i => i.status === 'Partial').length})</option>
+                      <option value="Paid">Paid ({invoices.filter(i => i.status === 'Paid').length})</option>
+                      <option value="Carry Forward">Carry Forward ({invoices.filter(i => i.status === 'Carry Forward').length})</option>
+                      <option value="Bad Debt">Bad Debt ({invoices.filter(i => i.status === 'Bad Debt').length})</option>
+                    </select>
+                    <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400 text-xs">
+                      ▼
+                    </div>
+                  </div>
+                </div>
+
+                {/* 2. Invoice # Filter */}
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center justify-between">
+                    <span>Invoice #</span>
+                    {invoiceNumberFilter && (
+                      <span className="text-[10px] text-indigo-600 font-extrabold lowercase">filtered</span>
+                    )}
+                  </label>
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+                    <input
+                      type="text"
+                      placeholder="Search invoice #..."
+                      value={invoiceNumberFilter}
+                      onChange={(e) => setInvoiceNumberFilter(e.target.value)}
+                      className={cn(
+                        "w-full pl-9 pr-8 py-2.5 rounded-xl border text-sm font-semibold transition-all bg-slate-50/70 focus:bg-white focus:ring-2 focus:ring-indigo-500/20 focus:outline-none",
+                        invoiceNumberFilter.trim() 
+                          ? "border-indigo-300 text-indigo-900 bg-indigo-50/30" 
+                          : "border-slate-200 text-slate-700 placeholder:text-slate-400"
+                      )}
+                    />
+                    {invoiceNumberFilter && (
+                      <button
+                        type="button"
+                        onClick={() => setInvoiceNumberFilter('')}
+                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5 rounded-full"
+                      >
+                        <X size={14} />
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {/* 3. Client Filter */}
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center justify-between">
+                    <span>Client</span>
+                    {invoiceClientFilter !== 'ALL' && (
+                      <span className="text-[10px] text-indigo-600 font-extrabold lowercase">filtered</span>
+                    )}
+                  </label>
+                  <div className="relative">
+                    <select
+                      value={invoiceClientFilter}
+                      onChange={(e) => setInvoiceClientFilter(e.target.value)}
+                      className={cn(
+                        "w-full px-3.5 py-2.5 rounded-xl border text-sm font-semibold transition-all appearance-none pr-8 bg-slate-50/70 focus:bg-white focus:ring-2 focus:ring-indigo-500/20 focus:outline-none truncate",
+                        invoiceClientFilter !== 'ALL' 
+                          ? "border-indigo-300 text-indigo-900 bg-indigo-50/30" 
+                          : "border-slate-200 text-slate-700"
+                      )}
+                    >
+                      <option value="ALL">All Clients ({uniqueInvoiceClients.length})</option>
+                      {uniqueInvoiceClients.map(([name, label]) => (
+                        <option key={name} value={name}>
+                          {label}
+                        </option>
+                      ))}
+                    </select>
+                    <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400 text-xs">
+                      ▼
+                    </div>
+                  </div>
+                </div>
+
+                {/* 4. Date Preset Filter */}
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center justify-between">
+                    <span>Date Filter</span>
+                    {(invoiceStartDate || invoiceEndDate) && (
+                      <span className="text-[10px] text-indigo-600 font-extrabold lowercase">filtered</span>
+                    )}
+                  </label>
+                  <div className="relative">
+                    <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={16} />
+                    <select
+                      value={invoiceDatePreset}
+                      onChange={(e) => handleDatePresetChange(e.target.value)}
+                      className={cn(
+                        "w-full pl-9 pr-8 py-2.5 rounded-xl border text-sm font-semibold transition-all appearance-none bg-slate-50/70 focus:bg-white focus:ring-2 focus:ring-indigo-500/20 focus:outline-none",
+                        (invoiceStartDate || invoiceEndDate) 
+                          ? "border-indigo-300 text-indigo-900 bg-indigo-50/30" 
+                          : "border-slate-200 text-slate-700"
+                      )}
+                    >
+                      <option value="all">All Dates</option>
+                      <option value="today">Today</option>
+                      <option value="this-month">This Month</option>
+                      <option value="last-month">Last Month</option>
+                      <option value="this-year">This Year</option>
+                      <option value="custom">Custom Date Range...</option>
+                    </select>
+                    <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400 text-xs">
+                      ▼
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Date Range Inputs (visible when custom range or specific dates are set) */}
+              {(invoiceDatePreset === 'custom' || invoiceStartDate || invoiceEndDate) && (
+                <div className="p-3 bg-slate-50/80 rounded-2xl border border-slate-100 flex flex-wrap items-center gap-3">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">From Date:</span>
+                    <input
+                      type="date"
+                      value={invoiceStartDate}
+                      onChange={(e) => {
+                        setInvoiceStartDate(e.target.value);
+                        setInvoiceDatePreset('custom');
+                      }}
+                      className="px-3 py-1.5 rounded-xl border border-slate-200 text-xs font-bold bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                    />
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">To Date:</span>
+                    <input
+                      type="date"
+                      value={invoiceEndDate}
+                      onChange={(e) => {
+                        setInvoiceEndDate(e.target.value);
+                        setInvoiceDatePreset('custom');
+                      }}
+                      className="px-3 py-1.5 rounded-xl border border-slate-200 text-xs font-bold bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                    />
+                  </div>
+                  {(invoiceStartDate || invoiceEndDate) && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setInvoiceStartDate('');
+                        setInvoiceEndDate('');
+                        setInvoiceDatePreset('all');
+                      }}
+                      className="text-xs text-rose-600 hover:text-rose-700 font-bold ml-auto px-2.5 py-1 hover:bg-rose-50 rounded-lg transition-colors flex items-center gap-1"
+                    >
+                      <X size={13} />
+                      Clear Dates
+                    </button>
+                  )}
+                </div>
+              )}
+
+              {/* Active Filter Badges & Financial Metrics Summary */}
+              <div className="pt-2 border-t border-slate-100 flex flex-col md:flex-row md:items-center justify-between gap-3">
+                <div className="flex flex-wrap items-center gap-1.5 text-xs">
+                  <span className="text-slate-400 font-semibold mr-1">Active Filters:</span>
+                  {!isAnyInvoiceFilterActive && (
+                    <span className="text-slate-400 italic">None (showing all)</span>
+                  )}
+
+                  {invoiceStatusFilter !== 'ALL' && (
+                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-indigo-50 text-indigo-700 text-xs font-bold border border-indigo-100">
+                      Status: {invoiceStatusFilter}
+                      <button type="button" onClick={() => setInvoiceStatusFilter('ALL')} className="hover:text-indigo-900">
+                        <X size={12} />
+                      </button>
+                    </span>
+                  )}
+
+                  {invoiceNumberFilter.trim() && (
+                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-indigo-50 text-indigo-700 text-xs font-bold border border-indigo-100">
+                      Invoice: #{invoiceNumberFilter}
+                      <button type="button" onClick={() => setInvoiceNumberFilter('')} className="hover:text-indigo-900">
+                        <X size={12} />
+                      </button>
+                    </span>
+                  )}
+
+                  {invoiceClientFilter !== 'ALL' && (
+                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-indigo-50 text-indigo-700 text-xs font-bold border border-indigo-100">
+                      Client: {invoiceClientFilter}
+                      <button type="button" onClick={() => setInvoiceClientFilter('ALL')} className="hover:text-indigo-900">
+                        <X size={12} />
+                      </button>
+                    </span>
+                  )}
+
+                  {(invoiceStartDate || invoiceEndDate) && (
+                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-indigo-50 text-indigo-700 text-xs font-bold border border-indigo-100">
+                      Date: {invoiceStartDate || 'Start'} to {invoiceEndDate || 'End'}
+                      <button type="button" onClick={() => { setInvoiceStartDate(''); setInvoiceEndDate(''); setInvoiceDatePreset('all'); }} className="hover:text-indigo-900">
+                        <X size={12} />
+                      </button>
+                    </span>
+                  )}
+                </div>
+
+                <div className="flex flex-wrap items-center gap-4 text-xs font-semibold bg-slate-50/80 px-3.5 py-2 rounded-xl border border-slate-100">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-slate-400 font-bold uppercase tracking-wider text-[10px]">Invoiced:</span>
+                    <span className="font-extrabold text-slate-900">{formatCurrency(filteredInvoicesStats.totalInvoiced)}</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-slate-400 font-bold uppercase tracking-wider text-[10px]">Paid:</span>
+                    <span className="font-extrabold text-emerald-600">{formatCurrency(filteredInvoicesStats.totalPaid)}</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-slate-400 font-bold uppercase tracking-wider text-[10px]">Due:</span>
+                    <span className="font-extrabold text-rose-600">{formatCurrency(filteredInvoicesStats.totalDue)}</span>
+                  </div>
+                </div>
               </div>
             </div>
 
@@ -1056,7 +1522,7 @@ export default function PaymentManagement({ userRole }: PaymentManagementProps) 
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-50">
-                    {invoices.map(inv => (
+                    {filteredInvoices.map(inv => (
                       <tr key={inv.id} className="hover:bg-slate-50/50 transition-colors group">
                         <td className="p-4 text-sm font-bold text-slate-900">{inv.invoiceNumber}</td>
                         <td className="p-4 text-sm font-bold text-slate-700">{inv.clientName}</td>
@@ -1141,6 +1607,35 @@ export default function PaymentManagement({ userRole }: PaymentManagementProps) 
                         </td>
                       </tr>
                     ))}
+                    {filteredInvoices.length === 0 && (
+                      <tr>
+                        <td colSpan={10} className="p-12 text-center text-slate-500">
+                          <div className="flex flex-col items-center justify-center max-w-sm mx-auto space-y-3">
+                            <div className="w-12 h-12 rounded-2xl bg-indigo-50 flex items-center justify-center text-indigo-600">
+                              <Filter size={24} />
+                            </div>
+                            <div>
+                              <h4 className="text-base font-bold text-slate-800">No Invoices Found</h4>
+                              <p className="text-xs text-slate-500 mt-1">
+                                {isAnyInvoiceFilterActive 
+                                  ? "No invoices match your selected filter criteria. Try adjusting or clearing your filters."
+                                  : "No invoices created yet."}
+                              </p>
+                            </div>
+                            {isAnyInvoiceFilterActive && (
+                              <button
+                                type="button"
+                                onClick={handleResetInvoiceFilters}
+                                className="flex items-center gap-1.5 px-4 py-2 bg-indigo-50 text-indigo-600 rounded-xl text-xs font-bold hover:bg-indigo-100 transition-all border border-indigo-100 mt-2"
+                              >
+                                <RotateCcw size={14} />
+                                Reset All Filters
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    )}
                   </tbody>
                 </table>
               </div>

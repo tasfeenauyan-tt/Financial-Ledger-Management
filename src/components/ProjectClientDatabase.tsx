@@ -88,7 +88,7 @@ export default function ProjectClientDatabase({
   const [isImporting, setIsImporting] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
-  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>('list');
 
   // Form State for auto-fill logic
   const [formCrmLeadId, setFormCrmLeadId] = useState('');
@@ -480,18 +480,6 @@ export default function ProjectClientDatabase({
         {/* View Toggle */}
         <div className="flex items-center gap-2 bg-slate-100/50 p-1 rounded-xl self-start md:self-center">
           <button 
-            onClick={() => setViewMode('grid')}
-            className={cn(
-              "flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold transition-all",
-              viewMode === 'grid' 
-                ? "bg-white text-indigo-600 shadow-sm ring-1 ring-slate-200" 
-                : "text-slate-500 hover:text-slate-700"
-            )}
-          >
-            <LayoutGrid size={14} />
-            Cards
-          </button>
-          <button 
             onClick={() => setViewMode('list')}
             className={cn(
               "flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold transition-all",
@@ -502,6 +490,18 @@ export default function ProjectClientDatabase({
           >
             <List size={14} />
             List
+          </button>
+          <button 
+            onClick={() => setViewMode('grid')}
+            className={cn(
+              "flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold transition-all",
+              viewMode === 'grid' 
+                ? "bg-white text-indigo-600 shadow-sm ring-1 ring-slate-200" 
+                : "text-slate-500 hover:text-slate-700"
+            )}
+          >
+            <LayoutGrid size={14} />
+            Cards
           </button>
         </div>
 
@@ -688,6 +688,7 @@ export default function ProjectClientDatabase({
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="bg-slate-50/50">
+                <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100 w-16 text-center">Sl</th>
                 <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100">Project / Client</th>
                 <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100">Company</th>
                 <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100">Services</th>
@@ -698,8 +699,11 @@ export default function ProjectClientDatabase({
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50">
-              {filteredClients.map(client => (
+              {filteredClients.map((client, index) => (
                 <tr key={client.id} className="hover:bg-slate-50/50 transition-all group">
+                  <td className="px-6 py-4 text-xs font-bold text-slate-400 text-center">
+                    {index + 1}
+                  </td>
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-3">
                       <div className="w-8 h-8 rounded-lg bg-indigo-50 flex items-center justify-center text-indigo-600">
