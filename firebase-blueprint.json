@@ -95,6 +95,22 @@
       },
       "required": ["id", "nisabAmount", "startDate"]
     },
+    "EntryHistory": {
+      "title": "Entry History",
+      "description": "Audit log and version control for ledger entries",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "entryId": { "type": "string" },
+        "action": { "type": "string", "enum": ["created", "updated", "deleted", "reverted"] },
+        "timestamp": { "type": "string", "format": "date-time" },
+        "before": { "type": "object" },
+        "after": { "type": "object" },
+        "userEmail": { "type": "string" },
+        "details": { "type": "string" }
+      },
+      "required": ["id", "entryId", "action", "timestamp"]
+    },
     "Client": {
       "title": "Client",
       "description": "Client details",

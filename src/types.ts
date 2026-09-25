@@ -62,6 +62,17 @@ export interface LedgerEntry {
   createdAt: string;
 }
 
+export interface EntryHistoryItem {
+  id: string;
+  entryId: string;
+  action: 'created' | 'updated' | 'deleted' | 'reverted';
+  timestamp: string;
+  before?: LedgerEntry | null;
+  after?: LedgerEntry | null;
+  userEmail?: string;
+  details?: string;
+}
+
 export interface Client {
   id: string;
   projectName: string;

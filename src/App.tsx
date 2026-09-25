@@ -29,6 +29,7 @@ import AccountsPayable from './components/AccountsPayable';
 import AccountsReceivable from './components/AccountsReceivable';
 import RevenueProjection from './components/RevenueProjection';
 import PaySlipManagement from './components/PaySlipManagement';
+import BackupManagement from './components/BackupManagement';
 import { auth, logout, User, db } from './firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 import { handleFirestoreError, OperationType } from './lib/firestore-errors';
@@ -46,7 +47,7 @@ import {
   getDoc
 } from 'firebase/firestore';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend, LineChart, Line, XAxis, YAxis, CartesianGrid, BarChart, Bar } from 'recharts';
-import { Building2, LayoutDashboard, History, Settings, LogOut, Search, Filter, Download, Trash2, RotateCcw, FileText, Calendar, Receipt, Users, Database, AlertCircle, Menu, X, TrendingDown, TrendingUp, Shield, ArrowLeftRight, Calculator, CreditCard, BarChart3, Coins } from 'lucide-react';
+import { Building2, LayoutDashboard, History, Settings, LogOut, Search, Filter, Download, Trash2, RotateCcw, FileText, Calendar, Receipt, Users, Database, AlertCircle, Menu, X, TrendingDown, TrendingUp, Shield, ArrowLeftRight, Calculator, CreditCard, BarChart3, Coins, HardDrive } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
@@ -70,7 +71,7 @@ export default function App() {
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
 
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'history' | 'balance-sheet' | 'monthly-balance-sheet' | 'trial-balance' | 'monthly-p-and-l' | 'expense' | 'categorized-expense' | 'salary' | 'pay-slips' | 'financial-report' | 'owners-capital' | 'zakat' | 'payments-mgmt' | 'accounts' | 'admin' | 'employees' | 'project-clients' | 'accounts-payable' | 'accounts-receivable' | 'revenue-projection'>('history');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'history' | 'balance-sheet' | 'monthly-balance-sheet' | 'trial-balance' | 'monthly-p-and-l' | 'expense' | 'categorized-expense' | 'salary' | 'pay-slips' | 'financial-report' | 'owners-capital' | 'zakat' | 'backup' | 'payments-mgmt' | 'accounts' | 'admin' | 'employees' | 'project-clients' | 'accounts-payable' | 'accounts-receivable' | 'revenue-projection'>('history');
 
   const [searchTerm, setSearchTerm] = useState('');
   const [editingEntry, setEditingEntry] = useState<LedgerEntry | null>(null);
@@ -413,7 +414,28 @@ export default function App() {
 
   const handleSaveEntry = async (entry: LedgerEntry) => {
     try {
+      const isNew = !entries.some(e => e.id === entry.id);
+      const existingEntry = entries.find(e => e.id === entry.id);
+
       await setDoc(doc(db, 'entries', entry.id), entry);
+
+      // Record audit history for real-time tracking & point-in-time revert
+      try {
+        const historyId = `hist_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
+        await setDoc(doc(db, 'entry_history', historyId), {
+          id: historyId,
+          entryId: entry.id,
+          action: isNew ? 'created' : 'updated',
+          timestamp: new Date().toISOString(),
+          before: existingEntry ? JSON.parse(JSON.stringify(existingEntry)) : null,
+          after: JSON.parse(JSON.stringify(entry)),
+          userEmail: user?.email || 'authenticated_user',
+          details: entry.details || entry.transactionItemName || 'Ledger Entry'
+        });
+      } catch (histErr) {
+        console.warn("Could not log to entry_history:", histErr);
+      }
+
       setEditingEntry(null);
     } catch (error) {
       handleFirestoreError(error, OperationType.WRITE, `entries/${entry.id}`);
@@ -437,7 +459,28 @@ export default function App() {
   const confirmDelete = async () => {
     if (entryToDelete) {
       try {
+        const deletedEntryObj = entries.find(e => e.id === entryToDelete);
         await deleteDoc(doc(db, 'entries', entryToDelete));
+
+        // Record audit history for deleted entry
+        if (deletedEntryObj) {
+          try {
+            const historyId = `hist_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
+            await setDoc(doc(db, 'entry_history', historyId), {
+              id: historyId,
+              entryId: entryToDelete,
+              action: 'deleted',
+              timestamp: new Date().toISOString(),
+              before: JSON.parse(JSON.stringify(deletedEntryObj)),
+              after: null,
+              userEmail: user?.email || 'authenticated_user',
+              details: deletedEntryObj.details || deletedEntryObj.transactionItemName || 'Ledger Entry'
+            });
+          } catch (histErr) {
+            console.warn("Could not log deletion to entry_history:", histErr);
+          }
+        }
+
         setEntryToDelete(null);
       } catch (error) {
         handleFirestoreError(error, OperationType.DELETE, `entries/${entryToDelete}`);
@@ -701,6 +744,15 @@ export default function App() {
         >
           <Database size={20} />
           Pool Management System
+        </button>
+        <button 
+          onClick={() => { setActiveTab('backup'); setIsMobileMenuOpen(false); }}
+          className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-semibold transition-all ${
+            activeTab === 'backup' ? 'bg-indigo-50 text-indigo-700' : 'text-slate-500 hover:bg-slate-50'
+          }`}
+        >
+          <HardDrive size={20} />
+          Backup & Restore
         </button>
 
         {userRole === 'admin' && (
@@ -977,6 +1029,7 @@ export default function App() {
                  activeTab === 'zakat' ? 'Zakat Calculation' :
                  activeTab === 'accounts-payable' ? 'Accounts Payable' :
                  activeTab === 'accounts-receivable' ? 'Accounts Receivable' :
+                 activeTab === 'backup' ? 'Backup & Restore' :
                  activeTab === 'payments-mgmt' ? 'Client/Project Payment Management' :
                  activeTab === 'admin' ? 'Admin Panel' :
                  activeTab === 'employees' ? 'Employee Management System' :
@@ -1000,6 +1053,7 @@ export default function App() {
                  activeTab === 'zakat' ? 'Calculate and track your Zakat obligations.' :
                  activeTab === 'accounts-payable' ? 'Track pending payments to vendors and suppliers from remarks.' :
                  activeTab === 'accounts-receivable' ? 'Track pending collections from projects and clients from remarks.' :
+                 activeTab === 'backup' ? 'System snapshots, disaster recovery, and transaction rollback history.' :
                  activeTab === 'payments-mgmt' ? 'Manage clients, invoices, and project payments.' :
                  activeTab === 'admin' ? 'Manage team members and system access.' :
                  activeTab === 'employees' ? 'Manage employee information.' :
@@ -1346,6 +1400,16 @@ export default function App() {
                 className="space-y-6"
               >
                 <PaymentManagement userRole={userRole || 'viewer'} />
+              </motion.div>
+            ) : activeTab === 'backup' ? (
+              <motion.div
+                key="backup"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -20 }}
+                className="space-y-6"
+              >
+                <BackupManagement userRole={userRole || 'viewer'} />
               </motion.div>
             ) : activeTab === 'project-clients' ? (
               <motion.div
