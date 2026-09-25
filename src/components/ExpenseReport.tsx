@@ -71,8 +71,7 @@ export default function ExpenseReport({ entries, userRole }: ExpenseReportProps)
       Date: formatDate(e.date),
       'Transaction Item': e.transactionItemName,
       Amount: e.expenseAmount,
-      Remarks: e.remarks,
-      Notes: e.notes || ''
+      Remarks: e.remarks
     }));
 
     const ws = XLSX.utils.json_to_sheet(data);
@@ -89,8 +88,7 @@ export default function ExpenseReport({ entries, userRole }: ExpenseReportProps)
         Date: formatDate(e.date),
         'Transaction Item': e.transactionItemName,
         Amount: e.expenseAmount,
-        Remarks: e.remarks,
-        Notes: e.notes || ''
+        Remarks: e.remarks
       }));
       const ws = XLSX.utils.json_to_sheet(data);
       XLSX.utils.book_append_sheet(wb, ws, monthData.monthKey);
@@ -170,7 +168,6 @@ export default function ExpenseReport({ entries, userRole }: ExpenseReportProps)
                       <th className="p-4 text-xs font-bold text-slate-400 uppercase tracking-widest">Transaction Item</th>
                       <th className="p-4 text-xs font-bold text-slate-400 uppercase tracking-widest text-right">Amount</th>
                       <th className="p-4 text-xs font-bold text-slate-400 uppercase tracking-widest">Remarks</th>
-                      <th className="p-4 text-xs font-bold text-slate-400 uppercase tracking-widest">Notes</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-50">
@@ -180,7 +177,6 @@ export default function ExpenseReport({ entries, userRole }: ExpenseReportProps)
                         <td className="p-4 text-sm text-slate-900 font-bold">{expense.transactionItemName}</td>
                         <td className="p-4 text-sm text-rose-600 font-bold text-right">{formatCurrency(expense.expenseAmount)}</td>
                         <td className="p-4 text-sm text-slate-500 italic">{expense.remarks}</td>
-                        <td className="p-4 text-sm text-slate-600">{expense.notes || '-'}</td>
                       </tr>
                     ))}
                   </tbody>
