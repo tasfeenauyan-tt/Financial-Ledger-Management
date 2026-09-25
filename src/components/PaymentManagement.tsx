@@ -24,10 +24,7 @@ import {
   X,
   Building2,
   Eye,
-  ShieldAlert,
-  Filter,
-  Calendar,
-  RotateCcw
+  ShieldAlert
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn, formatCurrency } from '../lib/utils';
@@ -120,13 +117,6 @@ export default function PaymentManagement({ userRole }: PaymentManagementProps) 
 
   const [isPreviewModalOpen, setIsPreviewModalOpen] = useState(false);
   const [previewInvoice, setPreviewInvoice] = useState<Invoice | null>(null);
-
-  // Invoices Module filter states
-  const [invoiceStatusFilter, setInvoiceStatusFilter] = useState<string>('All');
-  const [invoiceNumberFilter, setInvoiceNumberFilter] = useState<string>('');
-  const [invoiceClientFilter, setInvoiceClientFilter] = useState<string>('All');
-  const [invoiceStartDate, setInvoiceStartDate] = useState<string>('');
-  const [invoiceEndDate, setInvoiceEndDate] = useState<string>('');
 
   useEffect(() => {
     const unsubClients = onSnapshot(query(collection(db, 'clients'), orderBy('createdAt', 'desc')), (snapshot) => {
@@ -427,145 +417,8 @@ export default function PaymentManagement({ userRole }: PaymentManagementProps) 
     setIsDeleteConfirmOpen(true);
   };
 
-  // Unique client options for invoice client filter dropdown
-  const invoiceClientOptions = useMemo(() => {
-    const map = new Map<string, string>();
-    clients.forEach(c => {
-      const label = c.projectName ? `${c.projectName} (${c.name})` : c.name;
-      map.set(c.id, label);
-    });
-    invoices.forEach(inv => {
-      if (inv.clientId && !map.has(inv.clientId) && inv.clientName) {
-        map.set(inv.clientId, inv.clientName);
-      }
-    });
-    return Array.from(map.entries())
-      .map(([id, label]) => ({ id, label }))
-      .sort((a, b) => a.label.localeCompare(b.label));
-  }, [clients, invoices]);
-
-  // Status counts for invoice status filter
-  const invoiceStatusCounts = useMemo(() => {
-    const counts: Record<string, number> = {
-      All: invoices.length,
-      Unpaid: 0,
-      Partial: 0,
-      Paid: 0,
-      'Carry Forward': 0,
-      'Bad Debt': 0
-    };
-    invoices.forEach(inv => {
-      if (counts[inv.status] !== undefined) {
-        counts[inv.status]++;
-      }
-    });
-    return counts;
-  }, [invoices]);
-
-  // Filtered invoices according to Status, Invoice, Client, and Date
-  const filteredInvoices = useMemo(() => {
-    return invoices.filter(inv => {
-      // 1. Status Filter
-      if (invoiceStatusFilter !== 'All' && inv.status !== invoiceStatusFilter) {
-        return false;
-      }
-
-      // 2. Invoice # Filter
-      if (invoiceNumberFilter.trim()) {
-        const query = invoiceNumberFilter.trim().toLowerCase();
-        const numMatch = inv.invoiceNumber?.toLowerCase().includes(query);
-        const carriedMatch = inv.carriedToInvoiceNumber?.toLowerCase().includes(query);
-        if (!numMatch && !carriedMatch) {
-          return false;
-        }
-      }
-
-      // 3. Client Filter
-      if (invoiceClientFilter !== 'All') {
-        const clientObj = clients.find(c => c.id === invoiceClientFilter);
-        const matchesId = inv.clientId === invoiceClientFilter;
-        const matchesClientName = clientObj 
-          ? (inv.clientName?.toLowerCase().includes(clientObj.name.toLowerCase()) || 
-             (clientObj.projectName && inv.clientName?.toLowerCase().includes(clientObj.projectName.toLowerCase())))
-          : (inv.clientId === invoiceClientFilter || inv.clientName?.toLowerCase().includes(invoiceClientFilter.toLowerCase()));
-        if (!matchesId && !matchesClientName) {
-          return false;
-        }
-      }
-
-      // 4. Date Filter (invoice date: inv.date format YYYY-MM-DD)
-      if (invoiceStartDate) {
-        if (!inv.date || inv.date < invoiceStartDate) {
-          return false;
-        }
-      }
-      if (invoiceEndDate) {
-        if (!inv.date || inv.date > invoiceEndDate) {
-          return false;
-        }
-      }
-
-      return true;
-    });
-  }, [invoices, clients, invoiceStatusFilter, invoiceNumberFilter, invoiceClientFilter, invoiceStartDate, invoiceEndDate]);
-
-  const hasActiveInvoiceFilters = useMemo(() => {
-    return invoiceStatusFilter !== 'All' || 
-      invoiceNumberFilter.trim() !== '' || 
-      invoiceClientFilter !== 'All' || 
-      invoiceStartDate !== '' || 
-      invoiceEndDate !== '';
-  }, [invoiceStatusFilter, invoiceNumberFilter, invoiceClientFilter, invoiceStartDate, invoiceEndDate]);
-
-  const resetInvoiceFilters = () => {
-    setInvoiceStatusFilter('All');
-    setInvoiceNumberFilter('');
-    setInvoiceClientFilter('All');
-    setInvoiceStartDate('');
-    setInvoiceEndDate('');
-  };
-
-  const setInvoiceDatePreset = (preset: 'all' | 'this-month' | 'last-month' | 'this-year') => {
-    const now = new Date();
-    if (preset === 'all') {
-      setInvoiceStartDate('');
-      setInvoiceEndDate('');
-    } else if (preset === 'this-month') {
-      const start = new Date(now.getFullYear(), now.getMonth(), 1);
-      const end = new Date(now.getFullYear(), now.getMonth() + 1, 0);
-      setInvoiceStartDate(format(start, 'yyyy-MM-dd'));
-      setInvoiceEndDate(format(end, 'yyyy-MM-dd'));
-    } else if (preset === 'last-month') {
-      const start = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-      const end = new Date(now.getFullYear(), now.getMonth(), 0);
-      setInvoiceStartDate(format(start, 'yyyy-MM-dd'));
-      setInvoiceEndDate(format(end, 'yyyy-MM-dd'));
-    } else if (preset === 'this-year') {
-      const start = new Date(now.getFullYear(), 0, 1);
-      const end = new Date(now.getFullYear(), 11, 31);
-      setInvoiceStartDate(format(start, 'yyyy-MM-dd'));
-      setInvoiceEndDate(format(end, 'yyyy-MM-dd'));
-    }
-  };
-
-  const filteredInvoicesTotals = useMemo(() => {
-    let totalAmount = 0;
-    let paidAmount = 0;
-    let dueAmount = 0;
-
-    filteredInvoices.forEach(inv => {
-      totalAmount += inv.totalAmount || 0;
-      paidAmount += inv.paidAmount || 0;
-      const due = (inv.totalAmount || 0) - (inv.paidAmount || 0) - (inv.badDebtAmount || 0);
-      dueAmount += Math.max(0, due);
-    });
-
-    return { totalAmount, paidAmount, dueAmount };
-  }, [filteredInvoices]);
-
   const downloadInvoicesXLS = () => {
-    const listToExport = filteredInvoices;
-    const data = listToExport.map(inv => ({
+    const data = invoices.map(inv => ({
       'Invoice #': inv.invoiceNumber,
       'Client': inv.clientName,
       'Service Date': inv.serviceDate || '-',
@@ -574,9 +427,8 @@ export default function PaymentManagement({ userRole }: PaymentManagementProps) 
       'Installment Plan': inv.installments?.length ? `${inv.installments.length} Installment(s)` : (inv.installmentPlan ? `${inv.installmentPlan} Installment(s)` : '1 Installment'),
       'Total Amount': inv.totalAmount,
       'Paid Amount': inv.paidAmount,
-      'Outstanding': inv.totalAmount - inv.paidAmount - (inv.badDebtAmount || 0),
-      'Status': inv.status,
-      'New Invoice #': inv.carriedToInvoiceNumber || '-'
+      'Outstanding': inv.totalAmount - inv.paidAmount,
+      'Status': inv.status
     }));
     const ws = XLSX.utils.json_to_sheet(data);
     const wb = XLSX.utils.book_new();
@@ -1164,227 +1016,25 @@ export default function PaymentManagement({ userRole }: PaymentManagementProps) 
             exit={{ opacity: 0, x: -20 }}
             className="space-y-6"
           >
-            <div className="flex flex-wrap items-center justify-between gap-4">
-              <div>
-                <h3 className="text-xl font-bold text-slate-800">Invoices Module</h3>
-                <p className="text-xs text-slate-400 mt-0.5">Manage and track client invoices, installment schedules, and payments</p>
-              </div>
+            <div className="flex items-center justify-between">
+              <h3 className="text-xl font-bold text-slate-800">Invoices Module</h3>
               <div className="flex items-center gap-3">
                 <button 
                   onClick={downloadInvoicesXLS}
-                  className="flex items-center gap-2 px-4 py-2.5 bg-emerald-50 text-emerald-600 rounded-xl font-bold hover:bg-emerald-100 transition-all cursor-pointer shadow-xs"
-                  title={`Export ${filteredInvoices.length} filtered invoice(s) to Excel`}
+                  className="flex items-center gap-2 px-4 py-2.5 bg-emerald-50 text-emerald-600 rounded-xl font-bold hover:bg-emerald-100 transition-all"
                 >
                   <Download size={18} />
-                  <span>Export XLS ({filteredInvoices.length})</span>
+                  Export XLS
                 </button>
                 {isAdmin && (
                   <button 
                     onClick={() => { setEditingInvoice(null); setIsInvoiceModalOpen(true); }}
-                    className="flex items-center gap-2 px-6 py-2.5 bg-indigo-600 text-white rounded-xl font-bold shadow-lg shadow-indigo-100 hover:bg-indigo-700 transition-all cursor-pointer"
+                    className="flex items-center gap-2 px-6 py-2.5 bg-indigo-600 text-white rounded-xl font-bold shadow-lg shadow-indigo-100 hover:bg-indigo-700 transition-all"
                   >
                     <Plus size={20} />
-                    <span>Create Invoice</span>
+                    Create Invoice
                   </button>
                 )}
-              </div>
-            </div>
-
-            {/* Filter Bar */}
-            <div className="bg-white p-5 rounded-3xl border border-slate-100 shadow-sm space-y-4">
-              <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-slate-100">
-                <div className="flex items-center gap-2.5">
-                  <div className="w-8 h-8 rounded-xl bg-indigo-50 flex items-center justify-center text-indigo-600">
-                    <Filter size={16} />
-                  </div>
-                  <div>
-                    <h4 className="text-sm font-bold text-slate-800">Filter Invoices</h4>
-                    <p className="text-xs text-slate-400">Filter by Status, Invoice #, Client, and Date</p>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-2.5">
-                  {hasActiveInvoiceFilters && (
-                    <button
-                      type="button"
-                      onClick={resetInvoiceFilters}
-                      className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-rose-600 bg-rose-50 hover:bg-rose-100 rounded-xl transition-all cursor-pointer"
-                    >
-                      <RotateCcw size={13} />
-                      <span>Reset Filters</span>
-                    </button>
-                  )}
-                  <span className="text-xs font-semibold px-2.5 py-1 bg-slate-100 text-slate-600 rounded-lg">
-                    Showing <strong className="text-indigo-600 font-bold">{filteredInvoices.length}</strong> of {invoices.length} invoices
-                  </span>
-                </div>
-              </div>
-
-              {/* Filter Controls Grid */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                {/* 1. Status Filter */}
-                <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-slate-600 flex items-center gap-1.5">
-                    <span>Status</span>
-                    {invoiceStatusFilter !== 'All' && (
-                      <span className="w-2 h-2 rounded-full bg-indigo-600 inline-block" />
-                    )}
-                  </label>
-                  <select
-                    value={invoiceStatusFilter}
-                    onChange={(e) => setInvoiceStatusFilter(e.target.value)}
-                    className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 focus:ring-2 focus:ring-indigo-500 focus:bg-white outline-none transition-all cursor-pointer"
-                  >
-                    <option value="All">All Statuses ({invoiceStatusCounts.All})</option>
-                    <option value="Unpaid">Unpaid ({invoiceStatusCounts.Unpaid})</option>
-                    <option value="Partial">Partial ({invoiceStatusCounts.Partial})</option>
-                    <option value="Paid">Paid ({invoiceStatusCounts.Paid})</option>
-                    <option value="Carry Forward">Carry Forward ({invoiceStatusCounts['Carry Forward']})</option>
-                    <option value="Bad Debt">Bad Debt ({invoiceStatusCounts['Bad Debt']})</option>
-                  </select>
-                </div>
-
-                {/* 2. Invoice # Filter */}
-                <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-slate-600 flex items-center gap-1.5">
-                    <span>Invoice #</span>
-                    {invoiceNumberFilter.trim() && (
-                      <span className="w-2 h-2 rounded-full bg-indigo-600 inline-block" />
-                    )}
-                  </label>
-                  <div className="relative">
-                    <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
-                    <input
-                      type="text"
-                      value={invoiceNumberFilter}
-                      onChange={(e) => setInvoiceNumberFilter(e.target.value)}
-                      placeholder="Search invoice number..."
-                      className="w-full pl-9 pr-8 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 focus:ring-2 focus:ring-indigo-500 focus:bg-white outline-none transition-all placeholder:text-slate-400"
-                    />
-                    {invoiceNumberFilter.trim() && (
-                      <button
-                        type="button"
-                        onClick={() => setInvoiceNumberFilter('')}
-                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5 cursor-pointer"
-                      >
-                        <X size={14} />
-                      </button>
-                    )}
-                  </div>
-                </div>
-
-                {/* 3. Client Filter */}
-                <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-slate-600 flex items-center gap-1.5">
-                    <span>Client</span>
-                    {invoiceClientFilter !== 'All' && (
-                      <span className="w-2 h-2 rounded-full bg-indigo-600 inline-block" />
-                    )}
-                  </label>
-                  <select
-                    value={invoiceClientFilter}
-                    onChange={(e) => setInvoiceClientFilter(e.target.value)}
-                    className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 focus:ring-2 focus:ring-indigo-500 focus:bg-white outline-none transition-all cursor-pointer truncate"
-                  >
-                    <option value="All">All Clients ({invoiceClientOptions.length})</option>
-                    {invoiceClientOptions.map(client => (
-                      <option key={client.id} value={client.id}>
-                        {client.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                {/* 4. Date Range Filter */}
-                <div className="space-y-1.5">
-                  <div className="flex items-center justify-between">
-                    <label className="text-xs font-bold text-slate-600 flex items-center gap-1.5">
-                      <Calendar size={13} className="text-slate-400" />
-                      <span>Date Range</span>
-                      {(invoiceStartDate || invoiceEndDate) && (
-                        <span className="w-2 h-2 rounded-full bg-indigo-600 inline-block" />
-                      )}
-                    </label>
-                    {(invoiceStartDate || invoiceEndDate) && (
-                      <button
-                        type="button"
-                        onClick={() => { setInvoiceStartDate(''); setInvoiceEndDate(''); }}
-                        className="text-[10px] text-rose-500 hover:underline cursor-pointer"
-                      >
-                        Clear
-                      </button>
-                    )}
-                  </div>
-                  <div className="grid grid-cols-2 gap-1.5">
-                    <input
-                      type="date"
-                      value={invoiceStartDate}
-                      onChange={(e) => setInvoiceStartDate(e.target.value)}
-                      title="From Date"
-                      className="w-full px-2 py-2 bg-slate-50 border border-slate-200 rounded-xl text-[11px] font-semibold text-slate-700 focus:ring-2 focus:ring-indigo-500 focus:bg-white outline-none transition-all cursor-pointer"
-                    />
-                    <input
-                      type="date"
-                      value={invoiceEndDate}
-                      onChange={(e) => setInvoiceEndDate(e.target.value)}
-                      title="To Date"
-                      className="w-full px-2 py-2 bg-slate-50 border border-slate-200 rounded-xl text-[11px] font-semibold text-slate-700 focus:ring-2 focus:ring-indigo-500 focus:bg-white outline-none transition-all cursor-pointer"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* Date Presets and Financial Totals Bar */}
-              <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-slate-100">
-                <div className="flex flex-wrap items-center gap-1.5 text-xs">
-                  <span className="text-[11px] font-bold text-slate-400 mr-1">Date Presets:</span>
-                  <button
-                    type="button"
-                    onClick={() => setInvoiceDatePreset('all')}
-                    className={cn(
-                      "px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer",
-                      !invoiceStartDate && !invoiceEndDate
-                        ? "bg-indigo-600 text-white shadow-xs"
-                        : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-                    )}
-                  >
-                    All Dates
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setInvoiceDatePreset('this-month')}
-                    className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-slate-100 text-slate-600 hover:bg-slate-200 transition-all cursor-pointer"
-                  >
-                    This Month
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setInvoiceDatePreset('last-month')}
-                    className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-slate-100 text-slate-600 hover:bg-slate-200 transition-all cursor-pointer"
-                  >
-                    Last Month
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setInvoiceDatePreset('this-year')}
-                    className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-slate-100 text-slate-600 hover:bg-slate-200 transition-all cursor-pointer"
-                  >
-                    This Year
-                  </button>
-                </div>
-
-                {/* Filtered Financial Metrics Summary */}
-                <div className="flex flex-wrap items-center gap-4 text-xs font-medium bg-slate-50 px-3.5 py-1.5 rounded-xl border border-slate-200/60">
-                  <span className="text-slate-500">
-                    Total: <strong className="text-slate-900 font-bold ml-1">{formatCurrency(filteredInvoicesTotals.totalAmount)}</strong>
-                  </span>
-                  <span className="text-slate-500">
-                    Paid: <strong className="text-emerald-600 font-bold ml-1">{formatCurrency(filteredInvoicesTotals.paidAmount)}</strong>
-                  </span>
-                  <span className="text-slate-500">
-                    Due: <strong className="text-rose-600 font-bold ml-1">{formatCurrency(filteredInvoicesTotals.dueAmount)}</strong>
-                  </span>
-                </div>
               </div>
             </div>
 
@@ -1406,117 +1056,91 @@ export default function PaymentManagement({ userRole }: PaymentManagementProps) 
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-50">
-                    {filteredInvoices.length === 0 ? (
-                      <tr>
-                        <td colSpan={10} className="p-12 text-center">
-                          <div className="flex flex-col items-center justify-center text-slate-400">
-                            <FileText size={40} className="stroke-1 text-slate-300 mb-3" />
-                            <p className="text-base font-bold text-slate-600">No invoices found</p>
-                            <p className="text-xs text-slate-400 mt-1 max-w-sm">
-                              {hasActiveInvoiceFilters
-                                ? "No invoices match the selected filter criteria. Try adjusting or resetting your filters."
-                                : "No invoices have been created yet."}
-                            </p>
-                            {hasActiveInvoiceFilters && (
-                              <button
-                                type="button"
-                                onClick={resetInvoiceFilters}
-                                className="mt-4 px-4 py-2 bg-indigo-50 text-indigo-600 hover:bg-indigo-100 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer"
+                    {invoices.map(inv => (
+                      <tr key={inv.id} className="hover:bg-slate-50/50 transition-colors group">
+                        <td className="p-4 text-sm font-bold text-slate-900">{inv.invoiceNumber}</td>
+                        <td className="p-4 text-sm font-bold text-slate-700">{inv.clientName}</td>
+                        <td className="p-4 text-sm text-slate-500 font-medium">{inv.date}</td>
+                        <td className="p-4 text-center">
+                          {(() => {
+                            const instCount = inv.installments?.length || (parseInt(inv.installmentPlan || '1') || 1);
+                            return (
+                              <span className={cn(
+                                "text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md border",
+                                instCount > 1 
+                                  ? "bg-indigo-50 text-indigo-700 border-indigo-200" 
+                                  : "bg-slate-50 text-slate-600 border-slate-200"
+                              )}>
+                                {instCount} Installment{instCount > 1 ? 's' : ''}
+                              </span>
+                            );
+                          })()}
+                        </td>
+                        <td className="p-4 text-sm font-black text-slate-900 text-right">{formatCurrency(inv.totalAmount)}</td>
+                        <td className="p-4 text-sm font-black text-emerald-600 text-right">{formatCurrency(inv.paidAmount)}</td>
+                        <td className="p-4 text-sm font-black text-rose-600 text-right">{formatCurrency(inv.totalAmount - inv.paidAmount - (inv.badDebtAmount || 0))}</td>
+                        <td className="p-4 text-center">
+                          <span className={cn(
+                            "text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded-md whitespace-nowrap",
+                            inv.status === 'Paid' ? "bg-emerald-100 text-emerald-700" :
+                            inv.status === 'Partial' ? "bg-amber-100 text-amber-700" : 
+                            inv.status === 'Carry Forward' ? "bg-slate-100 text-slate-600" :
+                            inv.status === 'Bad Debt' ? "bg-slate-200 text-slate-500" :
+                            "bg-rose-100 text-rose-700"
+                          )}>
+                            {inv.status}
+                          </span>
+                        </td>
+                        <td className="p-4 text-sm font-bold text-indigo-600">
+                          {inv.carriedToInvoiceNumber || '-'}
+                        </td>
+                        <td className="p-4 text-right">
+                          <div className="flex items-center justify-end gap-2">
+                            {isAdmin && (
+                              <button 
+                                onClick={() => { setEditingInvoice(inv); setIsInvoiceModalOpen(true); }}
+                                className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all"
+                                title="Edit Invoice"
                               >
-                                <RotateCcw size={14} />
-                                <span>Reset All Filters</span>
+                                <Edit size={18} />
+                              </button>
+                            )}
+                            <button 
+                              onClick={() => { setPreviewInvoice(inv); setIsPreviewModalOpen(true); }}
+                              className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all"
+                              title="Preview Invoice"
+                            >
+                              <Eye size={18} />
+                            </button>
+                            <button 
+                              onClick={() => generateInvoicePDF(inv)}
+                              className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all"
+                              title="Download PDF"
+                            >
+                              <Printer size={18} />
+                            </button>
+                            {inv.status !== 'Paid' && isAdmin && (
+                              <button 
+                                onClick={() => { setSelectedInvoiceForPayment(inv); setIsPaymentModalOpen(true); }}
+                                className="p-2 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-all"
+                                title="Record Payment"
+                              >
+                                <CreditCard size={18} />
+                              </button>
+                            )}
+                            {isAdmin && (
+                              <button 
+                                onClick={() => handleDeleteInvoice(inv.id)}
+                                className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-all"
+                                title="Delete Invoice"
+                              >
+                                <Trash2 size={18} />
                               </button>
                             )}
                           </div>
                         </td>
                       </tr>
-                    ) : (
-                      filteredInvoices.map(inv => (
-                        <tr key={inv.id} className="hover:bg-slate-50/50 transition-colors group">
-                          <td className="p-4 text-sm font-bold text-slate-900">{inv.invoiceNumber}</td>
-                          <td className="p-4 text-sm font-bold text-slate-700">{inv.clientName}</td>
-                          <td className="p-4 text-sm text-slate-500 font-medium">{inv.date}</td>
-                          <td className="p-4 text-center">
-                            {(() => {
-                              const instCount = inv.installments?.length || (parseInt(inv.installmentPlan || '1') || 1);
-                              return (
-                                <span className={cn(
-                                  "text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md border",
-                                  instCount > 1 
-                                    ? "bg-indigo-50 text-indigo-700 border-indigo-200" 
-                                    : "bg-slate-50 text-slate-600 border-slate-200"
-                                )}>
-                                  {instCount} Installment{instCount > 1 ? 's' : ''}
-                                </span>
-                              );
-                            })()}
-                          </td>
-                          <td className="p-4 text-sm font-black text-slate-900 text-right">{formatCurrency(inv.totalAmount)}</td>
-                          <td className="p-4 text-sm font-black text-emerald-600 text-right">{formatCurrency(inv.paidAmount)}</td>
-                          <td className="p-4 text-sm font-black text-rose-600 text-right">{formatCurrency(inv.totalAmount - inv.paidAmount - (inv.badDebtAmount || 0))}</td>
-                          <td className="p-4 text-center">
-                            <span className={cn(
-                              "text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded-md whitespace-nowrap",
-                              inv.status === 'Paid' ? "bg-emerald-100 text-emerald-700" :
-                              inv.status === 'Partial' ? "bg-amber-100 text-amber-700" : 
-                              inv.status === 'Carry Forward' ? "bg-slate-100 text-slate-600" :
-                              inv.status === 'Bad Debt' ? "bg-slate-200 text-slate-500" :
-                              "bg-rose-100 text-rose-700"
-                            )}>
-                              {inv.status}
-                            </span>
-                          </td>
-                          <td className="p-4 text-sm font-bold text-indigo-600">
-                            {inv.carriedToInvoiceNumber || '-'}
-                          </td>
-                          <td className="p-4 text-right">
-                            <div className="flex items-center justify-end gap-2">
-                              {isAdmin && (
-                                <button 
-                                  onClick={() => { setEditingInvoice(inv); setIsInvoiceModalOpen(true); }}
-                                  className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all cursor-pointer"
-                                  title="Edit Invoice"
-                                >
-                                  <Edit size={18} />
-                                </button>
-                              )}
-                              <button 
-                                onClick={() => { setPreviewInvoice(inv); setIsPreviewModalOpen(true); }}
-                                className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all cursor-pointer"
-                                title="Preview Invoice"
-                              >
-                                <Eye size={18} />
-                              </button>
-                              <button 
-                                onClick={() => generateInvoicePDF(inv)}
-                                className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all cursor-pointer"
-                                title="Download PDF"
-                              >
-                                <Printer size={18} />
-                              </button>
-                              {inv.status !== 'Paid' && isAdmin && (
-                                <button 
-                                  onClick={() => { setSelectedInvoiceForPayment(inv); setIsPaymentModalOpen(true); }}
-                                  className="p-2 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-all cursor-pointer"
-                                  title="Record Payment"
-                                >
-                                  <CreditCard size={18} />
-                                </button>
-                              )}
-                              {isAdmin && (
-                                <button 
-                                  onClick={() => handleDeleteInvoice(inv.id)}
-                                  className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-all cursor-pointer"
-                                  title="Delete Invoice"
-                                >
-                                  <Trash2 size={18} />
-                                </button>
-                              )}
-                            </div>
-                          </td>
-                        </tr>
-                      ))
-                    )}
+                    ))}
                   </tbody>
                 </table>
               </div>
