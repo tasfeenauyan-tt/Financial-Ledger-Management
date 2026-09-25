@@ -586,7 +586,7 @@ export default function ProjectClientDatabase({
         </div>
       ) : viewMode === 'grid' ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filteredClients.map(client => (
+          {filteredClients.map((client, index) => (
             <motion.div 
               layout
               key={client.id} 
@@ -614,7 +614,7 @@ export default function ProjectClientDatabase({
                   <div className="flex items-center gap-2">
                     <p className="text-xs font-bold text-indigo-600 truncate max-w-[100px]">{client.name}</p>
                     <span className="text-slate-200">|</span>
-                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">ID: {client.crmLeadId}</p>
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Sl: {index + 1} • ID: {client.crmLeadId}</p>
                   </div>
                 </div>
               </div>
@@ -688,7 +688,7 @@ export default function ProjectClientDatabase({
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="bg-slate-50/50">
-                <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100 w-16 text-center">Sl</th>
+                <th className="w-14 px-4 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100 text-center">Sl</th>
                 <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100">Project / Client</th>
                 <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100">Company</th>
                 <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100">Services</th>
@@ -701,7 +701,7 @@ export default function ProjectClientDatabase({
             <tbody className="divide-y divide-slate-50">
               {filteredClients.map((client, index) => (
                 <tr key={client.id} className="hover:bg-slate-50/50 transition-all group">
-                  <td className="px-6 py-4 text-xs font-bold text-slate-400 text-center">
+                  <td className="w-14 px-4 py-4 text-xs font-bold text-slate-400 text-center">
                     {index + 1}
                   </td>
                   <td className="px-6 py-4">
