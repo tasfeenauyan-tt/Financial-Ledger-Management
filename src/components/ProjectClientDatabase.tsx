@@ -88,7 +88,7 @@ export default function ProjectClientDatabase({
   const [isImporting, setIsImporting] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
-  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>('list');
 
   // Form State for auto-fill logic
   const [formCrmLeadId, setFormCrmLeadId] = useState('');
@@ -688,6 +688,7 @@ export default function ProjectClientDatabase({
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="bg-slate-50/50">
+                <th className="px-4 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100 text-center w-14">Sl</th>
                 <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100">Project / Client</th>
                 <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100">Company</th>
                 <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100">Services</th>
@@ -698,8 +699,11 @@ export default function ProjectClientDatabase({
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50">
-              {filteredClients.map(client => (
+              {filteredClients.map((client, index) => (
                 <tr key={client.id} className="hover:bg-slate-50/50 transition-all group">
+                  <td className="px-4 py-4 text-center text-xs font-bold text-slate-400">
+                    {index + 1}
+                  </td>
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-3">
                       <div className="w-8 h-8 rounded-lg bg-indigo-50 flex items-center justify-center text-indigo-600">

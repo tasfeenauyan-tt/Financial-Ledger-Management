@@ -154,12 +154,12 @@ export default function App() {
       try {
         await getDocFromServer(doc(db, 'test', 'connection'));
       } catch (error) {
-        if (error instanceof Error && error.message.includes('the client is offline')) {
+        const errorMsg = error instanceof Error ? error.message : String(error);
+        if (errorMsg.includes('the client is offline') || errorMsg.includes('unavailable') || errorMsg.includes('could not be completed')) {
           if (retries > 0) {
-            console.warn(`Connection test failed (offline), retrying... (${retries} left)`);
             setTimeout(() => testConnection(retries - 1), 2000);
           } else {
-            console.error("Please check your Firebase configuration.");
+            console.warn("Firestore connection check: Operating in cached/offline-ready mode.");
           }
         }
       }
