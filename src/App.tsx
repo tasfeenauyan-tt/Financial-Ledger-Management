@@ -19,7 +19,6 @@ import FinancialReport from './components/FinancialReport';
 import OwnersCapital from './components/OwnersCapital';
 import ZakatCalculation from './components/ZakatCalculation';
 import TrialBalance from './components/TrialBalance';
-import FullDatabaseBackup from './components/FullDatabaseBackup';
 import PaymentManagement from './components/PaymentManagement';
 import AccountsPool from './components/AccountsPool';
 import AdminPanel from './components/AdminPanel';
@@ -30,8 +29,7 @@ import AccountsPayable from './components/AccountsPayable';
 import AccountsReceivable from './components/AccountsReceivable';
 import RevenueProjection from './components/RevenueProjection';
 import PaySlipManagement from './components/PaySlipManagement';
-import { auth, logout, User, db, getCachedGoogleAccessToken } from './firebase';
-import { getBackupConfig, isBackupDue, executeGoogleDriveBackup } from './lib/googleDriveBackup';
+import { auth, logout, User, db } from './firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 import { handleFirestoreError, OperationType } from './lib/firestore-errors';
 import { 
@@ -72,7 +70,7 @@ export default function App() {
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
 
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'history' | 'balance-sheet' | 'monthly-balance-sheet' | 'trial-balance' | 'monthly-p-and-l' | 'expense' | 'categorized-expense' | 'salary' | 'pay-slips' | 'financial-report' | 'owners-capital' | 'zakat' | 'backup' | 'payments-mgmt' | 'accounts' | 'admin' | 'employees' | 'project-clients' | 'accounts-payable' | 'accounts-receivable' | 'revenue-projection'>('history');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'history' | 'balance-sheet' | 'monthly-balance-sheet' | 'trial-balance' | 'monthly-p-and-l' | 'expense' | 'categorized-expense' | 'salary' | 'pay-slips' | 'financial-report' | 'owners-capital' | 'zakat' | 'payments-mgmt' | 'accounts' | 'admin' | 'employees' | 'project-clients' | 'accounts-payable' | 'accounts-receivable' | 'revenue-projection'>('history');
 
   const [searchTerm, setSearchTerm] = useState('');
   const [editingEntry, setEditingEntry] = useState<LedgerEntry | null>(null);
@@ -80,55 +78,31 @@ export default function App() {
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       if (currentUser) {
-        try {
-          // Fetch user role from Firestore
-          const userDoc = await getDoc(doc(db, 'users', currentUser.uid));
-          if (userDoc.exists()) {
-            const userData = userDoc.data() as AppUser;
-            setUserRole(userData.role);
-            setUserProfile(userData);
-          } else {
-            // If it's the default admin, create their profile
-            if (currentUser.email === 'tasfeen.auyan@triloytech.com') {
-              const adminUser: AppUser = {
-                uid: currentUser.uid,
-                fullName: currentUser.displayName || 'Admin',
-                email: currentUser.email,
-                role: 'admin',
-                createdAt: new Date().toISOString()
-              };
-              await setDoc(doc(db, 'users', currentUser.uid), adminUser);
-              setUserRole('admin');
-              setUserProfile(adminUser);
-            } else {
-              // Default role for others if not in DB (shouldn't happen with Admin Panel management)
-              setUserRole('viewer');
-              setUserProfile({
-                uid: currentUser.uid,
-                fullName: currentUser.displayName || 'Viewer',
-                email: currentUser.email || '',
-                role: 'viewer',
-                createdAt: new Date().toISOString()
-              });
-            }
-          }
-        } catch (err) {
-          console.warn('Could not fetch user profile from Firestore:', err);
-          // Fallback to avoid locking user out if offline
+        // Fetch user role from Firestore
+        const userDoc = await getDoc(doc(db, 'users', currentUser.uid));
+        if (userDoc.exists()) {
+          const userData = userDoc.data() as AppUser;
+          setUserRole(userData.role);
+          setUserProfile(userData);
+        } else {
+          // If it's the default admin, create their profile
           if (currentUser.email === 'tasfeen.auyan@triloytech.com') {
-            setUserRole('admin');
-            setUserProfile({
+            const adminUser: AppUser = {
               uid: currentUser.uid,
               fullName: currentUser.displayName || 'Admin',
               email: currentUser.email,
               role: 'admin',
               createdAt: new Date().toISOString()
-            });
+            };
+            await setDoc(doc(db, 'users', currentUser.uid), adminUser);
+            setUserRole('admin');
+            setUserProfile(adminUser);
           } else {
+            // Default role for others if not in DB (shouldn't happen with Admin Panel management)
             setUserRole('viewer');
             setUserProfile({
               uid: currentUser.uid,
-              fullName: currentUser.displayName || 'User',
+              fullName: currentUser.displayName || 'Viewer',
               email: currentUser.email || '',
               role: 'viewer',
               createdAt: new Date().toISOString()
@@ -154,12 +128,12 @@ export default function App() {
       try {
         await getDocFromServer(doc(db, 'test', 'connection'));
       } catch (error) {
-        const errorMsg = error instanceof Error ? error.message : String(error);
-        if (errorMsg.includes('the client is offline') || errorMsg.includes('unavailable') || errorMsg.includes('could not be completed')) {
+        if (error instanceof Error && error.message.includes('the client is offline')) {
           if (retries > 0) {
+            console.warn(`Connection test failed (offline), retrying... (${retries} left)`);
             setTimeout(() => testConnection(retries - 1), 2000);
           } else {
-            console.warn("Firestore connection check: Operating in cached/offline-ready mode.");
+            console.error("Please check your Firebase configuration.");
           }
         }
       }
@@ -272,36 +246,6 @@ export default function App() {
     };
     migrate();
   }, [user]);
-
-  // Global scheduled auto-backup background checker for admins
-  useEffect(() => {
-    if (!user || userRole !== 'admin') return;
-
-    let isRunning = false;
-    const checkScheduledAutoBackup = async () => {
-      if (isRunning) return;
-      const token = getCachedGoogleAccessToken();
-      if (!token) return;
-
-      try {
-        const config = await getBackupConfig();
-        if (config.enabled && config.folderId && isBackupDue(config)) {
-          isRunning = true;
-          console.log('Automated scheduled Google Drive backup starting...');
-          await executeGoogleDriveBackup(token, config.folderId, user.email || 'auto-scheduler');
-          console.log('Automated scheduled Google Drive backup successfully completed.');
-        }
-      } catch (err: any) {
-        console.error('Scheduled backup execution error:', err);
-      } finally {
-        isRunning = false;
-      }
-    };
-
-    checkScheduledAutoBackup();
-    const timer = setInterval(checkScheduledAutoBackup, 60 * 1000);
-    return () => clearInterval(timer);
-  }, [user, userRole]);
 
   const enrichedEntries = useMemo(() => {
     const subCategoryMap = new Map<string, string>();
@@ -758,15 +702,6 @@ export default function App() {
           <Database size={20} />
           Pool Management System
         </button>
-        <button 
-          onClick={() => { setActiveTab('backup'); setIsMobileMenuOpen(false); }}
-          className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-semibold transition-all ${
-            activeTab === 'backup' ? 'bg-indigo-50 text-indigo-700' : 'text-slate-500 hover:bg-slate-50'
-          }`}
-        >
-          <History size={20} />
-          Backup & Restore
-        </button>
 
         {userRole === 'admin' && (
           <button 
@@ -1042,7 +977,6 @@ export default function App() {
                  activeTab === 'zakat' ? 'Zakat Calculation' :
                  activeTab === 'accounts-payable' ? 'Accounts Payable' :
                  activeTab === 'accounts-receivable' ? 'Accounts Receivable' :
-                 activeTab === 'backup' ? 'Backup & Restore' :
                  activeTab === 'payments-mgmt' ? 'Client/Project Payment Management' :
                  activeTab === 'admin' ? 'Admin Panel' :
                  activeTab === 'employees' ? 'Employee Management System' :
@@ -1066,7 +1000,6 @@ export default function App() {
                  activeTab === 'zakat' ? 'Calculate and track your Zakat obligations.' :
                  activeTab === 'accounts-payable' ? 'Track pending payments to vendors and suppliers from remarks.' :
                  activeTab === 'accounts-receivable' ? 'Track pending collections from projects and clients from remarks.' :
-                 activeTab === 'backup' ? 'Manage data backups and restore' :
                  activeTab === 'payments-mgmt' ? 'Manage clients, invoices, and project payments.' :
                  activeTab === 'admin' ? 'Manage team members and system access.' :
                  activeTab === 'employees' ? 'Manage employee information.' :
@@ -1403,16 +1336,6 @@ export default function App() {
                   clients={clients} 
                   userRole={userRole} 
                 />
-              </motion.div>
-            ) : activeTab === 'backup' ? (
-              <motion.div
-                key="backup"
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -20 }}
-                className="space-y-6"
-              >
-                <FullDatabaseBackup userRole={userRole || 'viewer'} />
               </motion.div>
             ) : activeTab === 'payments-mgmt' ? (
               <motion.div

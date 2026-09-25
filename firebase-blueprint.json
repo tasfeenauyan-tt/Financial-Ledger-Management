@@ -288,6 +288,10 @@
       "schema": "ZakatSettings",
       "description": "Application settings"
     },
+    "/entry_history/{historyId}": {
+      "schema": "EntryHistory",
+      "description": "Audit log and backup metadata for entries"
+    },
     "/clients/{clientId}": {
       "schema": "Client",
       "description": "Clients list"
