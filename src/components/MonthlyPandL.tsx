@@ -17,6 +17,7 @@ interface DetailEntry {
   name: string;
   amount: number;
   remarks: string;
+  notes?: string;
 }
 
 export default function MonthlyPandL({ entries, userRole }: MonthlyPandLProps) {
@@ -78,7 +79,8 @@ export default function MonthlyPandL({ entries, userRole }: MonthlyPandLProps) {
           date: entry.date,
           name: entry.transactionItemName,
           amount: entryRevenue,
-          remarks: entry.remarks
+          remarks: entry.remarks,
+          notes: entry.notes || ''
         });
       }
 
@@ -89,7 +91,8 @@ export default function MonthlyPandL({ entries, userRole }: MonthlyPandLProps) {
           date: entry.date,
           name: entry.transactionItemName,
           amount: entryExpense,
-          remarks: entry.remarks
+          remarks: entry.remarks,
+          notes: entry.notes || ''
         });
       }
     });
@@ -138,11 +141,11 @@ export default function MonthlyPandL({ entries, userRole }: MonthlyPandLProps) {
 
     // Detail Sheets for each month
     monthlyData.forEach(month => {
-      const details: any[] = [['Revenue Details'], ['Date', 'Item', 'Amount', 'Remarks']];
-      month.revenueEntries.forEach(r => details.push([formatDate(r.date), r.name, r.amount, r.remarks]));
+      const details: any[] = [['Revenue Details'], ['Date', 'Item', 'Amount', 'Remarks', 'Notes']];
+      month.revenueEntries.forEach(r => details.push([formatDate(r.date), r.name, r.amount, r.remarks, r.notes || '']));
       details.push([]);
-      details.push(['Expense Details'], ['Date', 'Item', 'Amount', 'Remarks']);
-      month.expenseEntries.forEach(e => details.push([formatDate(e.date), e.name, e.amount, e.remarks]));
+      details.push(['Expense Details'], ['Date', 'Item', 'Amount', 'Remarks', 'Notes']);
+      month.expenseEntries.forEach(e => details.push([formatDate(e.date), e.name, e.amount, e.remarks, e.notes || '']));
       
       const wsDetails = XLSX.utils.aoa_to_sheet(details);
       XLSX.utils.book_append_sheet(wb, wsDetails, month.month.replace('-', '_'));
@@ -198,13 +201,13 @@ export default function MonthlyPandL({ entries, userRole }: MonthlyPandLProps) {
       ['Profit Margin', monthData.profitMargin.toFixed(2) + '%'],
       [],
       ['Revenue Details'],
-      ['Date', 'Item', 'Amount', 'Remarks']
+      ['Date', 'Item', 'Amount', 'Remarks', 'Notes']
     ];
     
-    monthData.revenueEntries.forEach(r => details.push([formatDate(r.date), r.name, r.amount, r.remarks]));
+    monthData.revenueEntries.forEach(r => details.push([formatDate(r.date), r.name, r.amount, r.remarks, r.notes || '']));
     details.push([]);
-    details.push(['Expense Details'], ['Date', 'Item', 'Amount', 'Remarks']);
-    monthData.expenseEntries.forEach(e => details.push([formatDate(e.date), e.name, e.amount, e.remarks]));
+    details.push(['Expense Details'], ['Date', 'Item', 'Amount', 'Remarks', 'Notes']);
+    monthData.expenseEntries.forEach(e => details.push([formatDate(e.date), e.name, e.amount, e.remarks, e.notes || '']));
     
     const ws = XLSX.utils.aoa_to_sheet(details);
     XLSX.utils.book_append_sheet(wb, ws, 'P&L Details');
@@ -330,6 +333,7 @@ export default function MonthlyPandL({ entries, userRole }: MonthlyPandLProps) {
                             <th className="p-3 text-[10px] font-black text-slate-400 uppercase tracking-widest">Item</th>
                             <th className="p-3 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Amount</th>
                             <th className="p-3 text-[10px] font-black text-slate-400 uppercase tracking-widest">Remarks</th>
+                            <th className="p-3 text-[10px] font-black text-slate-400 uppercase tracking-widest">Notes</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-50">
@@ -339,11 +343,12 @@ export default function MonthlyPandL({ entries, userRole }: MonthlyPandLProps) {
                               <td className="p-3 text-xs text-slate-900 font-bold">{rev.name}</td>
                               <td className="p-3 text-xs text-emerald-600 font-black text-right font-mono">{formatCurrency(rev.amount)}</td>
                               <td className="p-3 text-xs text-slate-500 italic">{rev.remarks}</td>
+                              <td className="p-3 text-xs text-slate-500">{rev.notes || '-'}</td>
                             </tr>
                           ))}
                           {month.revenueEntries.length === 0 && (
                             <tr>
-                              <td colSpan={4} className="p-8 text-center text-slate-400 italic text-xs">No revenue entries recorded.</td>
+                              <td colSpan={5} className="p-8 text-center text-slate-400 italic text-xs">No revenue entries recorded.</td>
                             </tr>
                           )}
                         </tbody>
@@ -352,7 +357,7 @@ export default function MonthlyPandL({ entries, userRole }: MonthlyPandLProps) {
                             <tr>
                               <td colSpan={2} className="p-3 text-xs text-emerald-700 uppercase tracking-widest">Total Revenue</td>
                               <td className="p-3 text-xs text-emerald-700 text-right font-black font-mono">{formatCurrency(month.revenue)}</td>
-                              <td></td>
+                              <td colSpan={2}></td>
                             </tr>
                           </tfoot>
                         )}
@@ -374,6 +379,7 @@ export default function MonthlyPandL({ entries, userRole }: MonthlyPandLProps) {
                             <th className="p-3 text-[10px] font-black text-slate-400 uppercase tracking-widest">Item</th>
                             <th className="p-3 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Amount</th>
                             <th className="p-3 text-[10px] font-black text-slate-400 uppercase tracking-widest">Remarks</th>
+                            <th className="p-3 text-[10px] font-black text-slate-400 uppercase tracking-widest">Notes</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-50">
@@ -383,11 +389,12 @@ export default function MonthlyPandL({ entries, userRole }: MonthlyPandLProps) {
                               <td className="p-3 text-xs text-slate-900 font-bold">{exp.name}</td>
                               <td className="p-3 text-xs text-rose-600 font-black text-right font-mono">{formatCurrency(exp.amount)}</td>
                               <td className="p-3 text-xs text-slate-500 italic">{exp.remarks}</td>
+                              <td className="p-3 text-xs text-slate-500">{exp.notes || '-'}</td>
                             </tr>
                           ))}
                           {month.expenseEntries.length === 0 && (
                             <tr>
-                              <td colSpan={4} className="p-8 text-center text-slate-400 italic text-xs">No expense entries recorded.</td>
+                              <td colSpan={5} className="p-8 text-center text-slate-400 italic text-xs">No expense entries recorded.</td>
                             </tr>
                           )}
                         </tbody>
@@ -396,7 +403,7 @@ export default function MonthlyPandL({ entries, userRole }: MonthlyPandLProps) {
                             <tr>
                               <td colSpan={2} className="p-3 text-xs text-rose-700 uppercase tracking-widest">Total Expense</td>
                               <td className="p-3 text-xs text-rose-700 text-right font-black font-mono">{formatCurrency(month.expense)}</td>
-                              <td></td>
+                              <td colSpan={2}></td>
                             </tr>
                           </tfoot>
                         )}
