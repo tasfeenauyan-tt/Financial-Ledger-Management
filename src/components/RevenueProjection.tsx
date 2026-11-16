@@ -47,6 +47,7 @@ interface MonthData {
   finalTr: number;
   rr: number;
   nrr: number;
+  targetNrr: number;
   gap: number;
 }
 
@@ -123,8 +124,12 @@ export default function RevenueProjection({ entries, clients, userRole }: Revenu
     // 2. Calculate Actuals for historical months (and current)
     const actualsMap = new Map<string, { revenue: number; expense: number; rr: number; nrr: number }>();
     entries.forEach(entry => {
-      const eDate = new Date(entry.date);
-      const key = `${eDate.getFullYear()}-${String(eDate.getMonth() + 1).padStart(2, '0')}`;
+      const key = /^\d{4}-\d{2}/.test(entry.date || '')
+        ? entry.date.substring(0, 7)
+        : (() => {
+            const eDate = new Date(entry.date);
+            return `${eDate.getFullYear()}-${String(eDate.getMonth() + 1).padStart(2, '0')}`;
+          })();
       
       let rev = 0;
       let exp = 0;
@@ -265,6 +270,7 @@ export default function RevenueProjection({ entries, clients, userRole }: Revenu
       
       const tr = targetRevenue;
       const finalTr = finalTargetRevenue;
+      const targetNrr = finalTr - currentRR;
       const gap = Math.max(0, finalTr - (currentRR + currentNRR));
 
       months.push({
@@ -278,6 +284,7 @@ export default function RevenueProjection({ entries, clients, userRole }: Revenu
         finalTr,
         rr: currentRR,
         nrr: currentNRR,
+        targetNrr,
         gap
       });
     });
@@ -492,6 +499,8 @@ export default function RevenueProjection({ entries, clients, userRole }: Revenu
                 <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Recurrent (RR)</th>
                 <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Non-Recurrent</th>
                 <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Target (Final TR)</th>
+                <th className="p-4 text-[10px] font-black text-amber-600 uppercase tracking-widest text-right">Target Non-Recurrent (T N-RR)</th>
+                <th className="p-4 text-[10px] font-black text-emerald-600 uppercase tracking-widest text-right">Actual Earned Revenue</th>
                 <th className="p-4 text-[10px] font-black text-rose-400 uppercase tracking-widest text-right">Revenue Gap</th>
                 <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">Type</th>
               </tr>
@@ -506,6 +515,18 @@ export default function RevenueProjection({ entries, clients, userRole }: Revenu
                   <td className="p-4 text-right font-medium text-slate-600">{formatCurrency(m.rr)}</td>
                   <td className="p-4 text-right font-medium text-slate-600">{formatCurrency(m.nrr)}</td>
                   <td className="p-4 text-right font-bold text-indigo-600">{formatCurrency(m.finalTr)}</td>
+                  <td className={cn(
+                    "p-4 text-right font-bold",
+                    m.targetNrr <= 0 ? "text-emerald-600" : "text-amber-600"
+                  )}>
+                    {formatCurrency(m.targetNrr)}
+                  </td>
+                  <td className={cn(
+                    "p-4 text-right",
+                    m.actualRevenue > 0 ? "font-bold text-emerald-600" : "font-medium text-slate-400"
+                  )}>
+                    {formatCurrency(m.actualRevenue)}
+                  </td>
                   <td className="p-4 text-right">
                     {m.gap > 0 ? (
                       <span className="font-black text-rose-500">-{formatCurrency(m.gap)}</span>
