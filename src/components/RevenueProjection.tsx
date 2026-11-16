@@ -98,8 +98,30 @@ export default function RevenueProjection({ entries, clients, userRole }: Revenu
        monthKeys.push({ key, label, offset: i });
     }
 
+    // Build project-level lookup for classifying historical entries by project clientType
+    const projectTypeLookup = new Map<string, 'Recurring' | 'Non-Recurring'>();
+    clients.forEach(c => {
+      if (c.projectName) {
+        projectTypeLookup.set(c.projectName.toLowerCase().trim(), c.clientType || 'Non-Recurring');
+      }
+      if (c.name) {
+        projectTypeLookup.set(c.name.toLowerCase().trim(), c.clientType || 'Non-Recurring');
+      }
+      (c.services || []).forEach(service => {
+        const serviceLabel = service === 'Others' ? (c.otherServiceDetails || 'Others') : service;
+        const projName = `${c.name}${c.crmLeadId ? ` (${c.crmLeadId})` : ''}-${serviceLabel}`.toLowerCase().trim();
+        const pd = c.projectDetails?.find(p => p.service === service);
+        projectTypeLookup.set(projName, pd?.clientType || c.clientType || 'Non-Recurring');
+      });
+      (c.projectDetails || []).forEach(p => {
+        if (p.projectName) {
+          projectTypeLookup.set(p.projectName.toLowerCase().trim(), p.clientType || 'Non-Recurring');
+        }
+      });
+    });
+
     // 2. Calculate Actuals for historical months (and current)
-    const actualsMap = new Map<string, { revenue: number; expense: number }>();
+    const actualsMap = new Map<string, { revenue: number; expense: number; rr: number; nrr: number }>();
     entries.forEach(entry => {
       const eDate = new Date(entry.date);
       const key = `${eDate.getFullYear()}-${String(eDate.getMonth() + 1).padStart(2, '0')}`;
@@ -128,10 +150,24 @@ export default function RevenueProjection({ entries, clients, userRole }: Revenu
         }
       });
       
-      const existing = actualsMap.get(key) || { revenue: 0, expense: 0 };
+      const existing = actualsMap.get(key) || { revenue: 0, expense: 0, rr: 0, nrr: 0 };
+      let entryRR = 0;
+      let entryNRR = 0;
+      if (rev !== 0) {
+        const remarkKey = (entry.remarks || '').toLowerCase().trim();
+        const matchedType = projectTypeLookup.get(remarkKey) || 'Non-Recurring';
+        if (matchedType === 'Recurring') {
+          entryRR = rev;
+        } else {
+          entryNRR = rev;
+        }
+      }
+
       actualsMap.set(key, { 
         revenue: existing.revenue + rev, 
-        expense: existing.expense + exp 
+        expense: existing.expense + exp,
+        rr: existing.rr + entryRR,
+        nrr: existing.nrr + entryNRR
       });
     });
 
@@ -141,29 +177,90 @@ export default function RevenueProjection({ entries, clients, userRole }: Revenu
     const targetRevenue = last3Expenses.length > 0 ? Math.max(...last3Expenses) : 0;
     const finalTargetRevenue = targetRevenue * (trPercentage / 100);
 
-    // 4. Calculate RR and N-RR from active clients
-    // We assume these are constant for projections
-    const recurrentRevenue = clients
-      .filter(c => c.status === 'Active' && c.clientType === 'Recurring')
-      .reduce((sum, c) => sum + (c.budget || 0), 0);
-    
-    const nonRecurrentRevenue = clients
-      .filter(c => c.status === 'Active' && c.clientType === 'Non-Recurring')
-      .reduce((sum, c) => sum + (c.budget || 0), 0);
+    // 4. Calculate RR and N-RR from active clients' project-wise budgets
+    let recurrentRevenue = 0;
+    let nonRecurrentRevenue = 0;
+    const projectBreakdown: {
+      clientId: string;
+      clientName: string;
+      projectName: string;
+      service: string;
+      clientType: 'Recurring' | 'Non-Recurring';
+      budget: number;
+    }[] = [];
+
+    clients
+      .filter(c => c.status === 'Active')
+      .forEach(c => {
+        if (c.projectDetails && c.projectDetails.length > 0) {
+          const hasAnyProjectBudget = c.projectDetails.some(p => (p.budget || 0) > 0);
+          if (hasAnyProjectBudget) {
+            c.projectDetails.forEach(p => {
+              const projBudget = Number(p.budget || 0);
+              if (p.clientType === 'Recurring') {
+                recurrentRevenue += projBudget;
+              } else {
+                nonRecurrentRevenue += projBudget;
+              }
+              projectBreakdown.push({
+                clientId: c.id,
+                clientName: c.name,
+                projectName: p.projectName,
+                service: p.service === 'Others' ? (c.otherServiceDetails || 'Others') : p.service,
+                clientType: p.clientType,
+                budget: projBudget
+              });
+            });
+          } else {
+            // Fallback for active clients with projectDetails saved without project-level budget
+            const fallbackBudget = Number(c.budget || 0);
+            const fallbackType = c.clientType || 'Recurring';
+            if (fallbackType === 'Recurring') {
+              recurrentRevenue += fallbackBudget;
+            } else {
+              nonRecurrentRevenue += fallbackBudget;
+            }
+            c.projectDetails.forEach((p, idx) => {
+              projectBreakdown.push({
+                clientId: c.id,
+                clientName: c.name,
+                projectName: p.projectName,
+                service: p.service === 'Others' ? (c.otherServiceDetails || 'Others') : p.service,
+                clientType: p.clientType,
+                budget: idx === 0 ? fallbackBudget : 0
+              });
+            });
+          }
+        } else {
+          // Legacy fallback when projectDetails has not been configured yet
+          const fallbackBudget = Number(c.budget || 0);
+          const fallbackType = c.clientType || 'Non-Recurring';
+          if (fallbackType === 'Recurring') {
+            recurrentRevenue += fallbackBudget;
+          } else {
+            nonRecurrentRevenue += fallbackBudget;
+          }
+          if (fallbackBudget > 0) {
+            projectBreakdown.push({
+              clientId: c.id,
+              clientName: c.name,
+              projectName: c.projectName || c.name,
+              service: (c.services || []).join(', ') || 'General',
+              clientType: fallbackType,
+              budget: fallbackBudget
+            });
+          }
+        }
+      });
 
     // 5. Build Final Month Data
     monthKeys.forEach(m => {
-      const actuals = actualsMap.get(m.key) || { revenue: 0, expense: 0 };
+      const actuals = actualsMap.get(m.key) || { revenue: 0, expense: 0, rr: 0, nrr: 0 };
       const isFuture = m.offset > 0;
       const isCurrent = m.offset === 0;
 
-      // For future months, we use the active client RR/N-RR
-      // For current/past, we use actuals if available, but for the "Projection" chart 
-      // the user wants TR, RR, N-RR and Gap.
-      // So even for historical, we show the TR calculated from that period.
-      
-      const currentRR = isFuture || isCurrent ? recurrentRevenue : (actuals.revenue * 0.7); // Mock historical mix if not tracked separately
-      const currentNRR = isFuture || isCurrent ? nonRecurrentRevenue : (actuals.revenue * 0.3);
+      const currentRR = isFuture || isCurrent ? recurrentRevenue : actuals.rr;
+      const currentNRR = isFuture || isCurrent ? nonRecurrentRevenue : actuals.nrr;
       
       const tr = targetRevenue;
       const finalTr = finalTargetRevenue;
@@ -189,7 +286,8 @@ export default function RevenueProjection({ entries, clients, userRole }: Revenu
       tr: targetRevenue, 
       finalTr: finalTargetRevenue,
       totalRR: recurrentRevenue,
-      totalNRR: nonRecurrentRevenue
+      totalNRR: nonRecurrentRevenue,
+      projectBreakdown
     };
   }, [entries, clients, trPercentage]);
 
@@ -259,6 +357,50 @@ export default function RevenueProjection({ entries, clients, userRole }: Revenu
           <div className="flex items-center gap-1.5 text-emerald-500 font-bold text-[10px] uppercase mt-2">
             <TrendingUp size={12} />
             <span>Growth Goal</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Project-Wise RR & N-RR Summary Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
+          <div>
+            <p className="text-[10px] font-black text-indigo-500 uppercase tracking-widest mb-1">Recurrent (RR)</p>
+            <h4 className="text-xl font-black text-slate-900">{formatCurrency(projectionData.totalRR)}</h4>
+            <p className="text-[11px] font-medium text-slate-400 mt-1">
+              {projectionData.projectBreakdown.filter(p => p.clientType === 'Recurring').length} active recurring project(s)
+            </p>
+          </div>
+          <div className="w-11 h-11 rounded-xl bg-indigo-50 flex items-center justify-center text-indigo-600">
+            <Repeat size={20} />
+          </div>
+        </div>
+
+        <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
+          <div>
+            <p className="text-[10px] font-black text-indigo-400 uppercase tracking-widest mb-1">Non-Recurrent (N-RR)</p>
+            <h4 className="text-xl font-black text-slate-900">{formatCurrency(projectionData.totalNRR)}</h4>
+            <p className="text-[11px] font-medium text-slate-400 mt-1">
+              {projectionData.projectBreakdown.filter(p => p.clientType === 'Non-Recurring').length} active non-recurring project(s)
+            </p>
+          </div>
+          <div className="w-11 h-11 rounded-xl bg-indigo-50/60 flex items-center justify-center text-indigo-400">
+            <Zap size={20} />
+          </div>
+        </div>
+
+        <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
+          <div>
+            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Total Project Pipeline (RR + N-RR)</p>
+            <h4 className="text-xl font-black text-emerald-600">
+              {formatCurrency(projectionData.totalRR + projectionData.totalNRR)}
+            </h4>
+            <p className="text-[11px] font-medium text-slate-400 mt-1">
+              From {projectionData.projectBreakdown.length} active project(s)
+            </p>
+          </div>
+          <div className="w-11 h-11 rounded-xl bg-emerald-50 flex items-center justify-center text-emerald-600">
+            <TrendingUp size={20} />
           </div>
         </div>
       </div>
@@ -381,6 +523,63 @@ export default function RevenueProjection({ entries, clients, userRole }: Revenu
                   </td>
                 </tr>
               ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* Project-Wise Budget Breakdown */}
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+        <div className="p-4 border-b border-slate-100 bg-slate-50 flex items-center justify-between">
+          <div>
+            <h3 className="text-xs font-black text-slate-800 uppercase tracking-widest">Active Project-Wise Budget Breakdown</h3>
+            <p className="text-[11px] text-slate-500 font-medium">Source for Recurrent (RR) and Non-Recurrent (N-RR) projections</p>
+          </div>
+          <span className="text-xs font-bold text-indigo-600">
+            {projectionData.projectBreakdown.length} Active Project(s)
+          </span>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-left border-collapse">
+            <thead>
+              <tr className="bg-white border-b border-slate-100">
+                <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Project Name</th>
+                <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Client</th>
+                <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Service</th>
+                <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Type</th>
+                <th className="p-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Budget (BDT)</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-50 text-sm">
+              {projectionData.projectBreakdown.map((proj, idx) => (
+                <tr key={`${proj.clientId}-${proj.projectName}-${idx}`} className="hover:bg-slate-50/50 transition-colors">
+                  <td className="p-4 font-bold text-slate-800">{proj.projectName}</td>
+                  <td className="p-4 font-medium text-slate-600">{proj.clientName}</td>
+                  <td className="p-4">
+                    <span className="px-2 py-0.5 bg-slate-100 text-slate-600 rounded text-[10px] font-black uppercase">
+                      {proj.service}
+                    </span>
+                  </td>
+                  <td className="p-4">
+                    <span className={cn(
+                      "px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider",
+                      proj.clientType === 'Recurring'
+                        ? "bg-indigo-50 text-indigo-700 border border-indigo-100"
+                        : "bg-slate-100 text-slate-600 border border-slate-200"
+                    )}>
+                      {proj.clientType === 'Recurring' ? 'Recurrent (RR)' : 'Non-Recurrent (N-RR)'}
+                    </span>
+                  </td>
+                  <td className="p-4 text-right font-bold text-slate-900">{formatCurrency(proj.budget)}</td>
+                </tr>
+              ))}
+              {projectionData.projectBreakdown.length === 0 && (
+                <tr>
+                  <td colSpan={5} className="p-8 text-center text-slate-400 text-xs italic">
+                    No active projects found in Project/Client Management System.
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>

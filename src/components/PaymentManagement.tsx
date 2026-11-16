@@ -345,6 +345,7 @@ export default function PaymentManagement({ userRole }: PaymentManagementProps) 
     const crmId = editingClient?.crmLeadId || ('LEAD-' + Math.floor(Math.random() * 10000));
     
     const clientData: Client = {
+      ...(editingClient || {}),
       id: editingClient?.id || crypto.randomUUID(),
       projectName: editingClient?.projectName || `${name} (${crmId})`,
       crmLeadId: crmId,

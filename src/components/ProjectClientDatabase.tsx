@@ -12,7 +12,7 @@ import {
   writeBatch,
   getDocs
 } from 'firebase/firestore';
-import { Client, TransactionSubCategory, ServiceItem } from '../types';
+import { Client, TransactionSubCategory, ServiceItem, ProjectDetail } from '../types';
 import { handleFirestoreError, OperationType } from '../lib/firestore-errors';
 import { 
   Users, 
@@ -98,6 +98,9 @@ export default function ProjectClientDatabase({
   const [isProjectNameAuto, setIsProjectNameAuto] = useState(true);
   const [formServices, setFormServices] = useState<string[]>([]);
   const [formOtherServiceDetails, setFormOtherServiceDetails] = useState('');
+  const [formProjectConfigs, setFormProjectConfigs] = useState<
+    Record<string, { clientType: 'Recurring' | 'Non-Recurring'; budget: string }>
+  >({});
 
   useEffect(() => {
     if (isModalOpen) {
@@ -106,13 +109,32 @@ export default function ProjectClientDatabase({
         const name = editingClient.name || '';
         const currentProjectName = editingClient.projectName || '';
         const expectedAutoName = `${name}${crmId ? ` (${crmId})` : ''}`;
+        const clientServices = editingClient.services || [];
+        const defaultType = editingClient.clientType || 'Recurring';
+
+        const initialConfigs: Record<string, { clientType: 'Recurring' | 'Non-Recurring'; budget: string }> = {};
+        clientServices.forEach((service) => {
+          const existingDetail = editingClient.projectDetails?.find((p) => p.service === service);
+          if (existingDetail) {
+            initialConfigs[service] = {
+              clientType: existingDetail.clientType || defaultType,
+              budget: existingDetail.budget !== undefined && existingDetail.budget !== null ? String(existingDetail.budget) : '',
+            };
+          } else {
+            initialConfigs[service] = {
+              clientType: defaultType,
+              budget: clientServices.length === 1 && editingClient.budget ? String(editingClient.budget) : '',
+            };
+          }
+        });
         
         setFormCrmLeadId(crmId);
         setFormClientName(name);
         setFormProjectName(currentProjectName);
         setFormBudget(editingClient.budget ? String(editingClient.budget) : '');
-        setFormServices(editingClient.services || []);
+        setFormServices(clientServices);
         setFormOtherServiceDetails(editingClient.otherServiceDetails || '');
+        setFormProjectConfigs(initialConfigs);
         // Enable auto-reflect if it matches expected pattern or is empty
         setIsProjectNameAuto(!currentProjectName || currentProjectName === expectedAutoName);
       } else {
@@ -122,6 +144,7 @@ export default function ProjectClientDatabase({
         setFormBudget('');
         setFormServices([]);
         setFormOtherServiceDetails('');
+        setFormProjectConfigs({});
         setIsProjectNameAuto(true);
       }
     }
@@ -250,10 +273,35 @@ export default function ProjectClientDatabase({
     if (isSaving) return;
     setIsSaving(true);
     const formData = new FormData(e.currentTarget);
+
+    const rawName = ((formData.get('name') as string) || '').trim();
+    const rawCrmId = ((formData.get('crmLeadId') as string) || '').trim();
+    const fallbackClientType = editingClient?.clientType || 'Recurring';
+
+    const projectDetails: ProjectDetail[] = formServices.map((service) => {
+      const serviceLabel = service === 'Others' ? (formOtherServiceDetails || 'Others') : service;
+      const projName = `${rawName || 'Client'}${rawCrmId ? ` (${rawCrmId})` : ''}-${serviceLabel}`;
+      const cfg = formProjectConfigs[service];
+      return {
+        service,
+        projectName: projName,
+        clientType: cfg?.clientType || fallbackClientType,
+        budget: Number(cfg?.budget || 0),
+      };
+    });
+
+    const derivedClientType: 'Recurring' | 'Non-Recurring' =
+      projectDetails.length > 0
+        ? (projectDetails.some((p) => p.clientType === 'Recurring') ? 'Recurring' : 'Non-Recurring')
+        : fallbackClientType;
+
+    const projectBudgetSum = projectDetails.reduce((sum, p) => sum + (p.budget || 0), 0);
+    const hasAnyProjectBudget = projectDetails.some((p) => p.budget > 0);
+    const finalBudget = hasAnyProjectBudget ? projectBudgetSum : Number(formData.get('budget') || 0);
     
     const clientData: Partial<Client> = {
       projectName: (formData.get('projectName') as string)?.trim() || 'Unnamed Project',
-      crmLeadId: (formData.get('crmLeadId') as string)?.trim() || '',
+      crmLeadId: rawCrmId,
       name: formData.get('name') as string,
       pocName: formData.get('pocName') as string,
       company: formData.get('company') as string,
@@ -261,14 +309,15 @@ export default function ProjectClientDatabase({
       email: formData.get('email') as string,
       address: formData.get('address') as string,
       country: formData.get('country') as string,
-      clientType: formData.get('clientType') as any,
+      clientType: derivedClientType,
       status: formData.get('status') as any,
-      budget: Number(formData.get('budget')),
+      budget: finalBudget,
       onboardingDate: formData.get('onboardingDate') as string,
       closureDate: formData.get('closureDate') as string || '',
       leadSource: formData.get('leadSource') as any,
       services: formServices,
       otherServiceDetails: formOtherServiceDetails,
+      projectDetails,
       createdAt: editingClient?.createdAt || new Date().toISOString(),
     };
 
@@ -286,6 +335,7 @@ export default function ProjectClientDatabase({
       setEditingClient(null);
     } catch (error) {
       console.error("Error saving client:", error);
+      handleFirestoreError(error, OperationType.WRITE, `clients/${id}`);
     } finally {
       setIsSaving(false);
     }
@@ -426,7 +476,12 @@ export default function ProjectClientDatabase({
     const data = clients.map(c => {
       const projectsCombined = (c.services || []).map(service => {
         const serviceLabel = service === 'Others' ? (c.otherServiceDetails || 'Others') : service;
-        return `${c.name}${c.crmLeadId ? ` (${c.crmLeadId})` : ''}-${serviceLabel}`;
+        const projName = `${c.name}${c.crmLeadId ? ` (${c.crmLeadId})` : ''}-${serviceLabel}`;
+        const pd = c.projectDetails?.find(p => p.service === service);
+        if (pd) {
+          return `${projName} [${pd.clientType}${pd.budget ? ` - ${pd.budget} BDT` : ''}]`;
+        }
+        return projName;
       }).join(', ');
 
       return {
@@ -644,11 +699,19 @@ export default function ProjectClientDatabase({
 
               {client.services && client.services.length > 0 && (
                 <div className="mt-4 flex flex-wrap gap-1.5">
-                  {client.services.map(s => (
-                    <span key={s} className="px-2 py-0.5 bg-indigo-50 text-indigo-700 rounded-md text-[9px] font-black uppercase tracking-widest border border-indigo-100">
-                      {s === 'Others' ? (client.otherServiceDetails || 'Others') : s}
-                    </span>
-                  ))}
+                  {client.services.map(s => {
+                    const pd = client.projectDetails?.find(p => p.service === s);
+                    return (
+                      <span
+                        key={s}
+                        className="px-2 py-0.5 bg-indigo-50 text-indigo-700 rounded-md text-[9px] font-black uppercase tracking-widest border border-indigo-100"
+                        title={pd ? `${pd.clientType}${pd.budget > 0 ? ` • ${formatCurrency(pd.budget)}` : ''}` : undefined}
+                      >
+                        {s === 'Others' ? (client.otherServiceDetails || 'Others') : s}
+                        {pd ? ` (${pd.clientType === 'Recurring' ? 'Rec' : 'Non-Rec'}${pd.budget > 0 ? ` • ${formatCurrency(pd.budget)}` : ''})` : ''}
+                      </span>
+                    );
+                  })}
                 </div>
               )}
 
@@ -720,12 +783,22 @@ export default function ProjectClientDatabase({
                     <p className="text-[10px] text-slate-400">{client.country}</p>
                   </td>
                   <td className="px-6 py-4">
-                    <div className="flex flex-wrap gap-1">
-                      {(client.services || []).map(s => (
-                        <span key={s} className="px-1.5 py-0.5 bg-slate-100 text-slate-600 rounded text-[8px] font-black uppercase">
-                          {s === 'Others' ? (client.otherServiceDetails || 'Others') : s}
-                        </span>
-                      ))}
+                    <div className="flex flex-col gap-1">
+                      {(client.services || []).map(s => {
+                        const pd = client.projectDetails?.find(p => p.service === s);
+                        return (
+                          <div key={s} className="flex items-center gap-1.5 flex-wrap">
+                            <span className="px-1.5 py-0.5 bg-slate-100 text-slate-600 rounded text-[8px] font-black uppercase">
+                              {s === 'Others' ? (client.otherServiceDetails || 'Others') : s}
+                            </span>
+                            {pd && (
+                              <span className="text-[10px] font-medium text-slate-500">
+                                {pd.clientType}{pd.budget > 0 ? ` • ${formatCurrency(pd.budget)}` : ''}
+                              </span>
+                            )}
+                          </div>
+                        );
+                      })}
                       {(!client.services || client.services.length === 0) && (
                         <span className="text-[10px] text-slate-400 font-medium">None</span>
                       )}
@@ -901,7 +974,7 @@ export default function ProjectClientDatabase({
                     />
                   </div>
 
-                   {/* Country */}
+                  {/* Country */}
                    <div className="space-y-2">
                     <label className="text-xs font-black text-slate-500 uppercase tracking-widest px-1">Country</label>
                     <input 
@@ -910,19 +983,6 @@ export default function ProjectClientDatabase({
                       className="w-full px-5 py-3.5 bg-slate-50 border-none rounded-2xl text-sm focus:ring-2 focus:ring-indigo-500 transition-all font-semibold"
                       placeholder="e.g. Bangladesh"
                     />
-                  </div>
-
-                  {/* Client Type */}
-                  <div className="space-y-2">
-                    <label className="text-xs font-black text-slate-500 uppercase tracking-widest px-1">Client Type</label>
-                    <select 
-                      name="clientType"
-                      defaultValue={editingClient?.clientType || 'Recurring'}
-                      className="w-full px-5 py-3.5 bg-slate-50 border-none rounded-2xl text-sm focus:ring-2 focus:ring-indigo-500 transition-all font-semibold"
-                    >
-                      <option value="Recurring">Recurring</option>
-                      <option value="Non-Recurring">Non-Recurring</option>
-                    </select>
                   </div>
 
                   {/* Client Status */}
@@ -1015,11 +1075,34 @@ export default function ProjectClientDatabase({
                       <label key={service} className="flex items-center gap-2 cursor-pointer group">
                         <div 
                           onClick={() => {
-                            setFormServices(prev => 
-                              prev.includes(service) 
-                                ? prev.filter(s => s !== service) 
-                                : [...prev, service]
-                            );
+                            const isCurrentlySelected = formServices.includes(service);
+                            const nextServices = isCurrentlySelected
+                              ? formServices.filter(s => s !== service)
+                              : [...formServices, service];
+
+                            setFormServices(nextServices);
+
+                            if (!isCurrentlySelected) {
+                              setFormProjectConfigs(prev => {
+                                if (prev[service]) return prev;
+                                return {
+                                  ...prev,
+                                  [service]: {
+                                    clientType: editingClient?.clientType || 'Recurring',
+                                    budget: ''
+                                  }
+                                };
+                              });
+                            } else {
+                              const hadAnyProjectBudget = formServices.some(s => (formProjectConfigs[s]?.budget || '') !== '');
+                              if (hadAnyProjectBudget) {
+                                const remainingSum = nextServices.reduce(
+                                  (sum, s) => sum + (Number(formProjectConfigs[s]?.budget || 0) || 0),
+                                  0
+                                );
+                                setFormBudget(remainingSum > 0 ? String(remainingSum) : '');
+                              }
+                            }
                           }}
                           className={cn(
                             "w-5 h-5 rounded-md border-2 transition-all flex items-center justify-center",
@@ -1060,18 +1143,104 @@ export default function ProjectClientDatabase({
 
                 {/* Projects Section */}
                 <div className="space-y-4 p-5 bg-slate-50/50 rounded-2xl border border-slate-100">
-                  <label className="text-xs font-black text-slate-500 uppercase tracking-widest px-1 block mb-2">Projects</label>
-                  <div className="space-y-2">
+                  <div className="flex items-center justify-between px-1">
+                    <label className="text-xs font-black text-slate-500 uppercase tracking-widest block">Projects</label>
+                    {formServices.length > 0 && (
+                      <span className="text-[11px] font-bold text-indigo-600">
+                        Total: {formatCurrency(
+                          formServices.reduce((sum, s) => sum + (Number(formProjectConfigs[s]?.budget || 0) || 0), 0)
+                        )}
+                      </span>
+                    )}
+                  </div>
+                  <div className="space-y-3">
                     {formServices.length > 0 ? (
                       formServices.map((service) => {
                         const serviceLabel = service === 'Others' ? (formOtherServiceDetails || 'Others') : service;
                         const projectName = `${formClientName || 'Client'}${formCrmLeadId ? ` (${formCrmLeadId})` : ''}-${serviceLabel}`;
+                        const projectConfig = formProjectConfigs[service] || {
+                          clientType: editingClient?.clientType || 'Recurring',
+                          budget: ''
+                        };
+
                         return (
-                          <div key={service} className="p-3 bg-white rounded-xl border border-slate-100 flex items-center gap-3">
-                            <div className="w-8 h-8 rounded-lg bg-indigo-50 flex items-center justify-center text-indigo-600">
-                              <Database size={16} />
+                          <div key={service} className="p-4 bg-white rounded-2xl border border-slate-200/70 space-y-3 shadow-xs">
+                            <div className="flex items-center gap-3">
+                              <div className="w-8 h-8 rounded-lg bg-indigo-50 flex items-center justify-center text-indigo-600 shrink-0">
+                                <Database size={16} />
+                              </div>
+                              <div className="min-w-0 flex-1">
+                                <p className="text-sm font-bold text-slate-800 truncate" title={projectName}>
+                                  {projectName}
+                                </p>
+                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                                  Service: {serviceLabel}
+                                </p>
+                              </div>
                             </div>
-                            <span className="text-sm font-semibold text-slate-700">{projectName}</span>
+
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-slate-100">
+                              <div className="space-y-1.5">
+                                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest px-1 block">
+                                  Client Type
+                                </label>
+                                <select
+                                  value={projectConfig.clientType}
+                                  onChange={(e) => {
+                                    const nextType = e.target.value as 'Recurring' | 'Non-Recurring';
+                                    setFormProjectConfigs(prev => ({
+                                      ...prev,
+                                      [service]: {
+                                        ...projectConfig,
+                                        clientType: nextType
+                                      }
+                                    }));
+                                  }}
+                                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200/60 rounded-xl text-xs focus:ring-2 focus:ring-indigo-500 transition-all font-semibold text-slate-700"
+                                >
+                                  <option value="Recurring">Recurring</option>
+                                  <option value="Non-Recurring">Non-Recurring</option>
+                                </select>
+                              </div>
+
+                              <div className="space-y-1.5">
+                                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest px-1 block">
+                                  Budget (BDT)
+                                </label>
+                                <div className="relative">
+                                  <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs font-bold">৳</span>
+                                  <input
+                                    type="text"
+                                    inputMode="decimal"
+                                    value={projectConfig.budget}
+                                    onChange={(e) => {
+                                      const val = e.target.value;
+                                      if (/^\d*\.?\d*$/.test(val)) {
+                                        const sanitized = val.length > 1 && val.startsWith('0') && !val.startsWith('0.')
+                                          ? val.replace(/^0+/, '')
+                                          : val;
+                                        const updatedConfigs = {
+                                          ...formProjectConfigs,
+                                          [service]: {
+                                            ...projectConfig,
+                                            budget: sanitized
+                                          }
+                                        };
+                                        setFormProjectConfigs(updatedConfigs);
+
+                                        const totalSum = formServices.reduce(
+                                          (sum, s) => sum + (Number(updatedConfigs[s]?.budget || 0) || 0),
+                                          0
+                                        );
+                                        setFormBudget(totalSum > 0 ? String(totalSum) : '');
+                                      }
+                                    }}
+                                    placeholder="0.00"
+                                    className="w-full pl-8 pr-3.5 py-2.5 bg-slate-50 border border-slate-200/60 rounded-xl text-xs focus:ring-2 focus:ring-indigo-500 transition-all font-semibold text-slate-700"
+                                  />
+                                </div>
+                              </div>
+                            </div>
                           </div>
                         );
                       })

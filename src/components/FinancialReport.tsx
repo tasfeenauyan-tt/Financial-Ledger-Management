@@ -183,10 +183,12 @@ export default function FinancialReport({ entries, clients, userRole }: Financia
         const client = clients.find(c => 
           c.projectName?.toLowerCase() === projectName.toLowerCase() || 
           c.name?.toLowerCase() === projectName.toLowerCase() ||
-          projectName.toLowerCase().includes(c.name?.toLowerCase() || '~~~~')
+          projectName.toLowerCase().includes(c.name?.toLowerCase() || '~~~~') ||
+          c.projectDetails?.some(p => p.projectName.toLowerCase() === projectName.toLowerCase())
         );
         
-        const type = client?.clientType || 'Non-Recurring';
+        const matchedProject = client?.projectDetails?.find(p => p.projectName.toLowerCase() === projectName.toLowerCase());
+        const type = matchedProject?.clientType || client?.clientType || 'Non-Recurring';
 
         if (!revenueByProject[projectName]) {
           revenueByProject[projectName] = { total: 0, monthly: {}, type };

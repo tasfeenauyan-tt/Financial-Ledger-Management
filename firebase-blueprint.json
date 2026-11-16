@@ -117,12 +117,25 @@
       "type": "object",
       "properties": {
         "id": { "type": "string" },
+        "projectName": { "type": "string" },
+        "crmLeadId": { "type": "string" },
         "name": { "type": "string" },
-        "phone": { "type": "string" },
+        "pocName": { "type": "string" },
         "company": { "type": "string" },
+        "mobile": { "type": "string" },
+        "phone": { "type": "string" },
+        "email": { "type": "string" },
+        "address": { "type": "string" },
+        "country": { "type": "string" },
+        "clientType": { "type": "string", "enum": ["Recurring", "Non-Recurring"] },
+        "status": { "type": "string", "enum": ["Active", "Inactive", "Halted", "Closed"] },
+        "budget": { "type": "number" },
+        "services": { "type": "array" },
+        "otherServiceDetails": { "type": "string" },
+        "projectDetails": { "type": "array" },
         "createdAt": { "type": "string", "format": "date-time" }
       },
-      "required": ["id", "name", "phone", "company"]
+      "required": ["id", "name", "company"]
     },
     "Invoice": {
       "title": "Invoice",

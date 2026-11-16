@@ -73,6 +73,13 @@ export interface EntryHistoryItem {
   details?: string;
 }
 
+export interface ProjectDetail {
+  service: string;
+  projectName: string;
+  clientType: 'Recurring' | 'Non-Recurring';
+  budget: number;
+}
+
 export interface Client {
   id: string;
   projectName: string;
@@ -92,6 +99,7 @@ export interface Client {
   leadSource: 'Facebook Ads' | 'FNF' | 'Reference' | 'Web Search' | 'Others';
   services?: string[];
   otherServiceDetails?: string;
+  projectDetails?: ProjectDetail[];
   createdAt: string;
 }
 
