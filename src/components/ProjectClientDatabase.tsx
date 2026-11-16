@@ -98,8 +98,9 @@ export default function ProjectClientDatabase({
   const [isProjectNameAuto, setIsProjectNameAuto] = useState(true);
   const [formServices, setFormServices] = useState<string[]>([]);
   const [formOtherServiceDetails, setFormOtherServiceDetails] = useState('');
+  const [formClientStatus, setFormClientStatus] = useState<'Active' | 'Inactive' | 'Halted' | 'Closed'>('Active');
   const [formProjectConfigs, setFormProjectConfigs] = useState<
-    Record<string, { clientType: 'Recurring' | 'Non-Recurring'; budget: string }>
+    Record<string, { clientType: 'Recurring' | 'Non-Recurring'; budget: string; status: 'Active' | 'Inactive' | 'Halted' | 'Closed' }>
   >({});
 
   useEffect(() => {
@@ -111,19 +112,22 @@ export default function ProjectClientDatabase({
         const expectedAutoName = `${name}${crmId ? ` (${crmId})` : ''}`;
         const clientServices = editingClient.services || [];
         const defaultType = editingClient.clientType || 'Recurring';
+        const defaultStatus = editingClient.status || 'Active';
 
-        const initialConfigs: Record<string, { clientType: 'Recurring' | 'Non-Recurring'; budget: string }> = {};
+        const initialConfigs: Record<string, { clientType: 'Recurring' | 'Non-Recurring'; budget: string; status: 'Active' | 'Inactive' | 'Halted' | 'Closed' }> = {};
         clientServices.forEach((service) => {
           const existingDetail = editingClient.projectDetails?.find((p) => p.service === service);
           if (existingDetail) {
             initialConfigs[service] = {
               clientType: existingDetail.clientType || defaultType,
               budget: existingDetail.budget !== undefined && existingDetail.budget !== null ? String(existingDetail.budget) : '',
+              status: existingDetail.status || defaultStatus,
             };
           } else {
             initialConfigs[service] = {
               clientType: defaultType,
               budget: clientServices.length === 1 && editingClient.budget ? String(editingClient.budget) : '',
+              status: defaultStatus,
             };
           }
         });
@@ -132,6 +136,7 @@ export default function ProjectClientDatabase({
         setFormClientName(name);
         setFormProjectName(currentProjectName);
         setFormBudget(editingClient.budget ? String(editingClient.budget) : '');
+        setFormClientStatus(defaultStatus);
         setFormServices(clientServices);
         setFormOtherServiceDetails(editingClient.otherServiceDetails || '');
         setFormProjectConfigs(initialConfigs);
@@ -142,6 +147,7 @@ export default function ProjectClientDatabase({
         setFormClientName('');
         setFormProjectName('');
         setFormBudget('');
+        setFormClientStatus('Active');
         setFormServices([]);
         setFormOtherServiceDetails('');
         setFormProjectConfigs({});
@@ -277,6 +283,7 @@ export default function ProjectClientDatabase({
     const rawName = ((formData.get('name') as string) || '').trim();
     const rawCrmId = ((formData.get('crmLeadId') as string) || '').trim();
     const fallbackClientType = editingClient?.clientType || 'Recurring';
+    const fallbackStatus = (formData.get('status') as Client['status']) || formClientStatus || 'Active';
 
     const projectDetails: ProjectDetail[] = formServices.map((service) => {
       const serviceLabel = service === 'Others' ? (formOtherServiceDetails || 'Others') : service;
@@ -287,6 +294,7 @@ export default function ProjectClientDatabase({
         projectName: projName,
         clientType: cfg?.clientType || fallbackClientType,
         budget: Number(cfg?.budget || 0),
+        status: cfg?.status || fallbackStatus,
       };
     });
 
@@ -479,7 +487,8 @@ export default function ProjectClientDatabase({
         const projName = `${c.name}${c.crmLeadId ? ` (${c.crmLeadId})` : ''}-${serviceLabel}`;
         const pd = c.projectDetails?.find(p => p.service === service);
         if (pd) {
-          return `${projName} [${pd.clientType}${pd.budget ? ` - ${pd.budget} BDT` : ''}]`;
+          const st = pd.status || c.status || 'Active';
+          return `${projName} [${pd.clientType} • ${st}${pd.budget ? ` - ${pd.budget} BDT` : ''}]`;
         }
         return projName;
       }).join(', ');
@@ -701,14 +710,26 @@ export default function ProjectClientDatabase({
                 <div className="mt-4 flex flex-wrap gap-1.5">
                   {client.services.map(s => {
                     const pd = client.projectDetails?.find(p => p.service === s);
+                    const svcStatus = pd?.status || client.status || 'Active';
                     return (
                       <span
                         key={s}
-                        className="px-2 py-0.5 bg-indigo-50 text-indigo-700 rounded-md text-[9px] font-black uppercase tracking-widest border border-indigo-100"
-                        title={pd ? `${pd.clientType}${pd.budget > 0 ? ` • ${formatCurrency(pd.budget)}` : ''}` : undefined}
+                        className="inline-flex items-center gap-1 px-2 py-0.5 bg-indigo-50 text-indigo-700 rounded-md text-[9px] font-black uppercase tracking-widest border border-indigo-100"
+                        title={pd ? `${pd.clientType} • ${svcStatus}${pd.budget > 0 ? ` • ${formatCurrency(pd.budget)}` : ''}` : svcStatus}
                       >
-                        {s === 'Others' ? (client.otherServiceDetails || 'Others') : s}
-                        {pd ? ` (${pd.clientType === 'Recurring' ? 'Rec' : 'Non-Rec'}${pd.budget > 0 ? ` • ${formatCurrency(pd.budget)}` : ''})` : ''}
+                        <span>
+                          {s === 'Others' ? (client.otherServiceDetails || 'Others') : s}
+                          {pd ? ` (${pd.clientType === 'Recurring' ? 'Rec' : 'Non-Rec'}${pd.budget > 0 ? ` • ${formatCurrency(pd.budget)}` : ''})` : ''}
+                        </span>
+                        <span className={cn(
+                          "px-1 py-px rounded text-[8px] font-black uppercase",
+                          svcStatus === 'Active' ? "bg-emerald-100 text-emerald-700" :
+                          svcStatus === 'Inactive' ? "bg-slate-200 text-slate-600" :
+                          svcStatus === 'Halted' ? "bg-amber-100 text-amber-700" :
+                          "bg-rose-100 text-rose-700"
+                        )}>
+                          {svcStatus}
+                        </span>
                       </span>
                     );
                   })}
@@ -783,13 +804,23 @@ export default function ProjectClientDatabase({
                     <p className="text-[10px] text-slate-400">{client.country}</p>
                   </td>
                   <td className="px-6 py-4">
-                    <div className="flex flex-col gap-1">
+                    <div className="flex flex-col gap-1.5">
                       {(client.services || []).map(s => {
                         const pd = client.projectDetails?.find(p => p.service === s);
+                        const svcStatus = pd?.status || client.status || 'Active';
                         return (
                           <div key={s} className="flex items-center gap-1.5 flex-wrap">
-                            <span className="px-1.5 py-0.5 bg-slate-100 text-slate-600 rounded text-[8px] font-black uppercase">
+                            <span className="px-1.5 py-0.5 bg-slate-100 text-slate-700 rounded text-[9px] font-black uppercase">
                               {s === 'Others' ? (client.otherServiceDetails || 'Others') : s}
+                            </span>
+                            <span className={cn(
+                              "px-1.5 py-0.5 rounded-full text-[8px] font-black uppercase tracking-wider",
+                              svcStatus === 'Active' ? "bg-emerald-100 text-emerald-700" :
+                              svcStatus === 'Inactive' ? "bg-slate-100 text-slate-500" :
+                              svcStatus === 'Halted' ? "bg-amber-100 text-amber-700" :
+                              "bg-rose-100 text-rose-700"
+                            )}>
+                              {svcStatus}
                             </span>
                             {pd && (
                               <span className="text-[10px] font-medium text-slate-500">
@@ -990,7 +1021,8 @@ export default function ProjectClientDatabase({
                     <label className="text-xs font-black text-slate-500 uppercase tracking-widest px-1">Client Status</label>
                     <select 
                       name="status"
-                      defaultValue={editingClient?.status || 'Active'}
+                      value={formClientStatus}
+                      onChange={(e) => setFormClientStatus(e.target.value as 'Active' | 'Inactive' | 'Halted' | 'Closed')}
                       className="w-full px-5 py-3.5 bg-slate-50 border-none rounded-2xl text-sm focus:ring-2 focus:ring-indigo-500 transition-all font-semibold"
                     >
                       <option value="Active">Active</option>
@@ -1089,7 +1121,8 @@ export default function ProjectClientDatabase({
                                   ...prev,
                                   [service]: {
                                     clientType: editingClient?.clientType || 'Recurring',
-                                    budget: ''
+                                    budget: '',
+                                    status: formClientStatus || 'Active'
                                   }
                                 };
                               });
@@ -1160,7 +1193,8 @@ export default function ProjectClientDatabase({
                         const projectName = `${formClientName || 'Client'}${formCrmLeadId ? ` (${formCrmLeadId})` : ''}-${serviceLabel}`;
                         const projectConfig = formProjectConfigs[service] || {
                           clientType: editingClient?.clientType || 'Recurring',
-                          budget: ''
+                          budget: '',
+                          status: formClientStatus || 'Active'
                         };
 
                         return (
@@ -1177,9 +1211,18 @@ export default function ProjectClientDatabase({
                                   Service: {serviceLabel}
                                 </p>
                               </div>
+                              <span className={cn(
+                                "px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider shrink-0",
+                                projectConfig.status === 'Active' ? "bg-emerald-100 text-emerald-700" :
+                                projectConfig.status === 'Inactive' ? "bg-slate-100 text-slate-500" :
+                                projectConfig.status === 'Halted' ? "bg-amber-100 text-amber-700" :
+                                "bg-rose-100 text-rose-700"
+                              )}>
+                                {projectConfig.status}
+                              </span>
                             </div>
 
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-slate-100">
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2 border-t border-slate-100">
                               <div className="space-y-1.5">
                                 <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest px-1 block">
                                   Client Type
@@ -1200,6 +1243,31 @@ export default function ProjectClientDatabase({
                                 >
                                   <option value="Recurring">Recurring</option>
                                   <option value="Non-Recurring">Non-Recurring</option>
+                                </select>
+                              </div>
+
+                              <div className="space-y-1.5">
+                                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest px-1 block">
+                                  Status
+                                </label>
+                                <select
+                                  value={projectConfig.status}
+                                  onChange={(e) => {
+                                    const nextStatus = e.target.value as 'Active' | 'Inactive' | 'Halted' | 'Closed';
+                                    setFormProjectConfigs(prev => ({
+                                      ...prev,
+                                      [service]: {
+                                        ...projectConfig,
+                                        status: nextStatus
+                                      }
+                                    }));
+                                  }}
+                                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200/60 rounded-xl text-xs focus:ring-2 focus:ring-indigo-500 transition-all font-semibold text-slate-700"
+                                >
+                                  <option value="Active">Active</option>
+                                  <option value="Inactive">Inactive</option>
+                                  <option value="Halted">Halted</option>
+                                  <option value="Closed">Closed</option>
                                 </select>
                               </div>
 

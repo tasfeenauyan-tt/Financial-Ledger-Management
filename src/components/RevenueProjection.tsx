@@ -193,9 +193,10 @@ export default function RevenueProjection({ entries, clients, userRole }: Revenu
       .filter(c => c.status === 'Active')
       .forEach(c => {
         if (c.projectDetails && c.projectDetails.length > 0) {
+          const activeProjects = c.projectDetails.filter(p => (p.status || 'Active') === 'Active');
           const hasAnyProjectBudget = c.projectDetails.some(p => (p.budget || 0) > 0);
           if (hasAnyProjectBudget) {
-            c.projectDetails.forEach(p => {
+            activeProjects.forEach(p => {
               const projBudget = Number(p.budget || 0);
               if (p.clientType === 'Recurring') {
                 recurrentRevenue += projBudget;
@@ -211,7 +212,7 @@ export default function RevenueProjection({ entries, clients, userRole }: Revenu
                 budget: projBudget
               });
             });
-          } else {
+          } else if (activeProjects.length > 0) {
             // Fallback for active clients with projectDetails saved without project-level budget
             const fallbackBudget = Number(c.budget || 0);
             const fallbackType = c.clientType || 'Recurring';
@@ -220,7 +221,7 @@ export default function RevenueProjection({ entries, clients, userRole }: Revenu
             } else {
               nonRecurrentRevenue += fallbackBudget;
             }
-            c.projectDetails.forEach((p, idx) => {
+            activeProjects.forEach((p, idx) => {
               projectBreakdown.push({
                 clientId: c.id,
                 clientName: c.name,
