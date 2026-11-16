@@ -53,6 +53,63 @@ interface ProjectClientDatabaseProps {
   onAddTransactionSubCategory: (sub: TransactionSubCategory) => Promise<void>;
 }
 
+function parseLocalYMD(dateStr: string): Date | null {
+  const parts = dateStr.split('-').map(Number);
+  if (parts.length !== 3 || parts.some(isNaN)) return null;
+  const [y, m, d] = parts;
+  return new Date(y, m - 1, d);
+}
+
+function formatProjectDuration(startDateStr?: string, endDateStr?: string): {
+  text: string;
+  isClosed: boolean;
+  isFutureStart?: boolean;
+  isInvalid?: boolean;
+} | null {
+  if (!startDateStr || !startDateStr.trim()) return null;
+  const start = parseLocalYMD(startDateStr.trim());
+  if (!start) return null;
+
+  const hasEndDate = Boolean(endDateStr && endDateStr.trim());
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const end = hasEndDate ? parseLocalYMD(endDateStr!.trim()) : today;
+  if (!end) return null;
+
+  if (end < start) {
+    if (!hasEndDate) {
+      return { text: 'Starts ' + startDateStr, isClosed: false, isFutureStart: true };
+    }
+    return { text: 'End before Start', isClosed: true, isInvalid: true };
+  }
+
+  let totalMonths = (end.getFullYear() - start.getFullYear()) * 12 + (end.getMonth() - start.getMonth());
+  const getAnchor = (mOffset: number) => {
+    const y = start.getFullYear() + Math.floor((start.getMonth() + mOffset) / 12);
+    const m = (((start.getMonth() + mOffset) % 12) + 12) % 12;
+    const maxD = new Date(y, m + 1, 0).getDate();
+    return new Date(y, m, Math.min(start.getDate(), maxD));
+  };
+  while (totalMonths > 0 && getAnchor(totalMonths) > end) {
+    totalMonths -= 1;
+  }
+  const anchor = getAnchor(totalMonths);
+  const days = Math.round((end.getTime() - anchor.getTime()) / (1000 * 60 * 60 * 24));
+
+  const years = Math.floor(totalMonths / 12);
+  const months = totalMonths % 12;
+
+  const parts: string[] = [];
+  if (years > 0) parts.push(`${years} ${years === 1 ? 'Year' : 'Years'}`);
+  if (months > 0) parts.push(`${months} ${months === 1 ? 'Month' : 'Months'}`);
+  if (days > 0 || parts.length === 0) parts.push(`${days} ${days === 1 ? 'Day' : 'Days'}`);
+
+  return {
+    text: parts.join(' '),
+    isClosed: hasEndDate,
+  };
+}
+
 export default function ProjectClientDatabase({ 
   userRole, 
   transactionSubCategories, 
@@ -105,7 +162,13 @@ export default function ProjectClientDatabase({
   const [formOtherServiceDetails, setFormOtherServiceDetails] = useState('');
   const [formClientStatus, setFormClientStatus] = useState<'Active' | 'Inactive' | 'Halted' | 'Closed'>('Active');
   const [formProjectConfigs, setFormProjectConfigs] = useState<
-    Record<string, { clientType: 'Recurring' | 'Non-Recurring'; budget: string; status: 'Active' | 'Inactive' | 'Halted' | 'Closed' }>
+    Record<string, {
+      clientType: 'Recurring' | 'Non-Recurring';
+      budget: string;
+      status: 'Active' | 'Inactive' | 'Halted' | 'Closed';
+      startDate: string;
+      endDate: string;
+    }>
   >({});
 
   useEffect(() => {
@@ -119,7 +182,13 @@ export default function ProjectClientDatabase({
         const defaultType = editingClient.clientType || 'Recurring';
         const defaultStatus = editingClient.status || 'Active';
 
-        const initialConfigs: Record<string, { clientType: 'Recurring' | 'Non-Recurring'; budget: string; status: 'Active' | 'Inactive' | 'Halted' | 'Closed' }> = {};
+        const initialConfigs: Record<string, {
+          clientType: 'Recurring' | 'Non-Recurring';
+          budget: string;
+          status: 'Active' | 'Inactive' | 'Halted' | 'Closed';
+          startDate: string;
+          endDate: string;
+        }> = {};
         clientServices.forEach((service) => {
           const existingDetail = editingClient.projectDetails?.find((p) => p.service === service);
           if (existingDetail) {
@@ -127,12 +196,16 @@ export default function ProjectClientDatabase({
               clientType: existingDetail.clientType || defaultType,
               budget: existingDetail.budget !== undefined && existingDetail.budget !== null ? String(existingDetail.budget) : '',
               status: existingDetail.status || defaultStatus,
+              startDate: existingDetail.startDate || '',
+              endDate: existingDetail.endDate || '',
             };
           } else {
             initialConfigs[service] = {
               clientType: defaultType,
               budget: clientServices.length === 1 && editingClient.budget ? String(editingClient.budget) : '',
               status: defaultStatus,
+              startDate: '',
+              endDate: '',
             };
           }
         });
@@ -208,6 +281,8 @@ export default function ProjectClientDatabase({
       clientType: 'Recurring' | 'Non-Recurring';
       status: 'Active' | 'Inactive' | 'Halted' | 'Closed';
       budget: number;
+      startDate?: string;
+      endDate?: string;
     }[] = [];
 
     clients.forEach((client) => {
@@ -233,6 +308,8 @@ export default function ProjectClientDatabase({
             clientType,
             status,
             budget,
+            startDate: pd?.startDate,
+            endDate: pd?.endDate,
           });
         });
       } else if (client.projectDetails && client.projectDetails.length > 0) {
@@ -247,6 +324,8 @@ export default function ProjectClientDatabase({
             clientType: pd.clientType || client.clientType || 'Recurring',
             status: pd.status || client.status || 'Active',
             budget: Number(pd.budget || 0),
+            startDate: pd.startDate,
+            endDate: pd.endDate,
           });
         });
       }
@@ -398,6 +477,8 @@ export default function ProjectClientDatabase({
         clientType: cfg?.clientType || fallbackClientType,
         budget: Number(cfg?.budget || 0),
         status: cfg?.status || fallbackStatus,
+        startDate: cfg?.startDate || '',
+        endDate: cfg?.endDate || '',
       };
     });
 
@@ -591,7 +672,9 @@ export default function ProjectClientDatabase({
         const pd = c.projectDetails?.find(p => p.service === service);
         if (pd) {
           const st = pd.status || c.status || 'Active';
-          return `${projName} [${pd.clientType} • ${st}${pd.budget ? ` - ${pd.budget} BDT` : ''}]`;
+          const dur = formatProjectDuration(pd.startDate, pd.endDate);
+          const durInfo = dur ? ` • Duration: ${dur.text}${dur.isClosed ? ' (Closed)' : ' (Ongoing)'}` : '';
+          return `${projName} [${pd.clientType} • ${st}${pd.budget ? ` - ${pd.budget} BDT` : ''}${durInfo}]`;
         }
         return projName;
       }).join(', ');
@@ -949,6 +1032,7 @@ export default function ProjectClientDatabase({
                       {(client.services || []).map(s => {
                         const pd = client.projectDetails?.find(p => p.service === s);
                         const svcStatus = pd?.status || client.status || 'Active';
+                        const dur = formatProjectDuration(pd?.startDate, pd?.endDate);
                         return (
                           <div key={s} className="flex items-center gap-1.5 flex-wrap">
                             <span className="px-1.5 py-0.5 bg-slate-100 text-slate-700 rounded text-[9px] font-black uppercase">
@@ -965,7 +1049,7 @@ export default function ProjectClientDatabase({
                             </span>
                             {pd && (
                               <span className="text-[10px] font-medium text-slate-500">
-                                {pd.clientType}{pd.budget > 0 ? ` • ${formatCurrency(pd.budget)}` : ''}
+                                {pd.clientType}{pd.budget > 0 ? ` • ${formatCurrency(pd.budget)}` : ''}{dur ? ` • ${dur.text}` : ''}
                               </span>
                             )}
                           </div>
@@ -1124,16 +1208,30 @@ export default function ProjectClientDatabase({
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-50">
-                  {filteredServiceProjects.map((row, index) => (
+                  {filteredServiceProjects.map((row, index) => {
+                    const dur = formatProjectDuration(row.startDate, row.endDate);
+                    return (
                     <tr key={row.id} className="hover:bg-slate-50/50 transition-all">
                       <td className="w-16 px-4 py-4 text-xs font-bold text-slate-400 text-center">
                         {index + 1}
                       </td>
                       <td className="px-6 py-4">
                         <p className="text-sm font-bold text-slate-800">{row.projectName}</p>
-                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mt-0.5">
-                          Service: {row.serviceName}
-                        </p>
+                        <div className="flex flex-wrap items-center gap-2 mt-0.5">
+                          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                            Service: {row.serviceName}
+                          </p>
+                          {dur && (
+                            <span className={cn(
+                              "text-[10px] font-bold px-2 py-0.5 rounded-md",
+                              dur.isClosed
+                                ? "bg-slate-100 text-slate-600"
+                                : "bg-indigo-50 text-indigo-600"
+                            )}>
+                              {dur.text} ({dur.isClosed ? 'Total Duration' : 'Ongoing'})
+                            </span>
+                          )}
+                        </div>
                       </td>
                       <td className="px-6 py-4">
                         <span className={cn(
@@ -1160,7 +1258,8 @@ export default function ProjectClientDatabase({
                         <p className="text-sm font-bold text-indigo-600">{formatCurrency(row.budget)}</p>
                       </td>
                     </tr>
-                  ))}
+                    );
+                  })}
                   {filteredServiceProjects.length === 0 && (
                     <tr>
                       <td colSpan={5} className="py-12 text-center text-slate-400 font-medium">
@@ -1415,7 +1514,9 @@ export default function ProjectClientDatabase({
                                   [service]: {
                                     clientType: editingClient?.clientType || 'Recurring',
                                     budget: '',
-                                    status: formClientStatus || 'Active'
+                                    status: formClientStatus || 'Active',
+                                    startDate: '',
+                                    endDate: ''
                                   }
                                 };
                               });
@@ -1487,8 +1588,11 @@ export default function ProjectClientDatabase({
                         const projectConfig = formProjectConfigs[service] || {
                           clientType: editingClient?.clientType || 'Recurring',
                           budget: '',
-                          status: formClientStatus || 'Active'
+                          status: formClientStatus || 'Active',
+                          startDate: '',
+                          endDate: ''
                         };
+                        const durationInfo = formatProjectDuration(projectConfig.startDate, projectConfig.endDate);
 
                         return (
                           <div key={service} className="p-4 bg-white rounded-2xl border border-slate-200/70 space-y-3 shadow-xs">
@@ -1599,6 +1703,105 @@ export default function ProjectClientDatabase({
                                     placeholder="0.00"
                                     className="w-full pl-8 pr-3.5 py-2.5 bg-slate-50 border border-slate-200/60 rounded-xl text-xs focus:ring-2 focus:ring-indigo-500 transition-all font-semibold text-slate-700"
                                   />
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2 border-t border-slate-100">
+                              <div className="space-y-1.5">
+                                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest px-1 block">
+                                  Project Start Date
+                                </label>
+                                <input
+                                  type="date"
+                                  value={projectConfig.startDate}
+                                  onChange={(e) => {
+                                    const nextStartDate = e.target.value;
+                                    setFormProjectConfigs(prev => ({
+                                      ...prev,
+                                      [service]: {
+                                        ...projectConfig,
+                                        startDate: nextStartDate
+                                      }
+                                    }));
+                                  }}
+                                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200/60 rounded-xl text-xs focus:ring-2 focus:ring-indigo-500 transition-all font-semibold text-slate-700"
+                                />
+                              </div>
+
+                              <div className="space-y-1.5">
+                                <div className="flex items-center justify-between px-1">
+                                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block">
+                                    Project End Date
+                                  </label>
+                                  {projectConfig.endDate && (
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setFormProjectConfigs(prev => ({
+                                          ...prev,
+                                          [service]: {
+                                            ...projectConfig,
+                                            endDate: ''
+                                          }
+                                        }));
+                                      }}
+                                      className="text-[10px] font-bold text-rose-500 hover:text-rose-700"
+                                    >
+                                      Clear
+                                    </button>
+                                  )}
+                                </div>
+                                <input
+                                  type="date"
+                                  value={projectConfig.endDate}
+                                  onChange={(e) => {
+                                    const nextEndDate = e.target.value;
+                                    setFormProjectConfigs(prev => ({
+                                      ...prev,
+                                      [service]: {
+                                        ...projectConfig,
+                                        endDate: nextEndDate
+                                      }
+                                    }));
+                                  }}
+                                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200/60 rounded-xl text-xs focus:ring-2 focus:ring-indigo-500 transition-all font-semibold text-slate-700"
+                                />
+                              </div>
+
+                              <div className="space-y-1.5">
+                                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest px-1 block">
+                                  Duration
+                                </label>
+                                <div className={cn(
+                                  "px-3.5 py-2 rounded-xl border text-xs flex flex-col justify-center min-h-[38px]",
+                                  !durationInfo
+                                    ? "bg-slate-50 border-slate-200/60 text-slate-400"
+                                    : durationInfo.isInvalid
+                                    ? "bg-rose-50 border-rose-200 text-rose-700"
+                                    : durationInfo.isClosed
+                                    ? "bg-slate-100 border-slate-200 text-slate-700"
+                                    : "bg-indigo-50/70 border-indigo-200 text-indigo-700"
+                                )}>
+                                  {durationInfo ? (
+                                    <div className="flex items-center justify-between gap-2">
+                                      <span className="font-bold truncate" title={durationInfo.text}>
+                                        {durationInfo.text}
+                                      </span>
+                                      <span className={cn(
+                                        "text-[9px] font-black uppercase px-1.5 py-0.5 rounded shrink-0",
+                                        durationInfo.isInvalid
+                                          ? "bg-rose-100 text-rose-700"
+                                          : durationInfo.isClosed
+                                          ? "bg-slate-200 text-slate-700"
+                                          : "bg-emerald-100 text-emerald-700"
+                                      )}>
+                                        {durationInfo.isInvalid ? 'Invalid' : durationInfo.isClosed ? 'Total (Closed)' : 'Ongoing'}
+                                      </span>
+                                    </div>
+                                  ) : (
+                                    <span className="italic font-medium">Set Start Date</span>
+                                  )}
                                 </div>
                               </div>
                             </div>

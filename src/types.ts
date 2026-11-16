@@ -79,6 +79,8 @@ export interface ProjectDetail {
   clientType: 'Recurring' | 'Non-Recurring';
   budget: number;
   status?: 'Active' | 'Inactive' | 'Halted' | 'Closed';
+  startDate?: string;
+  endDate?: string;
 }
 
 export interface Client {
