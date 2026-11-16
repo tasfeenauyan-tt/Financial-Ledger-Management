@@ -88,7 +88,12 @@ export default function ProjectClientDatabase({
   const [isImporting, setIsImporting] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [activeTab, setActiveTab] = useState<'clients' | 'services'>('clients');
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('list');
+  const [serviceSearchTerm, setServiceSearchTerm] = useState('');
+  const [serviceClientTypeFilter, setServiceClientTypeFilter] = useState<'All' | 'Recurring' | 'Non-Recurring'>('All');
+  const [serviceStatusFilter, setServiceStatusFilter] = useState<'All' | 'Active' | 'Inactive' | 'Halted' | 'Closed'>('All');
+  const [serviceNameFilter, setServiceNameFilter] = useState<string>('All');
 
   // Form State for auto-fill logic
   const [formCrmLeadId, setFormCrmLeadId] = useState('');
@@ -192,6 +197,104 @@ export default function ProjectClientDatabase({
     inactive: clients.filter(c => c.status === 'Inactive').length,
     halted: clients.filter(c => c.status === 'Halted').length,
   }), [clients]);
+
+  const allServiceProjects = useMemo(() => {
+    const rows: {
+      id: string;
+      clientId: string;
+      clientName: string;
+      projectName: string;
+      serviceName: string;
+      clientType: 'Recurring' | 'Non-Recurring';
+      status: 'Active' | 'Inactive' | 'Halted' | 'Closed';
+      budget: number;
+    }[] = [];
+
+    clients.forEach((client) => {
+      const clientServices = client.services || [];
+      if (clientServices.length > 0) {
+        clientServices.forEach((s) => {
+          const pd = client.projectDetails?.find((p) => p.service === s);
+          const serviceLabel = s === 'Others' ? (client.otherServiceDetails?.trim() || 'Others') : s;
+          const generatedProjName = `${client.name || 'Client'}${client.crmLeadId ? ` (${client.crmLeadId})` : ''}-${serviceLabel}`;
+          const projName = pd?.projectName || generatedProjName;
+          const clientType = pd?.clientType || client.clientType || 'Recurring';
+          const status = pd?.status || client.status || 'Active';
+          const budget = pd
+            ? Number(pd.budget || 0)
+            : (clientServices.length === 1 ? Number(client.budget || 0) : 0);
+
+          rows.push({
+            id: `${client.id}-${s}`,
+            clientId: client.id,
+            clientName: client.name,
+            projectName: projName,
+            serviceName: serviceLabel,
+            clientType,
+            status,
+            budget,
+          });
+        });
+      } else if (client.projectDetails && client.projectDetails.length > 0) {
+        client.projectDetails.forEach((pd, idx) => {
+          const serviceLabel = pd.service === 'Others' ? (client.otherServiceDetails?.trim() || 'Others') : pd.service;
+          rows.push({
+            id: `${client.id}-${pd.service}-${idx}`,
+            clientId: client.id,
+            clientName: client.name,
+            projectName: pd.projectName || `${client.name || 'Client'}-${serviceLabel}`,
+            serviceName: serviceLabel,
+            clientType: pd.clientType || client.clientType || 'Recurring',
+            status: pd.status || client.status || 'Active',
+            budget: Number(pd.budget || 0),
+          });
+        });
+      }
+    });
+
+    return rows;
+  }, [clients]);
+
+  const serviceFilterOptions = useMemo(() => {
+    const set = new Set<string>();
+    allServiceProjects.forEach((r) => {
+      if (r.serviceName) set.add(r.serviceName);
+    });
+    availableServiceNames.forEach((name) => {
+      if (name && name !== 'Others') set.add(name);
+    });
+    return Array.from(set).sort((a, b) => a.localeCompare(b));
+  }, [allServiceProjects, availableServiceNames]);
+
+  const filteredServiceProjects = useMemo(() => {
+    const q = serviceSearchTerm.toLowerCase().trim();
+    return allServiceProjects.filter((row) => {
+      if (serviceClientTypeFilter !== 'All' && row.clientType !== serviceClientTypeFilter) {
+        return false;
+      }
+      if (serviceStatusFilter !== 'All' && row.status !== serviceStatusFilter) {
+        return false;
+      }
+      if (serviceNameFilter !== 'All' && row.serviceName.toLowerCase() !== serviceNameFilter.toLowerCase()) {
+        return false;
+      }
+      if (!q) return true;
+      const matchesProject = row.projectName.toLowerCase().includes(q);
+      const matchesService = row.serviceName.toLowerCase().includes(q);
+      const matchesClientType =
+        row.clientType.toLowerCase() === q ||
+        (q.length >= 2 && row.clientType.toLowerCase().startsWith(q));
+      const matchesStatus =
+        row.status.toLowerCase() === q ||
+        (q.length >= 2 && row.status.toLowerCase().startsWith(q));
+      return matchesProject || matchesService || matchesClientType || matchesStatus;
+    });
+  }, [allServiceProjects, serviceSearchTerm, serviceClientTypeFilter, serviceStatusFilter, serviceNameFilter]);
+
+  const totalServiceBudget = useMemo(
+    () => filteredServiceProjects.reduce((sum, row) => sum + (row.budget || 0), 0),
+    [filteredServiceProjects]
+  );
 
   const syncProjectToPool = async (projectName: string) => {
     if (!projectName) return;
@@ -521,6 +624,44 @@ export default function ProjectClientDatabase({
 
   return (
     <div className="space-y-6">
+      {/* Sub-navigation Tabs */}
+      <div className="flex items-center gap-2 p-1 bg-slate-100 rounded-2xl w-fit">
+        <button
+          onClick={() => setActiveTab('clients')}
+          className={cn(
+            "flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-all",
+            activeTab === 'clients'
+              ? "bg-white text-indigo-600 shadow-sm"
+              : "text-slate-500 hover:text-slate-700"
+          )}
+        >
+          <Users size={16} />
+          Clients
+        </button>
+        <button
+          onClick={() => setActiveTab('services')}
+          className={cn(
+            "flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-all",
+            activeTab === 'services'
+              ? "bg-white text-indigo-600 shadow-sm"
+              : "text-slate-500 hover:text-slate-700"
+          )}
+        >
+          <Briefcase size={16} />
+          Services
+          <span className={cn(
+            "px-2 py-0.5 rounded-full text-[10px] font-black",
+            activeTab === 'services'
+              ? "bg-indigo-50 text-indigo-600"
+              : "bg-slate-200/70 text-slate-600"
+          )}>
+            {allServiceProjects.length}
+          </span>
+        </button>
+      </div>
+
+      {activeTab === 'clients' ? (
+        <>
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="flex flex-wrap items-center gap-3">
           <div className="flex items-center gap-1.5 px-2.5 py-1 bg-indigo-50 border border-indigo-100 rounded-lg">
@@ -890,6 +1031,158 @@ export default function ProjectClientDatabase({
           {filteredClients.length === 0 && (
             <div className="py-12 text-center">
               <p className="text-slate-400 font-medium">No clients found matching your search.</p>
+            </div>
+          )}
+        </div>
+      )}
+        </>
+      ) : (
+        <div className="space-y-6">
+          {/* Services Search & Filter Bar */}
+          <div className="bg-white p-4 rounded-3xl border border-slate-100 shadow-sm flex flex-col lg:flex-row gap-3">
+            <div className="flex-1 relative">
+              <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+              <input
+                type="text"
+                placeholder="Search by project name, service name, client type, or status..."
+                value={serviceSearchTerm}
+                onChange={(e) => setServiceSearchTerm(e.target.value)}
+                className="w-full pl-11 pr-4 py-2.5 bg-slate-50 border-none rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 transition-all"
+              />
+            </div>
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="flex items-center gap-2">
+                <Filter size={15} className="text-slate-400" />
+                <select
+                  value={serviceNameFilter}
+                  onChange={(e) => setServiceNameFilter(e.target.value)}
+                  className="px-4 py-2.5 bg-slate-50 border-none rounded-xl text-xs font-bold text-slate-700 focus:ring-2 focus:ring-indigo-500 transition-all"
+                  aria-label="Filter by Service Name"
+                >
+                  <option value="All">All Services</option>
+                  {serviceFilterOptions.map((svc) => (
+                    <option key={svc} value={svc}>{svc}</option>
+                  ))}
+                </select>
+              </div>
+
+              <select
+                value={serviceClientTypeFilter}
+                onChange={(e) => setServiceClientTypeFilter(e.target.value as 'All' | 'Recurring' | 'Non-Recurring')}
+                className="px-4 py-2.5 bg-slate-50 border-none rounded-xl text-xs font-bold text-slate-700 focus:ring-2 focus:ring-indigo-500 transition-all"
+                aria-label="Filter by Client Type"
+              >
+                <option value="All">All Client Types</option>
+                <option value="Recurring">Recurring</option>
+                <option value="Non-Recurring">Non-Recurring</option>
+              </select>
+
+              <select
+                value={serviceStatusFilter}
+                onChange={(e) => setServiceStatusFilter(e.target.value as 'All' | 'Active' | 'Inactive' | 'Halted' | 'Closed')}
+                className="px-4 py-2.5 bg-slate-50 border-none rounded-xl text-xs font-bold text-slate-700 focus:ring-2 focus:ring-indigo-500 transition-all"
+                aria-label="Filter by Status"
+              >
+                <option value="All">All Statuses</option>
+                <option value="Active">Active</option>
+                <option value="Inactive">Inactive</option>
+                <option value="Halted">Halted</option>
+                <option value="Closed">Closed</option>
+              </select>
+
+              {(serviceSearchTerm || serviceClientTypeFilter !== 'All' || serviceStatusFilter !== 'All' || serviceNameFilter !== 'All') && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setServiceSearchTerm('');
+                    setServiceClientTypeFilter('All');
+                    setServiceStatusFilter('All');
+                    setServiceNameFilter('All');
+                  }}
+                  className="px-3.5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl text-xs font-bold transition-all"
+                >
+                  Reset
+                </button>
+              )}
+            </div>
+          </div>
+
+          {loading ? (
+            <div className="flex items-center justify-center py-20">
+              <div className="w-10 h-10 border-4 border-slate-200 border-t-indigo-600 rounded-full animate-spin" />
+            </div>
+          ) : (
+            <div className="bg-white rounded-[2rem] border border-slate-100 shadow-sm overflow-hidden overflow-x-auto">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="bg-slate-50/50">
+                    <th className="w-16 px-4 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100 text-center">SL</th>
+                    <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100">Project Names</th>
+                    <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100">Client Type</th>
+                    <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100">Status</th>
+                    <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100 text-right">Budget (BDT)</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-50">
+                  {filteredServiceProjects.map((row, index) => (
+                    <tr key={row.id} className="hover:bg-slate-50/50 transition-all">
+                      <td className="w-16 px-4 py-4 text-xs font-bold text-slate-400 text-center">
+                        {index + 1}
+                      </td>
+                      <td className="px-6 py-4">
+                        <p className="text-sm font-bold text-slate-800">{row.projectName}</p>
+                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mt-0.5">
+                          Service: {row.serviceName}
+                        </p>
+                      </td>
+                      <td className="px-6 py-4">
+                        <span className={cn(
+                          "px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-widest",
+                          row.clientType === 'Recurring'
+                            ? "bg-indigo-50 text-indigo-700 border border-indigo-100"
+                            : "bg-slate-100 text-slate-600 border border-slate-200"
+                        )}>
+                          {row.clientType}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4">
+                        <span className={cn(
+                          "px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-widest",
+                          row.status === 'Active' ? "bg-emerald-100 text-emerald-700" :
+                          row.status === 'Inactive' ? "bg-slate-100 text-slate-500" :
+                          row.status === 'Halted' ? "bg-amber-100 text-amber-700" :
+                          "bg-rose-100 text-rose-700"
+                        )}>
+                          {row.status}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 text-right">
+                        <p className="text-sm font-bold text-indigo-600">{formatCurrency(row.budget)}</p>
+                      </td>
+                    </tr>
+                  ))}
+                  {filteredServiceProjects.length === 0 && (
+                    <tr>
+                      <td colSpan={5} className="py-12 text-center text-slate-400 font-medium">
+                        No service projects found matching your search.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+                <tfoot>
+                  <tr className="bg-slate-50/80 border-t-2 border-slate-100">
+                    <td colSpan={4} className="px-6 py-4 text-xs font-black text-slate-700 uppercase tracking-widest">
+                      Total Amount
+                      <span className="ml-2 text-[10px] font-bold text-slate-400 normal-case tracking-normal">
+                        ({filteredServiceProjects.length} {filteredServiceProjects.length === 1 ? 'project' : 'projects'})
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 text-right text-base font-black text-indigo-700">
+                      {formatCurrency(totalServiceBudget)}
+                    </td>
+                  </tr>
+                </tfoot>
+              </table>
             </div>
           )}
         </div>
